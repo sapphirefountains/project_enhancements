@@ -7,10 +7,10 @@ def get_project_data():
     and the assigned project user.
     """
     try:
-        # Fetch the base project data
+        # --- CHANGE IS HERE: Added 'custom_project_priority' to the fields list ---
         projects = frappe.get_list(
             'Project',
-            fields=['name', 'project_name', 'status', 'project_type', 'project_user'],
+            fields=['name', 'project_name', 'status', 'project_type', 'project_user', 'custom_project_priority'],
             filters={'status': ['!=', 'Cancelled']},
             order_by='creation desc',
             limit_page_length=200
