@@ -1,12 +1,8 @@
 frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
-    console.log("Loading Project Dashboard JS - Version 4.3 (Using SortableJS)");
+    console.log("Loading Project Dashboard JS - Version 5.2 (Fix for 'Yes'/'No' string filter)");
 
-    // --- NEW: Load the SortableJS library ---
-    // We load this script dynamically so we don't have to modify any build files.
     const script_url = "https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js";
-    frappe.require(script_url, () => {
-        console.log("SortableJS library loaded successfully.");
-    });
+    frappe.require(script_url, () => {});
 
     let page = frappe.ui.make_app_page({
         parent: wrapper,
@@ -16,19 +12,29 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
     let allProjects = [];
     let currentSort = { field: 'project_name', order: 'asc' };
+    let activeTab = 'Yes'; // Default to 'Yes'
+
+    const tabContainer = $(`
+        <ul class="nav nav-tabs px-3">
+            <li class="nav-item">
+                <a class="nav-link active" href="#" data-status="Yes">Active Projects</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-status="No">Inactive Projects</a>
+            </li>
+        </ul>
+    `).prependTo(page.body);
 
     const controlsContainer = $(`
         <div class="project-dashboard-controls p-2 border-bottom bg-light">
             <div class="row align-items-center">
                 <div class="col-md-6 mb-2 mb-md-0">
-                    <input type="text" class="form-control form-control-sm" id="project-search" placeholder="Search across all fields...">
+                    <input type="text" class="form-control form-control-sm" id="project-search" placeholder="Search projects in this tab...">
                 </div>
                 <div class="col-md-6">
                     <div class="d-flex justify-content-end">
                         <div class="input-group input-group-sm">
-                            <div class="input-group-prepend">
-                                <span class="input-group-text">Sort Groups</span>
-                            </div>
+                            <div class="input-group-prepend"><span class="input-group-text">Sort Groups</span></div>
                             <select class="form-control" id="group-sort-order">
                                 <option value="custom">Custom</option>
                                 <option value="alpha_asc">A-Z</option>
@@ -37,14 +43,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                                 <option value="count_asc">By Count (Low-High)</option>
                             </select>
                         </div>
-                        <button class="btn btn-sm btn-secondary ml-2" id="configure-sort" title="Configure Custom Order">
-                            <i class="fa fa-cog"></i>
-                        </button>
+                        <button class="btn btn-sm btn-secondary ml-2" id="configure-sort" title="Configure Custom Order"><i class="fa fa-cog"></i></button>
                     </div>
                 </div>
             </div>
         </div>
-    `).prependTo(page.body);
+    `).appendTo(page.body);
 
     const searchInput = controlsContainer.find('#project-search');
     const groupSortSelect = controlsContainer.find('#group-sort-order');
@@ -55,7 +59,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     function renderDashboard(projects) {
         content.empty();
         if (!projects || projects.length === 0) {
-            content.html('<p class="text-muted text-center p-4">No projects match your search.</p>');
+            content.html('<p class="text-muted text-center p-4">No projects found in this view.</p>');
             return;
         }
 
@@ -72,8 +76,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         if (sortOrder === 'custom') {
             const customOrder = JSON.parse(localStorage.getItem('projectDashboardSortOrder') || '[]');
             sortedGroupKeys.sort((a, b) => {
-                let indexA = customOrder.indexOf(a);
-                let indexB = customOrder.indexOf(b);
+                let indexA = customOrder.indexOf(a), indexB = customOrder.indexOf(b);
                 if (indexA === -1) indexA = Infinity;
                 if (indexB === -1) indexB = Infinity;
                 if (indexA === indexB) return a.localeCompare(b);
@@ -99,8 +102,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             const tableBody = table.find('tbody');
 
             projectsInGroup.sort((a, b) => {
-                let valA = a[currentSort.field] || '';
-                let valB = b[currentSort.field] || '';
+                let valA = a[currentSort.field] || '', valB = b[currentSort.field] || '';
                 if (currentSort.field === 'tasks') {
                     valA = a.completed_tasks / (a.total_tasks || 1);
                     valB = b.completed_tasks / (b.total_tasks || 1);
@@ -126,12 +128,20 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         updateSortIcons();
         content.find('.collapsible-header').first().trigger('click');
     }
-
+    
+    // --- FIX IS HERE: The main filter function now correctly checks for "Yes" or "No" strings ---
     function applyFiltersAndRender() {
+        // activeTab is already "Yes" or "No", no conversion needed.
+        const isActiveFilter = activeTab;
+
+        // Filter the full project list based on the active tab.
+        // Using a strict '===' check for string comparison.
+        let filteredProjects = allProjects.filter(p => p.is_active === isActiveFilter);
+
+        // Then, apply the search term to the already tab-filtered list.
         const searchTerm = searchInput.val().toLowerCase();
-        let filteredProjects = allProjects;
         if (searchTerm) {
-            filteredProjects = allProjects.filter(p =>
+            filteredProjects = filteredProjects.filter(p =>
                 Object.values(p).some(val => 
                     String(val).toLowerCase().includes(searchTerm)
                 )
@@ -147,7 +157,11 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     }
 
     function openSortConfiguration() {
-        const groupedProjects = allProjects.reduce((acc, p) => {
+        // This function now correctly filters projects by the active tab string before showing types
+        const isActiveFilter = activeTab;
+        const projectsForTab = allProjects.filter(p => p.is_active === isActiveFilter);
+        
+        const groupedProjects = projectsForTab.reduce((acc, p) => {
             const type = p.project_type || 'Uncategorized';
             if (!acc[type]) acc[type] = [];
             acc[type].push(p);
@@ -158,8 +172,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         let groupKeys = Object.keys(groupedProjects);
 
         groupKeys.sort((a, b) => {
-            let indexA = customOrder.indexOf(a);
-            let indexB = customOrder.indexOf(b);
+            let indexA = customOrder.indexOf(a), indexB = customOrder.indexOf(b);
             if (indexA === -1) indexA = Infinity;
             if (indexB === -1) indexB = Infinity;
             if (indexA === indexB) return a.localeCompare(b);
@@ -170,8 +183,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             title: 'Configure Custom Group Order',
             fields: [{ fieldname: 'sort_info', fieldtype: 'HTML', options: `<p class="text-muted">Drag and drop the project types to set your preferred order.</p><ul id="sortable-list" class="list-group"></ul>` }],
             primary_action_label: 'Save Order',
-            primary_action: (values) => {
-                const newOrder = sortable.toArray(); // Get order from SortableJS instance
+            primary_action: () => {
+                const newOrder = sortable.toArray();
                 localStorage.setItem('projectDashboardSortOrder', JSON.stringify(newOrder));
                 groupSortSelect.val('custom');
                 applyFiltersAndRender();
@@ -179,27 +192,31 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 frappe.show_alert({ message: 'Custom order saved!', indicator: 'green' });
             }
         });
-
         dialog.show();
         
-        const listWrapper = dialog.get_field('sort_info').$wrapper;
-        const listElement = listWrapper.find('#sortable-list')[0]; // Get raw DOM element
-        
+        const listElement = dialog.get_field('sort_info').$wrapper.find('#sortable-list')[0];
         groupKeys.forEach(key => {
-            // Use data-id for SortableJS
             $(listElement).append(`<li class="list-group-item" data-id="${key}"><i class="fa fa-bars mr-2 text-muted"></i> ${key}</li>`);
         });
 
-        // --- UPDATED: Initialize using SortableJS ---
-        const sortable = new Sortable(listElement, {
-            animation: 150,
-            ghostClass: 'bg-light'
-        });
+        const sortable = new Sortable(listElement, { animation: 150, ghostClass: 'bg-light' });
     }
 
+    // Event Listeners
     searchInput.on('keyup', frappe.utils.debounce(applyFiltersAndRender, 300));
     groupSortSelect.on('change', applyFiltersAndRender);
     configureSortBtn.on('click', openSortConfiguration);
+
+    tabContainer.on('click', '.nav-link', function(e) {
+        e.preventDefault();
+        const clickedTab = $(this);
+        if (clickedTab.hasClass('active')) return;
+
+        tabContainer.find('.nav-link').removeClass('active');
+        clickedTab.addClass('active');
+        activeTab = clickedTab.data('status');
+        applyFiltersAndRender();
+    });
 
     content.on('click', 'thead th', function() {
         const field = $(this).data('sort');
@@ -212,6 +229,9 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         applyFiltersAndRender();
     });
 
+    // Helper Functions
+    function getStatusClass(status) { /* ... same as before ... */ }
+    function getPriorityClass(priority) { /* ... same as before ... */ }
     function getStatusClass(status) {
         switch(status) {
             case 'Open': return 'badge-primary';
@@ -229,6 +249,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         }
     }
 
+    // Initial Data Load
     frappe.call({
         method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_data",
         callback: function(r) {
@@ -246,5 +267,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         .table thead th.sorted-asc::after { content: ' ▲'; font-size: 10px; }
         .table thead th.sorted-desc::after { content: ' ▼'; font-size: 10px; }
         #sortable-list li { cursor: grab; }
+        .nav-tabs { border-bottom: 1px solid #d1d8dd; }
+        .nav-tabs .nav-link { border: 1px solid transparent; border-top-left-radius: .25rem; border-top-right-radius: .25rem; }
+        .nav-tabs .nav-link.active { color: #495057; background-color: #fff; border-color: #d1d8dd #d1d8dd #fff; }
     </style>`).appendTo(wrapper);
 }
