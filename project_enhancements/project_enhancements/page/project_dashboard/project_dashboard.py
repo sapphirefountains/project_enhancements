@@ -7,13 +7,12 @@ def get_project_data():
     and the assigned project user.
     """
     try:
-        # --- CHANGE IS HERE: Added 'is_active' to the fields list ---
+        # --- CHANGE IS HERE: Removed the 'limit_page_length' to fetch all projects ---
         projects = frappe.get_list(
             'Project',
             fields=['name', 'project_name', 'status', 'project_type', 'project_user', 'custom_project_priority', 'is_active'],
             filters={'status': ['!=', 'Cancelled']},
-            order_by='creation desc',
-            limit_page_length=200
+            order_by='creation desc'
         )
 
         for project in projects:
