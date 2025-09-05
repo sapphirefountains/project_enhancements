@@ -1,5 +1,5 @@
 frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
-    console.log("Loading Project Dashboard JS - Version 5.2 (Fix for 'Yes'/'No' string filter)");
+    console.log("Loading Project Dashboard JS - Version 5.3 (Priority View and Collapse Fix)");
 
     const script_url = "https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js";
     frappe.require(script_url, () => {});
@@ -13,6 +13,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     let allProjects = [];
     let currentSort = { field: 'project_name', order: 'asc' };
     let activeTab = 'Yes'; // Default to 'Yes'
+    let priorityView = 'grouped'; // 'grouped' or 'ranked'
+    let expandedGroups = new Set();
 
     const tabContainer = $(`
         <ul class="nav nav-tabs px-3">
@@ -36,6 +38,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 </div>
                 <div class="col-md-6">
                     <div class="d-flex justify-content-end">
+                        <div id="priority-view-toggle" class="mr-2" style="display: none;">
+                             <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-secondary active" data-view="grouped">By Type</button>
+                                <button type="button" class="btn btn-secondary" data-view="ranked">By Priority</button>
+                            </div>
+                        </div>
                         <div class="input-group input-group-sm">
                             <div class="input-group-prepend"><span class="input-group-text">Sort Groups</span></div>
                             <select class="form-control" id="group-sort-order">
@@ -56,6 +64,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     const searchInput = controlsContainer.find('#project-search');
     const groupSortSelect = controlsContainer.find('#group-sort-order');
     const configureSortBtn = controlsContainer.find('#configure-sort');
+    const priorityViewToggle = controlsContainer.find('#priority-view-toggle');
 
     let content = $(`<div class="project-dashboard-content p-3"></div>`).appendTo(page.body);
 
@@ -66,6 +75,32 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             return;
         }
 
+        if (activeTab === 'Priority' && priorityView === 'ranked') {
+            renderRankedPriorityView(projects);
+        } else {
+            renderGroupedView(projects);
+        }
+    }
+
+    function renderRankedPriorityView(projects) {
+        // Sort by priority (assuming it's a number)
+        projects.sort((a, b) => {
+            const priorityA = parseInt(a.custom_project_priority, 10) || Infinity;
+            const priorityB = parseInt(b.custom_project_priority, 10) || Infinity;
+            return priorityA - priorityB;
+        });
+
+        const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="custom_project_priority">Priority</th><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="tasks">Tasks</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(content);
+        const tableBody = table.find('tbody');
+
+        projects.forEach(project => {
+            const rowHTML = `<tr><td class="${getPriorityClass(project.custom_project_priority)}">${project.custom_project_priority || ''}</td><td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td><td>${project.name}</td><td><span class="badge ${getStatusClass(project.status)}">${project.status}</span></td><td>${project.completed_tasks} / ${project.total_tasks}</td><td>${project.project_user || ''}</td></tr>`;
+            tableBody.append(rowHTML);
+        });
+        updateSortIcons();
+    }
+    
+    function renderGroupedView(projects) {
         const groupedProjects = projects.reduce((acc, project) => {
             const type = project.project_type || 'Uncategorized';
             if (!acc[type]) acc[type] = [];
@@ -95,10 +130,10 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 }
             });
         }
-
+        
         sortedGroupKeys.forEach(type => {
             const projectsInGroup = groupedProjects[type];
-            const groupHeaderHTML = `<div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border"><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
+            const groupHeaderHTML = `<div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data-group-id="${type}"><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
             const groupHeader = $(groupHeaderHTML).appendTo(content);
             const groupBody = $('<div class="collapsible-body" style="display: none;"></div>').appendTo(content);
             const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="custom_project_priority">Priority</th><th data-sort="tasks">Tasks</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(groupBody);
@@ -121,30 +156,26 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 const rowHTML = `<tr><td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td><td>${project.name}</td><td><span class="badge ${getStatusClass(project.status)}">${project.status}</span></td><td class="${getPriorityClass(project.custom_project_priority)}">${project.custom_project_priority || ''}</td><td>${project.completed_tasks} / ${project.total_tasks}</td><td>${project.project_user || ''}</td></tr>`;
                 tableBody.append(rowHTML);
             });
-
-            groupHeader.on('click', function() {
-                $(this).next('.collapsible-body').slideToggle(200);
-                $(this).find('svg').toggleClass('rotate-180');
-            });
+            
+            if (expandedGroups.has(type)) {
+                groupHeader.next('.collapsible-body').show();
+                groupHeader.find('svg').addClass('rotate-180');
+            }
         });
 
         updateSortIcons();
-        content.find('.collapsible-header').first().trigger('click');
     }
     
-    // --- FIX IS HERE: The main filter function now correctly checks for "Yes" or "No" strings ---
     function applyFiltersAndRender() {
         let filteredProjects;
 
         if (activeTab === 'Priority') {
             filteredProjects = allProjects.filter(p => p.is_active === 'Yes' && p.status !== 'Completed' && p.status !== 'Cancelled');
         } else {
-            // Existing logic for "Active" and "Inactive" tabs
             const isActiveFilter = activeTab;
             filteredProjects = allProjects.filter(p => p.is_active === isActiveFilter);
         }
 
-        // Then, apply the search term to the already tab-filtered list.
         const searchTerm = searchInput.val().toLowerCase();
         if (searchTerm) {
             filteredProjects = filteredProjects.filter(p =>
@@ -225,11 +256,43 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         tabContainer.find('.nav-link').removeClass('active');
         clickedTab.addClass('active');
         activeTab = clickedTab.data('status');
+
+        if (activeTab === 'Priority') {
+            priorityViewToggle.show();
+        } else {
+            priorityViewToggle.hide();
+        }
+
         applyFiltersAndRender();
     });
 
+    priorityViewToggle.on('click', 'button', function() {
+        const $btn = $(this);
+        if ($btn.hasClass('active')) return;
+
+        priorityViewToggle.find('button').removeClass('active');
+        $btn.addClass('active');
+        priorityView = $btn.data('view');
+        applyFiltersAndRender();
+    });
+
+    content.on('click', '.collapsible-header', function() {
+        const groupId = $(this).data('group-id');
+        const body = $(this).next('.collapsible-body');
+        body.slideToggle(200);
+        $(this).find('svg').toggleClass('rotate-180');
+
+        if (body.is(':visible')) {
+            expandedGroups.add(groupId);
+        } else {
+            expandedGroups.delete(groupId);
+        }
+    });
+    
     content.on('click', 'thead th', function() {
         const field = $(this).data('sort');
+        if (!field) return;
+
         if (currentSort.field === field) {
             currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
         } else {
