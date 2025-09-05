@@ -153,7 +153,26 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             });
 
             projectsInGroup.forEach(project => {
-                const rowHTML = `<tr><td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td><td>${project.name}</td><td><span class="badge ${getStatusClass(project.status)}">${project.status}</span></td><td class="${getPriorityClass(project.custom_project_priority)}">${project.custom_project_priority || ''}</td><td>${project.completed_tasks} / ${project.total_tasks}</td><td>${project.project_user || ''}</td></tr>`;
+                const statusOptions = ['Open', 'Completed', 'Overdue', 'Cancelled'].map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
+                const priorityOptions = ['High', 'Medium', 'Low'].map(p => `<option value="${p}" ${project.custom_project_priority === p ? 'selected' : ''}>${p}</option>`).join('');
+
+                const rowHTML = `
+                    <tr data-project-name="${project.name}">
+                        <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
+                        <td>${project.name}</td>
+                        <td>
+                            <select class="form-control form-control-sm" data-field="status">
+                                ${statusOptions}
+                            </select>
+                        </td>
+                        <td>
+                            <select class="form-control form-control-sm" data-field="custom_project_priority">
+                                ${priorityOptions}
+                            </select>
+                        </td>
+                        <td>${project.completed_tasks} / ${project.total_tasks}</td>
+                        <td>${project.project_user || ''}</td>
+                    </tr>`;
                 tableBody.append(rowHTML);
             });
             
@@ -300,6 +319,35 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             currentSort.order = 'asc';
         }
         applyFiltersAndRender();
+    });
+
+    content.on('change', 'select', function() {
+        const select = $(this);
+        const projectName = select.closest('tr').data('project-name');
+        const field = select.data('field');
+        const value = select.val();
+
+        frappe.call({
+            method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_project_details',
+            args: {
+                project_name: projectName,
+                field: field,
+                value: value
+            },
+            callback: function(r) {
+                if (r.message && r.message.status === 'success') {
+                    frappe.show_alert({ message: 'Project updated!', indicator: 'green' });
+                    // find the project in allProjects and update its value
+                    const project = allProjects.find(p => p.name === projectName);
+                    if (project) {
+                        project[field] = value;
+                    }
+                    applyFiltersAndRender();
+                } else {
+                    frappe.show_alert({ message: 'Error updating project.', indicator: 'red' });
+                }
+            }
+        });
     });
 
     // Helper Functions
