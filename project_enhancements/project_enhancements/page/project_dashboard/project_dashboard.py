@@ -27,3 +27,15 @@ def get_project_data():
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error fetching project data")
         return {"error": "Could not fetch project data. Please check the logs."}
+
+@frappe.whitelist()
+def update_project_details(project_name, field, value):
+    """
+    Updates a specific field for a given project.
+    """
+    try:
+        frappe.db.set_value('Project', project_name, field, value)
+        return {"status": "success"}
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"Error updating project {project_name}")
+        return {"status": "error", "message": "Could not update project. Please check the logs."}
