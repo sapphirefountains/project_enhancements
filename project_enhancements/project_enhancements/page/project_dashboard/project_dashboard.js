@@ -22,6 +22,9 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             <li class="nav-item">
                 <a class="nav-link" href="#" data-status="No">Inactive Projects</a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-status="Priority">Priority Overview</a>
+            </li>
         </ul>
     `).prependTo(page.body);
 
@@ -131,12 +134,15 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     
     // --- FIX IS HERE: The main filter function now correctly checks for "Yes" or "No" strings ---
     function applyFiltersAndRender() {
-        // activeTab is already "Yes" or "No", no conversion needed.
-        const isActiveFilter = activeTab;
+        let filteredProjects;
 
-        // Filter the full project list based on the active tab.
-        // Using a strict '===' check for string comparison.
-        let filteredProjects = allProjects.filter(p => p.is_active === isActiveFilter);
+        if (activeTab === 'Priority') {
+            filteredProjects = allProjects.filter(p => p.is_active === 'Yes' && p.status !== 'Completed' && p.status !== 'Cancelled');
+        } else {
+            // Existing logic for "Active" and "Inactive" tabs
+            const isActiveFilter = activeTab;
+            filteredProjects = allProjects.filter(p => p.is_active === isActiveFilter);
+        }
 
         // Then, apply the search term to the already tab-filtered list.
         const searchTerm = searchInput.val().toLowerCase();
@@ -157,9 +163,13 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     }
 
     function openSortConfiguration() {
-        // This function now correctly filters projects by the active tab string before showing types
-        const isActiveFilter = activeTab;
-        const projectsForTab = allProjects.filter(p => p.is_active === isActiveFilter);
+        let projectsForTab;
+        if (activeTab === 'Priority') {
+            projectsForTab = allProjects.filter(p => p.is_active === 'Yes' && p.status !== 'Completed' && p.status !== 'Cancelled');
+        } else {
+            const isActiveFilter = activeTab;
+            projectsForTab = allProjects.filter(p => p.is_active === isActiveFilter);
+        }
         
         const groupedProjects = projectsForTab.reduce((acc, p) => {
             const type = p.project_type || 'Uncategorized';
