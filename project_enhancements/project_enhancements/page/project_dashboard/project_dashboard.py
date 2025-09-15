@@ -2,9 +2,16 @@ import frappe
 
 @frappe.whitelist()
 def get_project_data():
-    """
-    This function fetches a list of projects and enriches it with task counts
-    and the assigned project user.
+    """Fetches and enriches project data for the dashboard.
+
+    Retrieves all projects that are not cancelled, and for each project,
+    annotates it with the total number of associated tasks and the number of
+    completed tasks.
+
+    Returns:
+        list[dict]: A list of project dictionaries, each enhanced with
+                    'total_tasks' and 'completed_tasks' counts.
+                    Returns a dictionary with an 'error' key on failure.
     """
     try:
         # --- CHANGE IS HERE: Removed the 'limit_page_length' to fetch all projects ---
@@ -30,8 +37,19 @@ def get_project_data():
 
 @frappe.whitelist()
 def update_project_details(project_name, field, value):
-    """
-    Updates a specific field for a given project.
+    """Updates a single field for a specified project document.
+
+    This function is called from the project dashboard to allow for inline
+    editing of project properties.
+
+    Args:
+        project_name (str): The name (ID) of the project to update.
+        field (str): The field name to be updated.
+        value (any): The new value for the field.
+
+    Returns:
+        dict: A dictionary indicating the status of the operation, either
+              {'status': 'success'} or {'status': 'error', 'message': ...}.
     """
     try:
         frappe.db.set_value('Project', project_name, field, value)

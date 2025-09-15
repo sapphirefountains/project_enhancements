@@ -4,9 +4,15 @@ import frappe
 # from the browser. It's a security feature.
 @frappe.whitelist()
 def get_project_grouping_option():
-    """
-    This function is called by our JavaScript. Its only job is to return
-    a dictionary with our desired list view settings.
+    """Provides list view settings for the Project doctype.
+
+    This function is called via a client-side script to dynamically configure
+    the list view. It specifies the field by which the project list should be
+    grouped.
+
+    Returns:
+        dict: A dictionary containing the list view settings. For example:
+            {'group_by': 'project_type'}
     """
     # These print() statements are for debugging. They will appear in your
     # terminal window where the `bench start` command is running.

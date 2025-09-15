@@ -1,10 +1,14 @@
-// This tells the Frappe framework that we are adding custom settings
-// to the List View for the "Project" DocType.
 frappe.listview_settings['Project'] = {
-
-    // The 'setup' function runs once when the list view is first being built.
+    /**
+     * Custom setup for the Project list view.
+     *
+     * This function is called by the Frappe framework when the list view is
+     * initialized. It makes a server call to fetch default grouping options
+     * and applies them to the list view.
+     *
+     * @param {object} listview - The list view object to which settings will be applied.
+     */
     setup: function(listview) {
-
         // This is our browser-side debug message. It will appear in the
         // F12 Developer Console.
         console.log("Browser DEBUG: Calling server script for group_by settings.");
