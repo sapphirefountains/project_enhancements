@@ -1,3 +1,12 @@
+/**
+ * Initializes the Project Dashboard page.
+ *
+ * This function is the entry point for the project dashboard. It sets up the
+ * page layout, loads necessary dependencies, defines all UI interactions,
+ * fetches project data from the server, and renders the initial view.
+ *
+ * @param {HTMLElement} wrapper - The parent element for the page content.
+ */
 frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     console.log("Loading Project Dashboard JS - Version 5.3 (Priority View and Collapse Fix)");
 
@@ -68,6 +77,14 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
     let content = $(`<div class="project-dashboard-content p-3"></div>`).appendTo(page.body);
 
+    /**
+     * Main render function for the dashboard.
+     *
+     * Clears the content area and calls the appropriate rendering function
+     * based on the currently active tab and view mode.
+     *
+     * @param {Array<Object>} projects - The array of project objects to render.
+     */
     function renderDashboard(projects) {
         content.empty();
         if (!projects || projects.length === 0) {
@@ -82,6 +99,14 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         }
     }
 
+    /**
+     * Renders the 'Ranked Priority' view.
+     *
+     * Displays projects in a simple table, sorted numerically by their
+     * 'custom_project_priority' field.
+     *
+     * @param {Array<Object>} projects - The array of project objects to render.
+     */
     function renderRankedPriorityView(projects) {
         // Sort by priority (assuming it's a number)
         projects.sort((a, b) => {
@@ -100,6 +125,15 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         updateSortIcons();
     }
     
+    /**
+     * Renders the default 'Grouped' view.
+     *
+     * Groups projects by their 'project_type', creating a collapsible section
+     * for each type. The order of these groups and the sorting of projects
+     * within each group are user-configurable.
+     *
+     * @param {Array<Object>} projects - The array of project objects to render.
+     */
     function renderGroupedView(projects) {
         const groupedProjects = projects.reduce((acc, project) => {
             const type = project.project_type || 'Uncategorized';
@@ -185,6 +219,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         updateSortIcons();
     }
     
+    /**
+     * Filters the master project list and triggers a re-render.
+     *
+     * Applies filters based on the active tab (is_active, priority) and
+     * the search input value, then calls the main render function.
+     */
     function applyFiltersAndRender() {
         let filteredProjects;
 
@@ -206,12 +246,24 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         renderDashboard(filteredProjects);
     }
     
+    /**
+     * Updates the sort indicator icons in table headers.
+     *
+     * Clears existing sort indicators and adds the appropriate 'asc' or 'desc'
+     * indicator to the currently sorted column header.
+     */
     function updateSortIcons() {
         content.find('thead th').removeClass('sorted-asc sorted-desc');
         const currentTh = content.find(`thead th[data-sort="${currentSort.field}"]`);
         currentTh.addClass(currentSort.order === 'asc' ? 'sorted-asc' : 'sorted-desc');
     }
 
+    /**
+     * Opens a dialog for configuring the custom sort order of project groups.
+     *
+     * The dialog displays a draggable list of project types, allowing the user
+     * to save a custom order to localStorage.
+     */
     function openSortConfiguration() {
         let projectsForTab;
         if (activeTab === 'Priority') {
@@ -351,8 +403,11 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     });
 
     // Helper Functions
-    function getStatusClass(status) { /* ... same as before ... */ }
-    function getPriorityClass(priority) { /* ... same as before ... */ }
+    /**
+     * Gets a Bootstrap badge class based on project status.
+     * @param {string} status - The status of the project.
+     * @returns {string} The corresponding Bootstrap badge class.
+     */
     function getStatusClass(status) {
         switch(status) {
             case 'Open': return 'badge-primary';
@@ -361,6 +416,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             default: return 'badge-secondary';
         }
     }
+
+    /**
+     * Gets a CSS class for styling priority text.
+     * @param {string} priority - The priority level of the project.
+     * @returns {string} The corresponding CSS class for the priority level.
+     */
     function getPriorityClass(priority) {
         if (!priority) return '';
         switch (priority.toLowerCase()) {
