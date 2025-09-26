@@ -20,6 +20,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     });
 
     let allProjects = [];
+    let priorityOptionsList = [];
     let currentSort = { field: 'project_name', order: 'asc' };
     let activeTab = 'Yes'; // Default to 'Yes'
     let priorityView = 'grouped'; // 'grouped' or 'ranked'
@@ -188,7 +189,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
             projectsInGroup.forEach(project => {
                 const statusOptions = ['Open', 'Completed', 'Overdue', 'Cancelled'].map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
-                const priorityOptions = ['High', 'Medium', 'Low'].map(p => `<option value="${p}" ${project.custom_project_priority === p ? 'selected' : ''}>${p}</option>`).join('');
+                const priorityOptions = priorityOptionsList.map(p => `<option value="${p}" ${project.custom_project_priority === p ? 'selected' : ''}>${p}</option>`).join('');
 
                 const rowHTML = `
                     <tr data-project-name="${project.name}">
@@ -432,17 +433,35 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     }
 
     // Initial Data Load
-    frappe.call({
-        method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_data",
-        callback: function(r) {
-            if (r.message && !r.message.error) {
-                allProjects = r.message;
-                applyFiltersAndRender();
-            } else {
-                content.html(`<p class="text-danger">Error: ${r.message.error || 'An unexpected error occurred.'}</p>`);
+    function loadInitialData() {
+        frappe.call({
+            method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_priority_options",
+            callback: function(r) {
+                if (r.message && !r.message.error) {
+                    priorityOptionsList = r.message;
+                } else {
+                    console.error("Could not fetch priority options", r.message.error);
+                    // Even if priorities fail, load projects with a default
+                    priorityOptionsList = ['High', 'Medium', 'Low'];
+                }
+
+                // Fetch projects after priorities are fetched
+                frappe.call({
+                    method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_data",
+                    callback: function(r_proj) {
+                        if (r_proj.message && !r_proj.message.error) {
+                            allProjects = r_proj.message;
+                            applyFiltersAndRender();
+                        } else {
+                            content.html(`<p class="text-danger">Error: ${r_proj.message.error || 'An unexpected error occurred.'}</p>`);
+                        }
+                    }
+                });
             }
-        }
-    });
+        });
+    }
+
+    loadInitialData();
 
     $(`<style>
         .table thead th { cursor: pointer; user-select: none; }

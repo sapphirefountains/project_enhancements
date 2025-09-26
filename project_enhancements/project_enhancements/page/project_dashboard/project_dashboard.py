@@ -57,3 +57,30 @@ def update_project_details(project_name, field, value):
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), f"Error updating project {project_name}")
         return {"status": "error", "message": "Could not update project. Please check the logs."}
+
+@frappe.whitelist()
+def get_priority_options():
+    """
+    Retrieves the configured options for the 'custom_project_priority'
+    field from the Project DocType metadata.
+
+    Returns:
+        list[str]: A list of available priority options.
+                   Returns a dictionary with an 'error' key on failure.
+    """
+    try:
+        project_doctype = frappe.get_meta('Project')
+        priority_field = next((df for df in project_doctype.fields if df.fieldname == 'custom_project_priority'), None)
+
+        if priority_field and priority_field.options:
+            # Options are stored as a string, separated by newlines.
+            # We also filter out any empty lines that might result from trailing newlines.
+            options = [opt for opt in priority_field.options.split('\n') if opt]
+            return options
+        else:
+            # Return a default list or an empty list if no options are found
+            return []
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error fetching priority options")
+        return {"error": "Could not fetch priority options."}
