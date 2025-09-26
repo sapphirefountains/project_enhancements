@@ -84,3 +84,30 @@ def get_priority_options():
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error fetching priority options")
         return {"error": "Could not fetch priority options."}
+
+@frappe.whitelist()
+def get_status_options():
+    """
+    Retrieves the configured options for the 'status'
+    field from the Project DocType metadata.
+
+    Returns:
+        list[str]: A list of available status options.
+                   Returns a dictionary with an 'error' key on failure.
+    """
+    try:
+        project_doctype = frappe.get_meta('Project')
+        status_field = next((df for df in project_doctype.fields if df.fieldname == 'status'), None)
+
+        if status_field and status_field.options:
+            # Options are stored as a string, separated by newlines.
+            # We also filter out any empty lines that might result from trailing newlines.
+            options = [opt for opt in status_field.options.split('\n') if opt]
+            return options
+        else:
+            # Return a default list or an empty list if no options are found
+            return []
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error fetching status options")
+        return {"error": "Could not fetch status options."}

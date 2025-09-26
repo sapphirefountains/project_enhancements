@@ -21,6 +21,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
     let allProjects = [];
     let priorityOptionsList = [];
+    let statusOptionsList = [];
     let currentSort = { field: 'project_name', order: 'asc' };
     let activeTab = 'Yes'; // Default to 'Yes'
     let priorityView = 'grouped'; // 'grouped' or 'ranked'
@@ -120,7 +121,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         const tableBody = table.find('tbody');
 
         projects.forEach(project => {
-            const rowHTML = `<tr><td class="${getPriorityClass(project.custom_project_priority)}">${project.custom_project_priority || ''}</td><td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td><td>${project.name}</td><td><span class="badge ${getStatusClass(project.status)}">${project.status}</span></td><td>${project.completed_tasks} / ${project.total_tasks}</td><td>${project.project_user || ''}</td></tr>`;
+            const tasks_link = `<a href="/app/task?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a>`;
+            const rowHTML = `<tr><td class="${getPriorityClass(project.custom_project_priority)}">${project.custom_project_priority || ''}</td><td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td><td>${project.name}</td><td><span class="badge ${getStatusClass(project.status)}">${project.status}</span></td><td>${tasks_link}</td><td>${project.project_user || ''}</td></tr>`;
             tableBody.append(rowHTML);
         });
         updateSortIcons();
@@ -188,7 +190,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             });
 
             projectsInGroup.forEach(project => {
-                const statusOptions = ['Open', 'Completed', 'Overdue', 'Cancelled'].map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
+                const statusOptions = statusOptionsList.map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
                 const priorityOptions = priorityOptionsList.map(p => `<option value="${p}" ${project.custom_project_priority === p ? 'selected' : ''}>${p}</option>`).join('');
 
                 const rowHTML = `
@@ -205,7 +207,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                                 ${priorityOptions}
                             </select>
                         </td>
-                        <td>${project.completed_tasks} / ${project.total_tasks}</td>
+                        <td><a href="/app/task?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a></td>
                         <td>${project.project_user || ''}</td>
                     </tr>`;
                 tableBody.append(rowHTML);
@@ -434,30 +436,43 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
     // Initial Data Load
     function loadInitialData() {
-        frappe.call({
-            method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_priority_options",
-            callback: function(r) {
-                if (r.message && !r.message.error) {
-                    priorityOptionsList = r.message;
-                } else {
-                    console.error("Could not fetch priority options", r.message.error);
-                    // Even if priorities fail, load projects with a default
-                    priorityOptionsList = ['High', 'Medium', 'Low'];
-                }
-
-                // Fetch projects after priorities are fetched
-                frappe.call({
-                    method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_data",
-                    callback: function(r_proj) {
-                        if (r_proj.message && !r_proj.message.error) {
-                            allProjects = r_proj.message;
-                            applyFiltersAndRender();
-                        } else {
-                            content.html(`<p class="text-danger">Error: ${r_proj.message.error || 'An unexpected error occurred.'}</p>`);
-                        }
-                    }
-                });
+        const fetchPriorities = frappe.call({
+            method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_priority_options"
+        }).then(r => {
+            if (r.message && !r.message.error) {
+                priorityOptionsList = r.message;
+            } else {
+                console.error("Could not fetch priority options", r.message ? r.message.error : 'Unknown error');
+                priorityOptionsList = ['High', 'Medium', 'Low']; // Default fallback
             }
+        });
+
+        const fetchStatuses = frappe.call({
+            method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_status_options"
+        }).then(r => {
+            if (r.message && !r.message.error) {
+                statusOptionsList = r.message;
+            } else {
+                console.error("Could not fetch status options", r.message ? r.message.error : 'Unknown error');
+                statusOptionsList = ['Open', 'Completed', 'Overdue', 'Cancelled']; // Default fallback
+            }
+        });
+
+        const fetchProjects = frappe.call({
+            method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_data"
+        });
+
+        Promise.all([fetchPriorities, fetchStatuses, fetchProjects]).then(results => {
+            const r_proj = results[2]; // Project data is the third promise result
+            if (r_proj.message && !r_proj.message.error) {
+                allProjects = r_proj.message;
+                applyFiltersAndRender();
+            } else {
+                content.html(`<p class="text-danger">Error: ${r_proj.message ? r_proj.message.error : 'An unexpected error occurred while fetching projects.'}</p>`);
+            }
+        }).catch(err => {
+            console.error("Error loading initial data", err);
+            content.html(`<p class="text-danger">A critical error occurred while loading the dashboard. Please check the console.</p>`);
         });
     }
 
