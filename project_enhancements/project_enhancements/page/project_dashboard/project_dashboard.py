@@ -111,3 +111,65 @@ def get_status_options():
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error fetching status options")
         return {"error": "Could not fetch status options."}
+
+@frappe.whitelist()
+def get_project_tasks(project):
+    """
+    Fetches all tasks for a given project and structures them hierarchically.
+
+    Args:
+        project (str): The name of the project to fetch tasks for.
+
+    Returns:
+        list[dict]: A list of task dictionaries, structured in a tree format.
+                    Returns a dictionary with an 'error' key on failure.
+    """
+    if not project:
+        return {"error": "Project name is required."}
+
+    try:
+        tasks = frappe.get_list(
+            'Task',
+            fields=[
+                'name',
+                'subject',
+                'assigned_to',
+                'status',
+                'exp_start_date',
+                'exp_end_date',
+                'progress',
+                'expected_time',
+                'parent_task'
+            ],
+            filters={'project': project},
+            order_by='subject'
+        )
+
+        # Build a dictionary for easy lookup
+        task_map = {task['name']: task for task in tasks}
+
+        # Create the tree structure
+        task_tree = []
+        for task in tasks:
+            task['children'] = [] # Initialize children list
+            if task.get('parent_task'):
+                parent = task_map.get(task['parent_task'])
+                if parent:
+                    # Initialize children list for parent if not present
+                    if 'children' not in parent:
+                        parent['children'] = []
+                    parent['children'].append(task)
+                else:
+                    # Parent doesn't exist in the fetched list, so treat it as a root task
+                    task_tree.append(task)
+            else:
+                task_tree.append(task)
+
+        # Filter out children that have been moved under their parents
+        root_tasks = [task for task in task_tree if not task.get('parent_task') or not task_map.get(task.get('parent_task'))]
+
+        return root_tasks
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"Error fetching tasks for project {project}")
+        return {"error": f"Could not fetch tasks for project {project}. Please check logs."}
