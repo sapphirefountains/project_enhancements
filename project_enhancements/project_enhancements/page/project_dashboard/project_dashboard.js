@@ -26,6 +26,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     let activeTab = 'Yes'; // Default to 'Yes'
     let priorityView = 'grouped'; // 'grouped' or 'ranked'
     let expandedGroups = new Set();
+    let currentTaskSort = { field: 'subject', order: 'asc' };
+    let currentProjectTasks = []; // To hold the original, unfiltered task tree
 
     const tabContainer = $(`
         <ul class="nav nav-tabs px-3">
@@ -37,6 +39,9 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             </li>
             <li class="nav-item">
                 <a class="nav-link" href="#" data-status="Priority">Priority Overview</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-status="Tasks">Tasks</a>
             </li>
         </ul>
     `).prependTo(page.body);
@@ -78,6 +83,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     const priorityViewToggle = controlsContainer.find('#priority-view-toggle');
 
     let content = $(`<div class="project-dashboard-content p-3"></div>`).appendTo(page.body);
+    let taskContent = $(`<div class="project-tasks-content p-3" style="display: none;"></div>`).appendTo(page.body);
 
     /**
      * Main render function for the dashboard.
@@ -229,6 +235,15 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
      * the search input value, then calls the main render function.
      */
     function applyFiltersAndRender() {
+        content.toggle(activeTab !== 'Tasks');
+        taskContent.toggle(activeTab === 'Tasks');
+        controlsContainer.toggle(activeTab !== 'Tasks');
+
+        if (activeTab === 'Tasks') {
+            renderProjectSelectionForTasks();
+            return;
+        }
+
         let filteredProjects;
 
         if (activeTab === 'Priority') {
@@ -241,14 +256,273 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         const searchTerm = searchInput.val().toLowerCase();
         if (searchTerm) {
             filteredProjects = filteredProjects.filter(p =>
-                Object.values(p).some(val => 
+                Object.values(p).some(val =>
                     String(val).toLowerCase().includes(searchTerm)
                 )
             );
         }
         renderDashboard(filteredProjects);
     }
+
+    /**
+     * Renders the project selection view for the 'Tasks' tab.
+     *
+     * Groups active projects by type and displays them with a 'View Tasks' button.
+     */
+    function renderProjectSelectionForTasks() {
+        taskContent.empty();
+        const activeProjects = allProjects.filter(p => p.is_active === 'Yes');
+
+        if (activeProjects.length === 0) {
+            taskContent.html('<p class="text-muted text-center p-4">No active projects found.</p>');
+            return;
+        }
+
+        const groupedProjects = activeProjects.reduce((acc, project) => {
+            const type = project.project_type || 'Uncategorized';
+            if (!acc[type]) acc[type] = [];
+            acc[type].push(project);
+            return acc;
+        }, {});
+
+        const sortedGroupKeys = Object.keys(groupedProjects).sort((a, b) => a.localeCompare(b));
+
+        sortedGroupKeys.forEach(type => {
+            const projectsInGroup = groupedProjects[type];
+            const groupHeaderHTML = `<div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data-group-id="${type}"><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
+            const groupHeader = $(groupHeaderHTML).appendTo(taskContent);
+            const groupBody = $('<div class="collapsible-body" style="display: none;"></div>').appendTo(taskContent);
+            const listGroup = $('<ul class="list-group list-group-flush"></ul>').appendTo(groupBody);
+
+            projectsInGroup.sort((a, b) => a.project_name.localeCompare(b.project_name));
+
+            projectsInGroup.forEach(project => {
+                const listItem = $(`
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a>
+                        <button class="btn btn-primary btn-sm view-tasks-btn" data-project="${project.name}">View Tasks</button>
+                    </li>
+                `).appendTo(listGroup);
+            });
+
+            if (expandedGroups.has(type)) {
+                groupHeader.next('.collapsible-body').show();
+                groupHeader.find('svg').addClass('rotate-180');
+            }
+        });
+    }
+
+    /**
+     * Renders the main task tree view for a selected project.
+     *
+     * @param {Object} project - The project object.
+     * @param {Array<Object>} tasks - The hierarchical list of task objects.
+     */
+    function renderTaskTreeView(project, tasks) {
+        taskContent.empty();
+
+        const header = $(`
+            <div class="task-view-header mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <button class="btn btn-sm btn-secondary" id="back-to-projects"><i class="fa fa-arrow-left mr-1"></i> Back to Projects</button>
+                        <h4 class="d-inline-block ml-3 mb-0">${project.project_name}</h4>
+                    </div>
+                    <a href="/app/task/new-task?project=${project.name}" class="btn btn-primary btn-sm">Add Task</a>
+                </div>
+                <div class="task-filters bg-light p-2 rounded-sm border">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control form-control-sm" id="task-name-filter" placeholder="Filter by task name...">
+                        </div>
+                        <div class="col-md-3">
+                            <input type="text" class="form-control form-control-sm" id="task-owner-filter" placeholder="Filter by owner...">
+                        </div>
+                        <div class="col-md-3">
+                             <select class="form-control form-control-sm" id="task-status-filter">
+                                <option value="">All Statuses</option>
+                             </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-sm btn-secondary btn-block" id="clear-task-filters">Clear Filters</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).appendTo(taskContent);
+
+        // Populate status filter
+        const status_filter = header.find('#task-status-filter');
+        const unique_statuses = [...new Set(tasks.map(t => t.status))];
+        unique_statuses.forEach(s => status_filter.append(`<option value="${s}">${s}</option>`));
+
+        if (!tasks || tasks.length === 0) {
+            taskContent.append('<p class="text-muted text-center p-4">This project has no tasks.</p>');
+            return;
+        }
+
+        const table = $(`
+            <table class="table table-bordered table-hover" style="font-size: 12px;">
+                <thead class="thead-light">
+                    <tr>
+                        <th style="width: 40%;" data-sort="subject">Task</th>
+                        <th data-sort="assigned_to">Owner</th>
+                        <th data-sort="status">Status</th>
+                        <th data-sort="exp_start_date">Start Date</th>
+                        <th data-sort="exp_end_date">Due Date</th>
+                        <th data-sort="progress">% Complete</th>
+                        <th data-sort="expected_time">Duration (hrs)</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        `).appendTo(taskContent);
+
+        const tableBody = table.find('tbody');
+
+        function renderTaskRow(task, level) {
+            const start_date = task.exp_start_date ? frappe.datetime.str_to_user(task.exp_start_date) : '';
+            const end_date = task.exp_end_date ? frappe.datetime.str_to_user(task.exp_end_date) : '';
+            const progress = task.progress || 0;
+
+            const row = $(`
+                <tr class="task-row" data-task-id="${task.name}" data-parent-id="${task.parent_task || ''}">
+                    <td>
+                        <div style="padding-left: ${level * 20}px;">
+                            ${task.children.length > 0 ? '<i class="fa fa-fw fa-caret-down toggle-child-tasks mr-1"></i>' : '<i class="fa fa-fw mr-1"></i>'}
+                            <a href="/app/task/${task.name}">${task.subject}</a>
+                        </div>
+                    </td>
+                    <td>${task.assigned_to || ''}</td>
+                    <td>${task.status}</td>
+                    <td>${start_date}</td>
+                    <td>${end_date}</td>
+                    <td>
+                        <div class="progress" style="height: 15px;">
+                            <div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div>
+                        </div>
+                    </td>
+                    <td>${task.expected_time || 0}</td>
+                </tr>
+            `).appendTo(tableBody);
+
+            if (task.children && task.children.length > 0) {
+                task.children.forEach(child => renderTaskRow(child, level + 1));
+            }
+        }
+
+        tasks.forEach(task => renderTaskRow(task, 0));
+    }
     
+    /**
+     * Applies the current filters and sorting to the task list and redraws the table.
+     */
+    function applyTaskFiltersAndSort() {
+        const nameFilter = (taskContent.find('#task-name-filter').val() || '').toLowerCase();
+        const ownerFilter = (taskContent.find('#task-owner-filter').val() || '').toLowerCase();
+        const statusFilter = taskContent.find('#task-status-filter').val();
+
+        // Deep copy the original tasks to avoid mutation
+        let tasks = JSON.parse(JSON.stringify(currentProjectTasks));
+
+        function filterNode(task) {
+            if (task.children && task.children.length > 0) {
+                task.children = task.children.map(filterNode).filter(Boolean);
+            }
+            const hasVisibleChildren = task.children && task.children.length > 0;
+            const nameMatch = !nameFilter || task.subject.toLowerCase().includes(nameFilter);
+            const ownerMatch = !ownerFilter || (task.assigned_to || '').toLowerCase().includes(ownerFilter);
+            const statusMatch = !statusFilter || task.status === statusFilter;
+            if ((nameMatch && ownerMatch && statusMatch) || hasVisibleChildren) {
+                return task;
+            }
+            return null;
+        }
+        tasks = tasks.map(filterNode).filter(Boolean);
+
+        function sortNodes(nodes) {
+            nodes.sort((a, b) => {
+                let valA = a[currentTaskSort.field] || '';
+                let valB = b[currentTaskSort.field] || '';
+                if (typeof valA === 'string') valA = valA.toLowerCase();
+                if (typeof valB === 'string') valB = valB.toLowerCase();
+                if (['progress', 'expected_time'].includes(currentTaskSort.field)) {
+                    valA = parseFloat(valA) || 0;
+                    valB = parseFloat(valB) || 0;
+                }
+                if (valA < valB) return currentTaskSort.order === 'asc' ? -1 : 1;
+                if (valA > valB) return currentTaskSort.order === 'asc' ? 1 : -1;
+                return 0;
+            });
+            nodes.forEach(node => {
+                if (node.children && node.children.length > 0) sortNodes(node.children);
+            });
+        }
+        sortNodes(tasks);
+        redrawTaskTableBody(tasks);
+    }
+
+    /**
+     * Clears and redraws the body of the task table with the provided tasks.
+     * @param {Array<Object>} tasks - The hierarchical list of tasks to render.
+     */
+    function redrawTaskTableBody(tasks) {
+        const tableBody = taskContent.find('table tbody');
+        tableBody.empty();
+
+        if (!tasks || tasks.length === 0) {
+            tableBody.html('<tr><td colspan="7" class="text-center text-muted p-4">No tasks match filters.</td></tr>');
+            return;
+        }
+        function renderTaskRow(task, level) {
+            const start_date = task.exp_start_date ? frappe.datetime.str_to_user(task.exp_start_date) : '';
+            const end_date = task.exp_end_date ? frappe.datetime.str_to_user(task.exp_end_date) : '';
+            const progress = task.progress || 0;
+            const row = $(`
+                <tr class="task-row" data-task-id="${task.name}" data-parent-id="${task.parent_task || ''}">
+                    <td><div style="padding-left: ${level * 20}px;">${task.children.length > 0 ? '<i class="fa fa-fw fa-caret-down toggle-child-tasks mr-1"></i>' : '<i class="fa fa-fw mr-1"></i>'}<a href="/app/task/${task.name}">${task.subject}</a></div></td>
+                    <td>${task.assigned_to || ''}</td>
+                    <td>${task.status}</td>
+                    <td>${start_date}</td>
+                    <td>${end_date}</td>
+                    <td><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
+                    <td>${task.expected_time || 0}</td>
+                </tr>`).appendTo(tableBody);
+            if (task.children && task.children.length > 0) {
+                task.children.forEach(child => renderTaskRow(child, level + 1));
+            }
+        }
+        tasks.forEach(task => renderTaskRow(task, 0));
+        updateTaskSortIcons();
+    }
+
+    /**
+     * Updates sort indicator icons in the task table header.
+     */
+    function updateTaskSortIcons() {
+        taskContent.find('thead th').removeClass('sorted-asc sorted-desc');
+        const currentTh = taskContent.find(`thead th[data-sort="${currentTaskSort.field}"]`);
+        currentTh.addClass(currentTaskSort.order === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    }
+
+    // Event handlers for task filtering and sorting
+    taskContent.on('keyup', '#task-name-filter, #task-owner-filter', frappe.utils.debounce(applyTaskFiltersAndSort, 300));
+    taskContent.on('change', '#task-status-filter', applyTaskFiltersAndSort);
+    taskContent.on('click', '#clear-task-filters', function() {
+        taskContent.find('#task-name-filter, #task-owner-filter, #task-status-filter').val('');
+        applyTaskFiltersAndSort();
+    });
+    taskContent.on('click', '.task-view-header + .table thead th[data-sort]', function() {
+        const field = $(this).data('sort');
+        if (currentTaskSort.field === field) {
+            currentTaskSort.order = currentTaskSort.order === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentTaskSort.field = field;
+            currentTaskSort.order = 'asc';
+        }
+        applyTaskFiltersAndSort();
+    });
+
     /**
      * Updates the sort indicator icons in table headers.
      *
@@ -350,7 +624,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         applyFiltersAndRender();
     });
 
-    content.on('click', '.collapsible-header', function() {
+    // Combined event handler for collapsible headers in both views
+    $(page.body).on('click', '.collapsible-header', function() {
         const groupId = $(this).data('group-id');
         const body = $(this).next('.collapsible-body');
         body.slideToggle(200);
@@ -360,6 +635,64 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             expandedGroups.add(groupId);
         } else {
             expandedGroups.delete(groupId);
+        }
+    });
+
+    taskContent.on('click', '.view-tasks-btn', function() {
+        const project_name = $(this).data('project');
+        const project = allProjects.find(p => p.name === project_name);
+
+        taskContent.html(`<div class="text-center p-5"><div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div></div>`);
+
+        frappe.call({
+            method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_tasks',
+            args: { project: project_name },
+            callback: function(r) {
+                if (r.message && !r.message.error) {
+                    currentProjectTasks = r.message; // Store the original tasks
+                    renderTaskTreeView(project, r.message);
+                } else {
+                    taskContent.html(`<div class="alert alert-danger">Error fetching tasks: ${r.message.error}</div>`);
+                }
+            }
+        });
+    });
+
+    taskContent.on('click', '#back-to-projects', function() {
+        renderProjectSelectionForTasks();
+    });
+
+    taskContent.on('click', '.toggle-child-tasks', function() {
+        const $icon = $(this);
+        const $row = $icon.closest('tr');
+        const taskId = $row.data('task-id');
+
+        $icon.toggleClass('fa-caret-down fa-caret-right');
+
+        // Find all direct children and toggle them
+        const children = taskContent.find(`tr[data-parent-id="${taskId}"]`);
+
+        // Function to recursively hide descendants
+        function hideDescendants(parentId) {
+            const descendants = taskContent.find(`tr[data-parent-id="${parentId}"]`);
+            descendants.each(function() {
+                const childRow = $(this);
+                const childId = childRow.data('task-id');
+                childRow.hide();
+                childRow.find('.toggle-child-tasks').removeClass('fa-caret-down').addClass('fa-caret-right');
+                hideDescendants(childId);
+            });
+        }
+
+        if ($icon.hasClass('fa-caret-right')) {
+            // If collapsing, hide all children and their descendants
+            children.each(function() {
+                $(this).hide();
+                hideDescendants($(this).data('task-id'));
+            });
+        } else {
+            // If expanding, only show direct children
+            children.show();
         }
     });
     
@@ -486,5 +819,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         .nav-tabs { border-bottom: 1px solid #d1d8dd; }
         .nav-tabs .nav-link { border: 1px solid transparent; border-top-left-radius: .25rem; border-top-right-radius: .25rem; }
         .nav-tabs .nav-link.active { color: #495057; background-color: #fff; border-color: #d1d8dd #d1d8dd #fff; }
+        .task-row td { vertical-align: middle; }
+        .task-row:hover { background-color: #f8f9fa; }
+        .toggle-child-tasks { cursor: pointer; }
     </style>`).appendTo(wrapper);
 }
