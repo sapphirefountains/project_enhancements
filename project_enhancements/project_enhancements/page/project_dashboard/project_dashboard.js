@@ -766,9 +766,11 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     });
 
     taskContent.on('click', '#back-to-projects', function() {
-        // Use browser history to go back, which should trigger the popstate listener.
-        // This provides a more natural navigation experience.
-        history.back();
+        // Manually reset the state to go back to the project selection view
+        pageState.project = null;
+        activeTab = 'TasksTree'; // Ensure the tab is correctly set
+        updateURL(true); // Update the URL to #TasksTree and push to history
+        applyFiltersAndRender(); // Re-render the view
     });
 
     taskContent.on('click', '.toggle-child-tasks', function() {
