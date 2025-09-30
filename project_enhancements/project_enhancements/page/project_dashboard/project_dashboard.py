@@ -1,5 +1,65 @@
 import frappe
 
+def _get_assignee_names(doctype, docname):
+    """
+    Retrieves the full names of users assigned to a specific document.
+
+    Args:
+        doctype (str): The type of the document (e.g., 'Project', 'Task').
+        docname (str): The name (ID) of the document.
+
+    Returns:
+        str: A comma-separated string of assigned users' full names,
+             or "Unassigned" if no one is assigned.
+    """
+    try:
+        # Find all 'ToDo' items linked to the given document
+        todos = frappe.get_all(
+            'ToDo',
+            filters={
+                'reference_type': doctype,
+                'reference_name': docname,
+            },
+            fields=['allocated_to']
+        )
+
+        if not todos:
+            return "Unassigned"
+
+        assignee_emails = [todo.get('allocated_to') for todo in todos if todo.get('allocated_to')]
+
+        # Remove duplicate emails, as a user might be allocated multiple todos for the same doc
+        unique_assignee_emails = list(set(assignee_emails))
+
+        if not unique_assignee_emails:
+            return "Unassigned"
+
+        # Fetch user names based on the collected emails
+        users = frappe.get_all(
+            'User',
+            filters={'email': ('in', unique_assignee_emails)},
+            fields=['first_name', 'last_name']
+        )
+
+        if not users:
+            # This case handles if a ToDo is allocated to a user that no longer exists
+            return "Unassigned"
+
+        # Format names and join them
+        full_names = [f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() for user in users]
+
+        # Filter out any empty names that might result from users without first/last names
+        valid_names = [name for name in full_names if name]
+
+        if not valid_names:
+            return "Unassigned"
+
+        return ", ".join(valid_names)
+
+    except Exception as e:
+        frappe.log_error(f"Error fetching assignee names for {doctype} {docname}: {e}", frappe.get_traceback())
+        return "Unassigned" # Return a default value on error
+
 @frappe.whitelist()
 def get_project_data():
     """Fetches and enriches project data for the dashboard.
@@ -28,6 +88,8 @@ def get_project_data():
             completed_tasks = frappe.db.count('Task', {'project': project_name, 'status': 'Completed'})
             project['total_tasks'] = total_tasks
             project['completed_tasks'] = completed_tasks
+            # Replace the placeholder 'project_user' with actual assignee names
+            project['project_user'] = _get_assignee_names('Project', project_name)
 
         return projects
         
@@ -144,6 +206,10 @@ def get_project_tasks(project):
             filters={'project': project},
             order_by='subject'
         )
+
+        # Enhance tasks with assignee names
+        for task in tasks:
+            task['assigned_to'] = _get_assignee_names('Task', task.get('name'))
 
         # Build a dictionary for easy lookup
         task_map = {task['name']: task for task in tasks}
