@@ -33,16 +33,16 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     const tabContainer = $(`
         <ul class="nav nav-tabs px-3">
             <li class="nav-item">
-                <a class="nav-link" href="#ActiveProjects" data-status="ActiveProjects">Active Projects</a>
+                <a class="nav-link" href="javascript:void(0);" data-status="ActiveProjects">Active Projects</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#InactiveProjects" data-status="InactiveProjects">Inactive Projects</a>
+                <a class="nav-link" href="javascript:void(0);" data-status="InactiveProjects">Inactive Projects</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#PriorityOverview" data-status="PriorityOverview">Priority Overview</a>
+                <a class="nav-link" href="javascript:void(0);" data-status="PriorityOverview">Priority Overview</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#TasksTree" data-status="TasksTree">Tasks Tree</a>
+                <a class="nav-link" href="javascript:void(0);" data-status="TasksTree">Tasks Tree</a>
             </li>
         </ul>
     `).prependTo(page.body);
