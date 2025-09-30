@@ -23,25 +23,26 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     let priorityOptionsList = [];
     let statusOptionsList = [];
     let currentSort = { field: 'project_name', order: 'asc' };
-    let activeTab = 'Yes'; // Default to 'Yes'
+    let activeTab = 'ActiveProjects'; // Default to 'ActiveProjects'
     let priorityView = 'grouped'; // 'grouped' or 'ranked'
     let expandedGroups = new Set();
     let currentTaskSort = { field: 'subject', order: 'asc' };
     let currentProjectTasks = []; // To hold the original, unfiltered task tree
+    let pageState = {}; // To hold the entire state of the dashboard
 
     const tabContainer = $(`
         <ul class="nav nav-tabs px-3">
             <li class="nav-item">
-                <a class="nav-link active" href="#" data-status="Yes">Active Projects</a>
+                <a class="nav-link" href="#ActiveProjects" data-status="ActiveProjects">Active Projects</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#" data-status="No">Inactive Projects</a>
+                <a class="nav-link" href="#InactiveProjects" data-status="InactiveProjects">Inactive Projects</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#" data-status="Priority">Priority Overview</a>
+                <a class="nav-link" href="#PriorityOverview" data-status="PriorityOverview">Priority Overview</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#" data-status="Tasks">Tasks</a>
+                <a class="nav-link" href="#TasksTree" data-status="TasksTree">Tasks Tree</a>
             </li>
         </ul>
     `).prependTo(page.body);
@@ -84,6 +85,78 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
     let content = $(`<div class="project-dashboard-content p-3"></div>`).appendTo(page.body);
     let taskContent = $(`<div class="project-tasks-content p-3" style="display: none;"></div>`).appendTo(page.body);
+
+    /**
+     * Updates the URL hash based on the current state of the dashboard.
+     * @param {boolean} push - If true, creates a new entry in browser history.
+     */
+    function updateURL(push = false) {
+        const tab = activeTab;
+        let params = new URLSearchParams();
+
+        if (tab === 'TasksTree' && pageState.project) {
+            params.set('project', pageState.project);
+            const taskNameFilter = taskContent.find('#task-name-filter').val();
+            const taskOwnerFilter = taskContent.find('#task-owner-filter').val();
+            const taskStatusFilter = taskContent.find('#task-status-filter').val();
+            if (taskNameFilter) params.set('task_name', taskNameFilter);
+            if (taskOwnerFilter) params.set('task_owner', taskOwnerFilter);
+            if (taskStatusFilter) params.set('task_status', taskStatusFilter);
+        } else if (tab !== 'TasksTree') {
+            const searchTerm = searchInput.val();
+            const groupSort = groupSortSelect.val();
+            if (searchTerm) params.set('search', searchTerm);
+            if (groupSort !== 'custom') params.set('sort', groupSort);
+            if (tab === 'PriorityOverview') {
+                params.set('view', priorityView);
+            }
+        }
+
+        const paramString = params.toString();
+        const newHash = tab + (paramString ? `?${paramString}` : '');
+
+        const method = push ? 'pushState' : 'replaceState';
+        history[method](null, '', '#' + newHash);
+    }
+
+    /**
+     * Parses the URL hash on page load to set the initial dashboard state.
+     */
+    function parseURLAndSetState() {
+        const hash = window.location.hash.substring(1);
+        if (!hash) {
+            // Set default tab and update URL
+            activeTab = 'ActiveProjects';
+            tabContainer.find(`.nav-link[data-status="${activeTab}"]`).addClass('active');
+            updateURL();
+            return;
+        }
+
+        const [tab, paramsString] = hash.split('?');
+        const params = new URLSearchParams(paramsString);
+
+        activeTab = tab || 'ActiveProjects';
+        pageState = Object.fromEntries(params.entries());
+
+        // Set UI elements based on parsed state
+        tabContainer.find('.nav-link').removeClass('active');
+        tabContainer.find(`.nav-link[data-status="${activeTab}"]`).addClass('active');
+
+        if (activeTab === 'TasksTree' && pageState.project) {
+            // The task view will be rendered later in the load sequence
+        } else {
+            searchInput.val(pageState.search || '');
+            groupSortSelect.val(pageState.sort || 'custom');
+            if (activeTab === 'PriorityOverview') {
+                priorityView = pageState.view || 'grouped';
+                priorityViewToggle.find('button').removeClass('active');
+                priorityViewToggle.find(`button[data-view="${priorityView}"]`).addClass('active');
+                priorityViewToggle.show();
+            } else {
+                priorityViewToggle.hide();
+            }
+        }
+    }
 
     /**
      * Main render function for the dashboard.
@@ -235,21 +308,25 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
      * the search input value, then calls the main render function.
      */
     function applyFiltersAndRender() {
-        content.toggle(activeTab !== 'Tasks');
-        taskContent.toggle(activeTab === 'Tasks');
-        controlsContainer.toggle(activeTab !== 'Tasks');
+        const is_task_view = activeTab === 'TasksTree';
+        content.toggle(!is_task_view);
+        taskContent.toggle(is_task_view);
+        controlsContainer.toggle(!is_task_view);
 
-        if (activeTab === 'Tasks') {
-            renderProjectSelectionForTasks();
+        if (is_task_view) {
+            if (pageState.project) {
+                loadAndRenderTasks(pageState.project);
+            } else {
+                renderProjectSelectionForTasks();
+            }
             return;
         }
 
         let filteredProjects;
-
-        if (activeTab === 'Priority') {
+        if (activeTab === 'PriorityOverview') {
             filteredProjects = allProjects.filter(p => p.is_active === 'Yes' && p.status !== 'Completed' && p.status !== 'Cancelled');
         } else {
-            const isActiveFilter = activeTab;
+            const isActiveFilter = activeTab === 'ActiveProjects' ? 'Yes' : 'No';
             filteredProjects = allProjects.filter(p => p.is_active === isActiveFilter);
         }
 
@@ -506,11 +583,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     }
 
     // Event handlers for task filtering and sorting
-    taskContent.on('keyup', '#task-name-filter, #task-owner-filter', frappe.utils.debounce(applyTaskFiltersAndSort, 300));
-    taskContent.on('change', '#task-status-filter', applyTaskFiltersAndSort);
+    taskContent.on('keyup', '#task-name-filter, #task-owner-filter', frappe.utils.debounce(() => { applyTaskFiltersAndSort(); updateURL(); }, 300));
+    taskContent.on('change', '#task-status-filter', () => { applyTaskFiltersAndSort(); updateURL(); });
     taskContent.on('click', '#clear-task-filters', function() {
         taskContent.find('#task-name-filter, #task-owner-filter, #task-status-filter').val('');
         applyTaskFiltersAndSort();
+        updateURL();
     });
     taskContent.on('click', '.task-view-header + .table thead th[data-sort]', function() {
         const field = $(this).data('sort');
@@ -591,9 +669,45 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         const sortable = new Sortable(listElement, { animation: 150, ghostClass: 'bg-light' });
     }
 
+    function loadAndRenderTasks(project_name) {
+        const project = allProjects.find(p => p.name === project_name);
+        if (!project) {
+            taskContent.html(`<div class="alert alert-danger">Project not found: ${project_name}</div>`);
+            pageState.project = null;
+            updateURL();
+            renderProjectSelectionForTasks();
+            return;
+        }
+
+        taskContent.html(`<div class="text-center p-5"><div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div></div>`);
+
+        frappe.call({
+            method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_tasks',
+            args: { project: project_name },
+            callback: function(r) {
+                if (r.message && !r.message.error) {
+                    currentProjectTasks = r.message; // Store the original tasks
+                    renderTaskTreeView(project, r.message);
+
+                    // Apply filters from URL state if they exist
+                    taskContent.find('#task-name-filter').val(pageState.task_name || '');
+                    taskContent.find('#task-owner-filter').val(pageState.task_owner || '');
+                    taskContent.find('#task-status-filter').val(pageState.task_status || '');
+
+                    // Trigger filtering if any filter has a value
+                    if (pageState.task_name || pageState.task_owner || pageState.task_status) {
+                        applyTaskFiltersAndSort();
+                    }
+                } else {
+                    taskContent.html(`<div class="alert alert-danger">Error fetching tasks: ${r.message ? r.message.error : 'Unknown error'}</div>`);
+                }
+            }
+        });
+    }
+
     // Event Listeners
-    searchInput.on('keyup', frappe.utils.debounce(applyFiltersAndRender, 300));
-    groupSortSelect.on('change', applyFiltersAndRender);
+    searchInput.on('keyup', frappe.utils.debounce(() => { applyFiltersAndRender(); updateURL(); }, 300));
+    groupSortSelect.on('change', () => { applyFiltersAndRender(); updateURL(); });
     configureSortBtn.on('click', openSortConfiguration);
 
     tabContainer.on('click', '.nav-link', function(e) {
@@ -605,12 +719,17 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         clickedTab.addClass('active');
         activeTab = clickedTab.data('status');
 
-        if (activeTab === 'Priority') {
+        // Reset page state on tab switch
+        pageState = {};
+        searchInput.val('');
+
+        if (activeTab === 'PriorityOverview') {
             priorityViewToggle.show();
         } else {
             priorityViewToggle.hide();
         }
 
+        updateURL(true); // Push new state to history for tab changes
         applyFiltersAndRender();
     });
 
@@ -621,6 +740,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         priorityViewToggle.find('button').removeClass('active');
         $btn.addClass('active');
         priorityView = $btn.data('view');
+        updateURL();
         applyFiltersAndRender();
     });
 
@@ -640,26 +760,15 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
     taskContent.on('click', '.view-tasks-btn', function() {
         const project_name = $(this).data('project');
-        const project = allProjects.find(p => p.name === project_name);
-
-        taskContent.html(`<div class="text-center p-5"><div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div></div>`);
-
-        frappe.call({
-            method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_tasks',
-            args: { project: project_name },
-            callback: function(r) {
-                if (r.message && !r.message.error) {
-                    currentProjectTasks = r.message; // Store the original tasks
-                    renderTaskTreeView(project, r.message);
-                } else {
-                    taskContent.html(`<div class="alert alert-danger">Error fetching tasks: ${r.message.error}</div>`);
-                }
-            }
-        });
+        pageState.project = project_name;
+        updateURL(true); // Push new state for task view
+        loadAndRenderTasks(project_name);
     });
 
     taskContent.on('click', '#back-to-projects', function() {
-        renderProjectSelectionForTasks();
+        // Use browser history to go back, which should trigger the popstate listener.
+        // This provides a more natural navigation experience.
+        history.back();
     });
 
     taskContent.on('click', '.toggle-child-tasks', function() {
@@ -769,6 +878,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
     // Initial Data Load
     function loadInitialData() {
+        parseURLAndSetState(); // Parse URL first to set initial state
+
         const fetchPriorities = frappe.call({
             method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_priority_options"
         }).then(r => {
@@ -799,7 +910,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             const r_proj = results[2]; // Project data is the third promise result
             if (r_proj.message && !r_proj.message.error) {
                 allProjects = r_proj.message;
-                applyFiltersAndRender();
+                applyFiltersAndRender(); // Render based on state from URL
             } else {
                 content.html(`<p class="text-danger">Error: ${r_proj.message ? r_proj.message.error : 'An unexpected error occurred while fetching projects.'}</p>`);
             }
@@ -808,6 +919,18 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             content.html(`<p class="text-danger">A critical error occurred while loading the dashboard. Please check the console.</p>`);
         });
     }
+
+    // Listen for browser navigation (back/forward buttons)
+    window.addEventListener('popstate', () => {
+        if (allProjects.length > 0) {
+            parseURLAndSetState();
+            applyFiltersAndRender();
+        } else {
+            // If data isn't loaded, a page refresh is likely needed.
+            // This can happen if the user navigates away and then back.
+            window.location.reload();
+        }
+    });
 
     loadInitialData();
 
