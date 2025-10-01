@@ -1,0 +1,20 @@
+{
+    "name": "Project Dashboard Settings",
+    "engine": "InnoDB",
+    "issingle": 1,
+    "permissions": [
+        {
+            "role": "System Manager",
+            "read": 1,
+            "write": 1
+        }
+    ],
+    "fields": [
+        {
+            "fieldname": "permitted_roles",
+            "fieldtype": "Table",
+            "label": "Permitted Roles",
+            "options": "Project Dashboard Permitted Role"
+        }
+    ]
+}
