@@ -1,5 +1,37 @@
 import frappe
 
+@frappe.whitelist()
+def check_permission():
+    """
+    Checks if the current user has permission to view the Project Dashboard.
+
+    Returns:
+        bool: True if the user has permission, False otherwise.
+    """
+    try:
+        permitted_roles_docs = frappe.get_all(
+            "Project Dashboard Permitted Role",
+            filters={"parent": "Project Dashboard Settings"},
+            fields=["role"]
+        )
+
+        if not permitted_roles_docs:
+            # If no roles are defined in settings, deny access by default for security.
+            return False
+
+        permitted_roles = {doc.get("role") for doc in permitted_roles_docs}
+        user_roles = set(frappe.get_roles())
+
+        # Check for intersection between user's roles and permitted roles
+        if not permitted_roles.intersection(user_roles):
+            return False
+
+        return True
+
+    except Exception as e:
+        frappe.log_error(f"Error checking project dashboard permissions: {e}", frappe.get_traceback())
+        return False # Deny access on error
+
 def _get_assignee_names(doctype, docname):
     """
     Retrieves the full names of users assigned to a specific document.
@@ -74,6 +106,11 @@ def get_project_data():
                     Returns a dictionary with an 'error' key on failure.
     """
     try:
+        # Permission check: Ensure the user has access to the dashboard
+        if not check_permission():
+            # Using dict for consistency in error handling on the client-side
+            return {"error": "You do not have permission to view the Project Dashboard."}
+
         # --- CHANGE IS HERE: Removed the 'limit_page_length' to fetch all projects ---
         projects = frappe.get_list(
             'Project',
