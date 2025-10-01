@@ -1,5 +1,7 @@
 {
     "name": "Project Dashboard Permitted Role",
+    "doctype": "DocType",
+    "module": "Project Enhancements",
     "engine": "InnoDB",
     "istable": 1,
     "fields": [
