@@ -174,6 +174,58 @@ def get_status_options():
         frappe.log_error(frappe.get_traceback(), "Error fetching status options")
         return {"error": "Could not fetch status options."}
 
+def _fetch_all_project_tasks(project_name):
+    """
+    Recursively fetches all tasks and sub-tasks for a given project.
+    It starts by fetching tasks directly linked to the project, and then
+    iteratively fetches their children.
+    """
+    task_fields = [
+        'name', 'subject', 'assigned_to', 'status', 'exp_start_date',
+        'exp_end_date', 'progress', 'expected_time', 'parent_task'
+    ]
+
+    # Fetch top-level tasks directly associated with the project
+    try:
+        direct_tasks = frappe.get_list(
+            'Task',
+            fields=task_fields,
+            filters={'project': project_name},
+            order_by='subject'
+        )
+    except Exception as e:
+        frappe.log_error(f"Initial task fetch failed for project {project_name}: {e}", frappe.get_traceback())
+        return []
+
+    all_tasks = {task['name']: task for task in direct_tasks}
+    # A queue of task IDs to fetch children for
+    tasks_to_process = [task['name'] for task in direct_tasks]
+
+    # Iteratively fetch children until no new children are found
+    while tasks_to_process:
+        parent_ids = tasks_to_process
+        tasks_to_process = [] # Reset for the next level of children
+
+        try:
+            children = frappe.get_list(
+                'Task',
+                fields=task_fields,
+                filters={'parent_task': ('in', parent_ids)},
+                order_by='subject'
+            )
+
+            for child in children:
+                if child['name'] not in all_tasks:
+                    all_tasks[child['name']] = child
+                    tasks_to_process.append(child['name'])
+
+        except Exception as e:
+            frappe.log_error(f"Child task fetch failed for parents {parent_ids}: {e}", frappe.get_traceback())
+            # Continue processing with the tasks fetched so far
+            break
+
+    return list(all_tasks.values())
+
 @frappe.whitelist()
 def get_project_tasks(project):
     """
@@ -190,49 +242,27 @@ def get_project_tasks(project):
         return {"error": "Project name is required."}
 
     try:
-        tasks = frappe.get_list(
-            'Task',
-            fields=[
-                'name',
-                'subject',
-                'assigned_to',
-                'status',
-                'exp_start_date',
-                'exp_end_date',
-                'progress',
-                'expected_time',
-                'parent_task'
-            ],
-            filters={'project': project},
-            order_by='subject'
-        )
+        # --- CHANGE: Use the new recursive fetch function to get all tasks ---
+        tasks = _fetch_all_project_tasks(project)
 
         # Enhance tasks with assignee names
         for task in tasks:
             task['assigned_to'] = _get_assignee_names('Task', task.get('name'))
 
-        # Build a dictionary for easy lookup
+        # Build a dictionary for easy lookup and initialize children list
         task_map = {task['name']: task for task in tasks}
-
-        # Create the tree structure
-        task_tree = []
         for task in tasks:
-            task['children'] = [] # Initialize children list
-            if task.get('parent_task'):
-                parent = task_map.get(task['parent_task'])
-                if parent:
-                    # Initialize children list for parent if not present
-                    if 'children' not in parent:
-                        parent['children'] = []
-                    parent['children'].append(task)
-                else:
-                    # Parent doesn't exist in the fetched list, so treat it as a root task
-                    task_tree.append(task)
-            else:
-                task_tree.append(task)
+            task['children'] = []
 
-        # Filter out children that have been moved under their parents
-        root_tasks = [task for task in task_tree if not task.get('parent_task') or not task_map.get(task.get('parent_task'))]
+        # Create the tree structure by linking children to their parents
+        root_tasks = []
+        for task in tasks:
+            if task.get('parent_task') and task['parent_task'] in task_map:
+                parent = task_map[task['parent_task']]
+                parent['children'].append(task)
+            else:
+                # Task is a root task (no parent or parent not in the map)
+                root_tasks.append(task)
 
         return root_tasks
 
