@@ -686,80 +686,123 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         }
 
         /**
-         * Shows a dialog to change the owner of a task.
+         * Shows a dialog to manage multiple assignees for a task.
          * @param {jQuery} assigneeLink - The jQuery object for the clicked assignee link.
          */
-        function showTaskOwnerDialog(assigneeLink) {
+        function showTaskAssigneeDialog(assigneeLink) {
             const taskRow = assigneeLink.closest('tr');
             const taskName = taskRow.data('task-id');
             const taskSubject = taskRow.find('td:first a').text();
-            const currentOwner = assigneeLink.text();
+
+            // Find the task from the main task list to get assignee details
+            let task;
+            function findTask(tasks, taskId) {
+                for (let t of tasks) {
+                    if (t.name === taskId) return t;
+                    if (t.children) {
+                        const found = findTask(t.children, taskId);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            }
+            task = findTask(currentProjectTasks, taskName);
+
+            if (!task) {
+                frappe.show_alert({ message: 'Could not find task details.', indicator: 'red' });
+                return;
+            }
 
             const dialog = new frappe.ui.Dialog({
-                title: `Change Owner for: ${taskSubject}`,
+                title: `Assignments for: ${taskSubject}`,
                 fields: [
                     {
-                        fieldname: 'new_owner',
+                        fieldname: 'assign_to',
                         fieldtype: 'Link',
                         options: 'User',
-                        label: 'New Owner',
-                        description: 'Search for a user to assign to this task.'
+                        label: 'Assign a user',
+                        description: 'Select a user to add them to the task.'
+                    },
+                    {
+                        fieldname: 'assignees_html',
+                        fieldtype: 'HTML',
+                        options: '<div class="assignee-list-wrapper mt-3"></div>'
                     }
-                ],
-                primary_action_label: 'Update',
-                primary_action: (values) => {
-                    const newOwnerId = values.new_owner;
-                    if (!newOwnerId) {
-                        frappe.show_alert({ message: 'Please select a user.', indicator: 'orange' });
-                        return;
-                    }
-                    if (currentOwner === newOwnerId) {
-                        dialog.hide();
-                        return;
-                    }
+                ]
+            });
 
-                    frappe.call({
-                        method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_owner',
-                        args: {
-                            task_name: taskName,
-                            new_owner_id: newOwnerId
-                        },
-                        callback: (r) => {
-                            if (r.message && r.message.status === 'success') {
-                                assigneeLink.text(r.message.new_owner_name || 'Unassigned');
-                                dialog.hide();
-                            } else {
-                                frappe.show_alert({ message: r.message.message || 'An error occurred.', indicator: 'red' });
-                            }
-                        }
-                    });
-                },
-                secondary_action_label: 'Remove Assignment',
-                secondary_action: () => {
-                    frappe.confirm(
-                        'Are you sure you want to unassign this task?',
-                        () => {
-                            frappe.call({
-                                method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_owner',
-                                args: {
-                                    task_name: taskName,
-                                    new_owner_id: null
-                                },
-                                callback: (r) => {
-                                    if (r.message && r.message.status === 'success') {
-                                        assigneeLink.text('Unassigned');
-                                        dialog.hide();
-                                    } else {
-                                        frappe.show_alert({ message: r.message.message || 'An error occurred.', indicator: 'red' });
-                                    }
-                                }
-                            });
-                        }
-                    );
+            const assigneeWrapper = dialog.get_field('assignees_html').$wrapper;
+            const assigneeListWrapper = assigneeWrapper.find('.assignee-list-wrapper');
+
+            function renderAssignees() {
+                assigneeListWrapper.empty();
+                if (task.assignees && task.assignees.length > 0) {
+                    const assigneeItems = task.assignees.map(assignee => `
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            ${assignee.full_name}
+                            <button class="btn btn-xs btn-danger remove-assignee" data-user-id="${assignee.email}">Remove</button>
+                        </li>
+                    `).join('');
+                    assigneeListWrapper.html(`<ul class="list-group">${assigneeItems}</ul>`);
+                } else {
+                    assigneeListWrapper.html('<p class="text-muted">No users are assigned to this task.</p>');
                 }
+            }
+
+            function updateTaskRowAssignees() {
+                const newAssigneeText = task.assignees && task.assignees.length > 0
+                    ? task.assignees.map(a => a.full_name).join(', ')
+                    : 'Unassigned';
+                assigneeLink.text(newAssigneeText);
+                task.assigned_to = newAssigneeText; // Update the underlying data model
+            }
+
+            dialog.get_field('assign_to').df.onchange = () => {
+                const userId = dialog.get_value('assign_to');
+                if (!userId) return;
+
+                // Check if user is already assigned
+                if (task.assignees && task.assignees.find(a => a.email === userId)) {
+                    frappe.show_alert({ message: 'User is already assigned.', indicator: 'info' });
+                    dialog.set_value('assign_to', ''); // Clear input
+                    return;
+                }
+
+                frappe.call({
+                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.add_task_assignee',
+                    args: { task_name: taskName, user_id: userId },
+                    callback: function(r) {
+                        if (r.message && r.message.status === 'success') {
+                            task.assignees = r.message.assignees; // Update local task object
+                            renderAssignees();
+                            updateTaskRowAssignees();
+                            dialog.set_value('assign_to', ''); // Clear input
+                        } else {
+                            frappe.show_alert({ message: r.message.message || 'Could not assign user.', indicator: 'red' });
+                        }
+                    }
+                });
+            };
+
+            assigneeListWrapper.on('click', '.remove-assignee', function() {
+                const userId = $(this).data('user-id');
+                frappe.call({
+                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.remove_task_assignee',
+                    args: { task_name: taskName, user_id: userId },
+                    callback: function(r) {
+                        if (r.message && r.message.status === 'success') {
+                            task.assignees = r.message.assignees; // Update local task object
+                            renderAssignees();
+                            updateTaskRowAssignees();
+                        } else {
+                            frappe.show_alert({ message: r.message.message || 'Could not remove user.', indicator: 'red' });
+                        }
+                    }
+                });
             });
 
             dialog.show();
+            renderAssignees();
         }
 
         // --- Helper Functions ---
@@ -837,7 +880,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         taskContent.on('click', '.editable-time a', function(e) { e.preventDefault(); const link = $(this); const cell = link.closest('td'); if (cell.find('.time-input').length > 0) return; const taskName = cell.data('task-id'); const originalValue = cell.data('original-value'); link.hide(); const input = $(`<input type="number" class="form-control form-control-sm time-input" style="width: 80px;" min="0" step="0.5">`).val(originalValue).appendTo(cell).focus(); const cleanup = () => { input.remove(); link.show(); }; const saveChanges = () => { const newValue = input.val(); if (newValue === '' || isNaN(newValue) || parseFloat(newValue) < 0) { cleanup(); return; } const newFloatValue = parseFloat(newValue); link.text(newFloatValue); frappe.call({ method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_expected_time', args: { task_name: taskName, expected_time: newFloatValue }, callback: (r) => { if (r.message && r.message.status === 'success') { cell.data('original-value', newFloatValue); function findAndUpdateTask(tasks, taskId, value) { for (let task of tasks) { if (task.name === taskId) { task.expected_time = value; return true; } if (task.children && task.children.length > 0 && findAndUpdateTask(task.children, taskId, value)) return true; } return false; } findAndUpdateTask(currentProjectTasks, taskName, newFloatValue); } else { link.text(originalValue); } }, error: () => link.text(originalValue) }).always(cleanup); }; input.on('blur', saveChanges).on('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } else if (e.key === 'Escape') { e.preventDefault(); cleanup(); } }); });
         content.on('click', 'thead th', function() { const field = $(this).data('sort'); if (!field) return; if (currentSort.field === field) { currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc'; } else { currentSort.field = field; currentSort.order = 'asc'; } applyFiltersAndRender(); });
         content.on('change', 'select', function() { const select = $(this); const projectName = select.closest('tr').data('project-name'); const field = select.data('field'); const value = select.val(); frappe.call({ method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_project_details', args: { project_name: projectName, field: field, value: value }, callback: (r) => { if (r.message && r.message.status === 'success') { const project = allProjects.find(p => p.name === projectName); if (project) project[field] = value; } else { frappe.show_alert({ message: 'Error updating project.', indicator: 'red' }); applyFiltersAndRender(); } } }); });
-        taskContent.on('click', '.assignee-link', function(e) { e.preventDefault(); showTaskOwnerDialog($(this)); });
+        taskContent.on('click', '.assignee-link', function(e) { e.preventDefault(); showTaskAssigneeDialog($(this)); });
         window.addEventListener('popstate', () => { if (allProjects.length > 0) { parseURLAndSetState(); applyFiltersAndRender(); } else { window.location.reload(); } });
 
         // --- Initial Load ---
