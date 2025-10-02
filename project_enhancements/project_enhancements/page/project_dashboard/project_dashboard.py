@@ -1,4 +1,5 @@
 import frappe
+from frappe.utils import getdate
 
 @frappe.whitelist()
 def check_permission():
@@ -352,3 +353,49 @@ def get_project_tasks(project):
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), f"Error fetching tasks for project {project}")
         return {"error": f"Could not fetch tasks for project {project}. Please check logs."}
+
+
+@frappe.whitelist()
+def update_task_date(task_name, field, value):
+    """
+    Updates the start or end date of a single task.
+
+    Args:
+        task_name (str): The name (ID) of the task to update.
+        field (str): The date field to update ('exp_start_date' or 'exp_end_date').
+        value (str): The new date value in 'YYYY-MM-DD' format.
+
+    Returns:
+        dict: A dictionary indicating the status of the operation.
+    """
+    # Permission check: Only 'Project Manager' and 'Project User' can edit
+    allowed_roles = {"Project Manager", "Project User"}
+    user_roles = set(frappe.get_roles())
+    if not allowed_roles.intersection(user_roles):
+        return {"status": "error", "message": "You do not have permission to perform this action."}
+
+    if field not in ['exp_start_date', 'exp_end_date']:
+        return {"status": "error", "message": "Invalid field specified."}
+
+    try:
+        task = frappe.get_doc('Task', task_name)
+
+        # Date validation
+        if field == 'exp_start_date':
+            start_date = getdate(value)
+            end_date = getdate(task.exp_end_date)
+            if end_date and start_date > end_date:
+                return {"status": "error", "message": "Start date cannot be after end date."}
+
+        if field == 'exp_end_date':
+            end_date = getdate(value)
+            start_date = getdate(task.exp_start_date)
+            if start_date and end_date < start_date:
+                return {"status": "error", "message": "End date cannot be before start date."}
+
+        frappe.db.set_value('Task', task_name, field, value)
+        return {"status": "success"}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"Error updating task {task_name}")
+        return {"status": "error", "message": "Could not update task date. Please check the logs."}
