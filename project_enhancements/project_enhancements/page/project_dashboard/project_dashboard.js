@@ -77,6 +77,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         let currentTaskSort = { field: 'subject', order: 'asc' };
         let currentProjectTasks = []; // Holds the original, unfiltered task tree for a project.
         let pageState = {}; // Holds the state parsed from the URL hash.
+        let taskSortableInstance = null;
 
         // --- UI Element Creation ---
         const tabContainer = $(`
@@ -441,6 +442,79 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
          * @param {object} project - The project object whose tasks are being displayed.
          * @param {Array<object>} tasks - The hierarchical list of task objects.
          */
+        /**
+         * Initializes SortableJS for drag-and-drop reordering of tasks using a nested div structure.
+         * @param {object} project - The project object containing the project name.
+         */
+        function initializeTaskSorting(project) {
+            // Destroy existing instances if any
+            if (taskSortableInstance && Array.isArray(taskSortableInstance)) {
+                taskSortableInstance.forEach(instance => instance.destroy());
+            }
+            taskSortableInstance = [];
+
+            const sortableContainers = taskContent.find('.task-grid-body, .child-tasks-container');
+
+            sortableContainers.each(function() {
+                const instance = new Sortable(this, {
+                    group: 'nested-tasks',
+                    animation: 150,
+                    handle: '.task-drag-handle',
+                    ghostClass: 'sortable-ghost',
+                    chosenClass: 'sortable-chosen',
+                    onEnd: function (evt) {
+                        const indicator = $('#task-saving-indicator');
+                        indicator.show();
+
+                        const updates = [];
+                        // Find all task nodes in their new order and structure
+                        taskContent.find('.task-node').each(function(index) {
+                            const taskNode = $(this);
+                            const taskId = taskNode.data('task-id');
+
+                            // Determine the new parent by checking the DOM hierarchy
+                            const parentNode = taskNode.parent().closest('.task-node');
+                            const parentId = parentNode.length ? parentNode.data('task-id') : null;
+
+                            // The order is the element's index within its direct parent container
+                            const order = taskNode.index();
+
+                            updates.push({
+                                name: taskId,
+                                parent_task: parentId,
+                                custom_subtask_order: order,
+                            });
+                        });
+
+                        frappe.call({
+                            method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_structure',
+                            args: {
+                                project_name: project.name,
+                                tasks: updates
+                            },
+                            callback: function(r) {
+                                if (r.message && r.message.status === 'success') {
+                                    // Optionally, refresh tasks to confirm changes from backend
+                                    loadAndRenderTasks(project.name);
+                                } else {
+                                    frappe.show_alert({
+                                        message: r.message.message || 'Could not save task order.',
+                                        indicator: 'red'
+                                    });
+                                    // Revert UI if save fails
+                                    loadAndRenderTasks(project.name);
+                                }
+                            },
+                            always: function() {
+                                indicator.hide();
+                            }
+                        });
+                    }
+                });
+                taskSortableInstance.push(instance);
+            });
+        }
+
         function renderTaskTreeView(project, tasks) {
             taskContent.empty();
 
@@ -451,24 +525,17 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                             <button class="btn btn-sm btn-secondary" id="back-to-projects"><i class="fa fa-arrow-left mr-1"></i> Back to Projects</button>
                             <h4 class="d-inline-block ml-3 mb-0">${project.project_name}</h4>
                         </div>
-                        <a href="/app/task/new-task?project=${project.name}" class="btn btn-primary btn-sm">Add Task</a>
+                        <div class="d-flex align-items-center">
+                            <span id="task-saving-indicator" class="text-muted mr-3" style="display: none;"><i class="fa fa-spinner fa-spin"></i> Saving...</span>
+                            <a href="/app/task/new-task?project=${project.name}" class="btn btn-primary btn-sm">Add Task</a>
+                        </div>
                     </div>
                     <div class="task-filters bg-light p-2 rounded-sm border">
                         <div class="row">
-                            <div class="col-md-4">
-                                <input type="text" class="form-control form-control-sm" id="task-name-filter" placeholder="Filter by task name...">
-                            </div>
-                            <div class="col-md-3">
-                                <input type="text" class="form-control form-control-sm" id="task-owner-filter" placeholder="Filter by owner...">
-                            </div>
-                            <div class="col-md-3">
-                                 <select class="form-control form-control-sm" id="task-status-filter">
-                                    <option value="">All Statuses</option>
-                                 </select>
-                            </div>
-                            <div class="col-md-2">
-                                <button class="btn btn-sm btn-secondary btn-block" id="clear-task-filters">Clear Filters</button>
-                            </div>
+                            <div class="col-md-4"><input type="text" class="form-control form-control-sm" id="task-name-filter" placeholder="Filter by task name..."></div>
+                            <div class="col-md-3"><input type="text" class="form-control form-control-sm" id="task-owner-filter" placeholder="Filter by owner..."></div>
+                            <div class="col-md-3"><select class="form-control form-control-sm" id="task-status-filter"><option value="">All Statuses</option></select></div>
+                            <div class="col-md-2"><button class="btn btn-sm btn-secondary btn-block" id="clear-task-filters">Clear Filters</button></div>
                         </div>
                     </div>
                 </div>
@@ -483,29 +550,28 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 return;
             }
 
-            const table = $(`
-                <table class="table table-bordered table-hover" style="font-size: 12px;">
-                    <thead class="thead-light">
-                        <tr>
-                            <th style="width: 40%;" data-sort="subject">Task</th>
-                            <th data-sort="assigned_to">Owner</th>
-                            <th data-sort="status">Status</th>
-                            <th data-sort="exp_start_date">Start Date</th>
-                            <th data-sort="exp_end_date">Due Date</th>
-                            <th data-sort="progress">% Complete</th>
-                            <th data-sort="expected_time">Duration (hrs)</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+            const grid = $(`
+                <div class="task-grid">
+                    <div class="task-grid-header">
+                        <div class="task-grid-cell" style="width: 40%;">Task</div>
+                        <div class="task-grid-cell">Owner</div>
+                        <div class="task-grid-cell">Status</div>
+                        <div class="task-grid-cell">Start Date</div>
+                        <div class="task-grid-cell">Due Date</div>
+                        <div class="task-grid-cell">% Complete</div>
+                        <div class="task-grid-cell">Duration (hrs)</div>
+                    </div>
+                    <div class="task-grid-body"></div>
+                </div>
             `).appendTo(taskContent);
 
             redrawTaskTableBody(tasks);
+            initializeTaskSorting(project);
         }
 
         /**
-         * Applies the current filters (name, owner, status) and sorting to the
-         * task list and triggers a redraw of the table.
+         * Applies filters and redraws the task list. Sorting is now handled by the backend
+         * and manual drag-and-drop.
          */
         function applyTaskFiltersAndSort() {
             const nameFilter = (taskContent.find('#task-name-filter').val() || '').toLowerCase();
@@ -529,70 +595,60 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             }
             tasks = tasks.map(filterNode).filter(Boolean);
 
-            function sortNodes(nodes) {
-                nodes.sort((a, b) => {
-                    let valA = a[currentTaskSort.field] || '';
-                    let valB = b[currentTaskSort.field] || '';
-                    if (typeof valA === 'string') valA = valA.toLowerCase();
-                    if (typeof valB === 'string') valB = valB.toLowerCase();
-                    if (['progress', 'expected_time'].includes(currentTaskSort.field)) {
-                        valA = parseFloat(valA) || 0;
-                        valB = parseFloat(valB) || 0;
-                    }
-                    if (valA < valB) return currentTaskSort.order === 'asc' ? -1 : 1;
-                    if (valA > valB) return currentTaskSort.order === 'asc' ? 1 : -1;
-                    return 0;
-                });
-                nodes.forEach(node => {
-                    if (node.children && node.children.length > 0) sortNodes(node.children);
-                });
-            }
-            sortNodes(tasks);
             redrawTaskTableBody(tasks);
+            initializeTaskSorting({ name: pageState.project }); // Re-initialize sorting on the filtered view
         }
 
         /**
-         * Clears and redraws the body of the task table with the provided tasks.
-         * This function is responsible for recursively rendering each task and its children.
+         * Clears and redraws the body of the task grid using nested divs.
          * @param {Array<object>} tasks - The hierarchical list of tasks to render.
          */
         function redrawTaskTableBody(tasks) {
-            const tableBody = taskContent.find('table tbody');
-            tableBody.empty();
+            const gridBody = taskContent.find('.task-grid-body');
+            gridBody.empty();
 
             if (!tasks || tasks.length === 0) {
-                tableBody.html('<tr><td colspan="7" class="text-center text-muted p-4">No tasks match filters.</td></tr>');
+                gridBody.html('<div class="p-4 text-center text-muted">No tasks match filters.</div>');
                 return;
             }
-            function renderTaskRow(task, level) {
+
+            function renderTaskNode(task, container, level) {
                 const start_date = task.exp_start_date ? frappe.datetime.str_to_user(task.exp_start_date) : 'Set Date';
                 const end_date = task.exp_end_date ? frappe.datetime.str_to_user(task.exp_end_date) : 'Set Date';
                 const progress = task.progress || 0;
-                const row = $(`
-                    <tr class="task-row" data-task-id="${task.name}" data-parent-id="${task.parent_task || ''}">
-                        <td><div style="padding-left: ${level * 20}px;">${task.children.length > 0 ? '<i class="fa fa-fw fa-caret-down toggle-child-tasks mr-1"></i>' : '<i class="fa fa-fw mr-1"></i>'}<a href="/app/task/${task.name}">${task.subject}</a></div></td>
-                        <td class="assignee-cell"><a href="#" class="assignee-link">${task.assigned_to || 'Unassigned'}</a></td>
-                        <td><select class="form-control form-control-sm task-status-select" style="width: 120px;">${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
-                        <td class="editable-date" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${task.exp_start_date || ''}"><a href="#">${start_date}</a></td>
-                        <td class="editable-date" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${task.exp_end_date || ''}"><a href="#">${end_date}</a></td>
-                        <td><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
-                        <td class="editable-time" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}"><a href="#">${task.expected_time || 0}</a></td>
-                    </tr>`).appendTo(tableBody);
+
+                const node = $(`
+                    <div class="task-node" data-task-id="${task.name}">
+                        <div class="task-grid-row">
+                            <div class="task-grid-cell task-drag-handle" style="width: 40%; padding-left: ${level * 20}px;">
+                                <i class="fa fa-fw ${task.children.length > 0 ? 'fa-caret-down toggle-child-tasks' : ''} mr-1"></i>
+                                <a href="/app/task/${task.name}">${task.subject}</a>
+                            </div>
+                            <div class="task-grid-cell assignee-cell"><a href="#" class="assignee-link">${task.assigned_to || 'Unassigned'}</a></div>
+                            <div class="task-grid-cell"><select class="form-control form-control-sm task-status-select" style="width: 120px;">${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+                            <div class="task-grid-cell editable-date" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${task.exp_start_date || ''}"><a href="#">${start_date}</a></div>
+                            <div class="task-grid-cell editable-date" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${task.exp_end_date || ''}"><a href="#">${end_date}</a></div>
+                            <div class="task-grid-cell"><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></div>
+                            <div class="task-grid-cell editable-time" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}"><a href="#">${task.expected_time || 0}</a></div>
+                        </div>
+                        <div class="child-tasks-container"></div>
+                    </div>
+                `).appendTo(container);
+
                 if (task.children && task.children.length > 0) {
-                    task.children.forEach(child => renderTaskRow(child, level + 1));
+                    const childContainer = node.find('.child-tasks-container');
+                    task.children.forEach(child => renderTaskNode(child, childContainer, level + 1));
                 }
             }
-            tasks.forEach(task => renderTaskRow(task, 0));
-            updateTaskSortIcons();
+
+            tasks.forEach(task => renderTaskNode(task, gridBody, 0));
         }
 
         /**
-         * Updates sort indicator icons (▲/▼) in the task table header.
+         * This function is no longer used as client-side sorting is disabled for the task tree.
          */
         function updateTaskSortIcons() {
-            taskContent.find('thead th').removeClass('sorted-asc sorted-desc');
-            const currentTh = taskContent.find(`thead th[data-sort="${currentTaskSort.field}"]`);
-            currentTh.addClass(currentTaskSort.order === 'asc' ? 'sorted-asc' : 'sorted-desc');
+            // No longer applicable
         }
 
         /**
@@ -974,6 +1030,23 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             .task-row td { vertical-align: middle; }
             .task-row:hover { background-color: #f8f9fa; }
             .toggle-child-tasks { cursor: pointer; }
+            .task-drag-handle { cursor: grab; }
+            .sortable-ghost { background-color: #e8f7ff; border: 1px dashed #a1d1ff; }
+            .sortable-chosen { background-color: #d1ecf1; }
+            .sortable-chosen a { color: #0c5460; }
+
+            /* New Task Grid Styles */
+            .task-grid-header, .task-grid-row { display: flex; border-bottom: 1px solid #dee2e6; padding: 0.5rem 0; align-items: center; }
+            .task-grid-header { font-weight: bold; background-color: #f8f9fa; }
+            .task-grid-cell { padding: 0 0.5rem; flex-shrink: 0; display: flex; align-items: center; }
+            .task-grid-cell:nth-child(1) { flex: 0 0 40%; }
+            .task-grid-cell:nth-child(2) { flex: 1 1 15%; }
+            .task-grid-cell:nth-child(3) { flex: 1 1 12%; }
+            .task-grid-cell:nth-child(4), .task-grid-cell:nth-child(5) { flex: 1 1 10%; }
+            .task-grid-cell:nth-child(6) { flex: 1 1 8%; }
+            .task-grid-cell:nth-child(7) { flex: 1 1 5%; }
+            .task-node .task-grid-row:hover { background-color: #f1f3f5; }
+            .child-tasks-container { padding-left: 20px; }
         </style>`).appendTo(page.body);
     }
 }
