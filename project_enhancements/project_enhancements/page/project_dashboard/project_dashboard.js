@@ -1052,6 +1052,29 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             .task-grid-cell:nth-child(7) { flex: 1 1 5%; }
             .task-node .task-grid-row:hover { background-color: #f1f3f5; }
             .child-tasks-container { padding-left: 20px; }
+
+            /* Sticky Header Styles */
+            .project-dashboard-controls {
+                position: -webkit-sticky;
+                position: sticky;
+                top: 0;
+                z-index: 102; /* Needs to be above other sticky elements */
+            }
+            .table > thead, .task-grid .task-grid-header {
+                position: -webkit-sticky;
+                position: sticky;
+                /* The top value should be the height of the controls bar above it. */
+                /* The control bar has p-2 (0.5rem * 2) + line-height of a sm form control (approx 1.8rem) + border (1px) ~ 57px */
+                top: 57px;
+                z-index: 101; /* Below controls, above content */
+            }
+            /* Ensure the sticky table headers have a solid background */
+            .table > thead.thead-light > tr > th {
+                 background-color: #f8f9fa; /* Matches .thead-light */
+            }
+            .task-grid .task-grid-header {
+                background-color: #f8f9fa; /* Matches original style */
+            }
         </style>`).appendTo(page.body);
     }
 }
