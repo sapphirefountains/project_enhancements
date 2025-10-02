@@ -876,7 +876,85 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         taskContent.on('click', '.view-tasks-btn', function() { pageState.project = $(this).data('project'); updateURL(true); loadAndRenderTasks(pageState.project); });
         taskContent.on('click', '#back-to-projects', function() { pageState.project = null; activeTab = 'TasksTree'; updateURL(true); applyFiltersAndRender(); });
         taskContent.on('click', '.toggle-child-tasks', function() { const $icon = $(this); const $row = $icon.closest('tr'); const taskId = $row.data('task-id'); $icon.toggleClass('fa-caret-down fa-caret-right'); const children = taskContent.find(`tr[data-parent-id="${taskId}"]`); function hideDescendants(parentId) { taskContent.find(`tr[data-parent-id="${parentId}"]`).each(function() { const childRow = $(this); childRow.hide(); childRow.find('.toggle-child-tasks').removeClass('fa-caret-down').addClass('fa-caret-right'); hideDescendants(childRow.data('task-id')); }); } if ($icon.hasClass('fa-caret-right')) { children.each(function() { $(this).hide(); hideDescendants($(this).data('task-id')); }); } else { children.show(); } });
-        taskContent.on('click', '.editable-date a', function(e) { e.preventDefault(); const link = $(this); const cell = link.closest('td'); if (cell.find('.datepicker-input').length > 0) return; const taskName = cell.data('task-id'); const field = cell.data('field'); const originalValue = cell.data('original-date'); link.hide(); const control_wrapper = $('<div class="datepicker-input" style="width: 130px;"></div>').appendTo(cell); let datepicker = frappe.ui.form.make_control({ parent: control_wrapper, df: { fieldtype: 'Date', fieldname: field }, render_input: true }); datepicker.set_value(originalValue); datepicker.input.focus(); const cleanup = () => { control_wrapper.remove(); link.show(); }; datepicker.input.on('change', () => { const newValue = datepicker.get_value(); const displayValue = newValue ? frappe.datetime.str_to_user(newValue) : 'Set Date'; link.text(displayValue); frappe.call({ method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_date', args: { task_name: taskName, field: field, value: newValue }, callback: (r) => { if (r.message && r.message.status === 'success') { cell.data('original-date', newValue); function findAndUpdateTask(tasks, taskId, fieldName, newDate) { for (let task of tasks) { if (task.name === taskId) { task[fieldName] = newDate; return true; } if (task.children && task.children.length > 0 && findAndUpdateTask(task.children, taskId, fieldName, newDate)) return true; } return false; } findAndUpdateTask(currentProjectTasks, taskName, field, newValue); } else { link.text(originalValue ? frappe.datetime.str_to_user(originalValue) : 'Set Date'); } }, error: () => { link.text(originalValue ? frappe.datetime.str_to_user(originalValue) : 'Set Date'); } }).always(cleanup); }); datepicker.input.on('blur', () => { setTimeout(() => { if (control_wrapper.parent().length > 0) cleanup(); }, 300); }); });
+        taskContent.on('click', '.editable-date a', function(e) {
+            e.preventDefault();
+            const link = $(this);
+            const cell = link.closest('td');
+            if (cell.find('.datepicker-input').length > 0) return;
+
+            const taskName = cell.data('task-id');
+            const field = cell.data('field');
+            const originalValue = cell.data('original-date');
+            let hasChanged = false; // Flag to track if the date was changed
+
+            link.hide();
+
+            const control_wrapper = $('<div class="datepicker-input" style="width: 130px;"></div>').appendTo(cell);
+            let datepicker = frappe.ui.form.make_control({
+                parent: control_wrapper,
+                df: { fieldtype: 'Date', fieldname: field },
+                render_input: true
+            });
+            datepicker.set_value(originalValue);
+            datepicker.input.focus();
+
+            const cleanup = () => {
+                control_wrapper.remove();
+                link.show();
+            };
+
+            datepicker.input.on('change', () => {
+                hasChanged = true;
+                const newValue = datepicker.get_value();
+                const displayValue = newValue ? frappe.datetime.str_to_user(newValue) : 'Set Date';
+
+                // Optimistically update the UI
+                link.text(displayValue);
+
+                frappe.call({
+                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_date',
+                    args: { task_name: taskName, field: field, value: newValue },
+                    callback: (r) => {
+                        if (r.message && r.message.status === 'success') {
+                            // On success, update the original date stored in the cell
+                            cell.data('original-date', newValue);
+                            // Update the underlying data model
+                            function findAndUpdateTask(tasks, taskId, fieldName, newDate) {
+                                for (let task of tasks) {
+                                    if (task.name === taskId) {
+                                        task[fieldName] = newDate;
+                                        return true;
+                                    }
+                                    if (task.children && task.children.length > 0) {
+                                        if (findAndUpdateTask(task.children, taskId, fieldName, newDate)) return true;
+                                    }
+                                }
+                                return false;
+                            }
+                            findAndUpdateTask(currentProjectTasks, taskName, field, newValue);
+                        } else {
+                            // On failure, revert the UI silently
+                            link.text(originalValue ? frappe.datetime.str_to_user(originalValue) : 'Set Date');
+                        }
+                    },
+                    error: (err) => {
+                        // On error, revert the UI silently
+                        link.text(originalValue ? frappe.datetime.str_to_user(originalValue) : 'Set Date');
+                    }
+                }).always(() => {
+                    // Cleanup is now part of the call's lifecycle
+                    cleanup();
+                });
+            });
+
+            datepicker.input.on('blur', () => {
+                // Only cleanup if the value hasn't been changed and submitted.
+                // The 'change' event handler will handle cleanup after the frappe.call.
+                if (!hasChanged) {
+                    cleanup();
+                }
+            });
+        });
         taskContent.on('click', '.editable-time a', function(e) { e.preventDefault(); const link = $(this); const cell = link.closest('td'); if (cell.find('.time-input').length > 0) return; const taskName = cell.data('task-id'); const originalValue = cell.data('original-value'); link.hide(); const input = $(`<input type="number" class="form-control form-control-sm time-input" style="width: 80px;" min="0" step="0.5">`).val(originalValue).appendTo(cell).focus(); const cleanup = () => { input.remove(); link.show(); }; const saveChanges = () => { const newValue = input.val(); if (newValue === '' || isNaN(newValue) || parseFloat(newValue) < 0) { cleanup(); return; } const newFloatValue = parseFloat(newValue); link.text(newFloatValue); frappe.call({ method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_expected_time', args: { task_name: taskName, expected_time: newFloatValue }, callback: (r) => { if (r.message && r.message.status === 'success') { cell.data('original-value', newFloatValue); function findAndUpdateTask(tasks, taskId, value) { for (let task of tasks) { if (task.name === taskId) { task.expected_time = value; return true; } if (task.children && task.children.length > 0 && findAndUpdateTask(task.children, taskId, value)) return true; } return false; } findAndUpdateTask(currentProjectTasks, taskName, newFloatValue); } else { link.text(originalValue); } }, error: () => link.text(originalValue) }).always(cleanup); }; input.on('blur', saveChanges).on('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } else if (e.key === 'Escape') { e.preventDefault(); cleanup(); } }); });
         content.on('click', 'thead th', function() { const field = $(this).data('sort'); if (!field) return; if (currentSort.field === field) { currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc'; } else { currentSort.field = field; currentSort.order = 'asc'; } applyFiltersAndRender(); });
         content.on('change', 'select', function() { const select = $(this); const projectName = select.closest('tr').data('project-name'); const field = select.data('field'); const value = select.val(); frappe.call({ method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_project_details', args: { project_name: projectName, field: field, value: value }, callback: (r) => { if (r.message && r.message.status === 'success') { const project = allProjects.find(p => p.name === projectName); if (project) project[field] = value; } else { frappe.show_alert({ message: 'Error updating project.', indicator: 'red' }); applyFiltersAndRender(); } } }); });
