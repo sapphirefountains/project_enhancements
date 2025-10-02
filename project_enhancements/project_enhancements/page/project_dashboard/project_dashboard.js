@@ -903,7 +903,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 link.show();
             };
 
-            datepicker.input.on('change', () => {
+            $(datepicker.input).on('change', () => {
                 hasChanged = true;
                 const newValue = datepicker.get_value();
                 const displayValue = newValue ? frappe.datetime.str_to_user(newValue) : 'Set Date';
@@ -947,7 +947,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 });
             });
 
-            datepicker.input.on('blur', () => {
+            $(datepicker.input).on('blur', () => {
                 // Only cleanup if the value hasn't been changed and submitted.
                 // The 'change' event handler will handle cleanup after the frappe.call.
                 if (!hasChanged) {
