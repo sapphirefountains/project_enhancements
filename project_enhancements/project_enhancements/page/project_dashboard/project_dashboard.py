@@ -606,7 +606,10 @@ def update_task_structure(project_name, tasks):
                         "message": f"Task {task.name} does not belong to project {project_name}.",
                     }
 
-        # Atomically update all tasks within a single database transaction.
+        # Atomically update all tasks. Using doc.save() is more robust as it
+        # triggers validation and other controller hooks. This is safer than a
+        # direct `frappe.db.set_value` call, especially for complex updates
+        # involving parent-child relationships.
         for task_data in tasks:
             task_name = task_data.get("name")
             if not task_name:
@@ -616,15 +619,22 @@ def update_task_structure(project_name, tasks):
             parent_task = task_data.get("parent_task") or None
             order = task_data.get("custom_subtask_order")
 
-            frappe.db.set_value(
-                "Task", task_name, {"parent_task": parent_task, "custom_subtask_order": order}
-            )
+            task_doc = frappe.get_doc("Task", task_name)
+            task_doc.parent_task = parent_task
+            task_doc.custom_subtask_order = order
+            # ignore_permissions is used because we already validated the user has
+            # write access to the parent project.
+            task_doc.save(ignore_permissions=True)
 
         return {"status": "success"}
 
     except Exception as e:
+        # The whitelisted method runs in a transaction, which will be rolled
+        # back automatically by the Frappe framework on an exception.
         frappe.log_error(frappe.get_traceback(), f"Error updating task structure for {project_name}")
         return {
             "status": "error",
-            "message": "An unexpected error occurred while saving the new task order.",
+            # We return the specific exception to the client to aid debugging,
+            # which is acceptable in this internal tool's context.
+            "message": f"An unexpected error occurred while saving the new task order: {e}",
         }
