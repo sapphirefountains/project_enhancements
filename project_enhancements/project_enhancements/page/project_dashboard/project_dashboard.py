@@ -543,3 +543,53 @@ def remove_task_assignee(task_name, user_id):
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), f"Error removing user {user_id} from task {task_name}")
         return {"status": "error", "message": "Could not remove user. Please check the logs."}
+
+
+@frappe.whitelist()
+def update_task_owner(task_name, new_owner_id=None):
+    """
+    Sets or unsets the owner of a task. This function ensures that only one
+    user is assigned to the task at any given time by clearing existing
+    assignees before adding the new one.
+
+    Args:
+        task_name (str): The name (ID) of the task to update.
+        new_owner_id (str, optional): The user ID (email) of the new owner.
+            If None or empty, the task will be unassigned.
+
+    Returns:
+        dict: A dictionary indicating the status of the operation and
+              containing the full name of the new owner.
+    """
+    if not task_name:
+        return {"status": "error", "message": "Task Name is required."}
+
+    try:
+        # Permission Check: Ensure user can write to the parent project.
+        project = frappe.db.get_value("Task", task_name, "project")
+        if not project or not frappe.has_permission("Project", ptype="write", doc=project):
+            return {"status": "error", "message": "You do not have permission to modify this task."}
+
+        from frappe.desk.form.assign_to import add, remove
+
+        # Clear all existing assignees from the task.
+        current_assignees = _get_assignee_names("Task", task_name)
+        for assignee in current_assignees:
+            if assignee.get("email"):
+                remove("Task", task_name, assignee.get("email"))
+
+        new_owner_name = ""
+        # Add the new owner, if one is provided.
+        if new_owner_id:
+            add({"doctype": "Task", "name": task_name, "assign_to": [new_owner_id]})
+            # Fetch the full name of the newly assigned user for the UI update.
+            user_doc = frappe.get_doc("User", new_owner_id)
+            new_owner_name = user_doc.full_name
+
+        return {"status": "success", "new_owner_name": new_owner_name}
+
+    except Exception as e:
+        frappe.log_error(
+            frappe.get_traceback(), f"Error updating owner for task {task_name}"
+        )
+        return {"status": "error", "message": "An unexpected error occurred while updating the task owner."}
