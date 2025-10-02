@@ -412,3 +412,45 @@ def update_task_date(task_name, field, value):
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), f"Error updating task {task_name}")
         return {"status": "error", "message": "Could not update task date. Please check the logs."}
+
+
+@frappe.whitelist()
+def update_task_expected_time(task_name, expected_time):
+    """
+    Updates the expected time of a single task, with validation and permission checks.
+
+    Args:
+        task_name (str): The name (ID) of the task to update.
+        expected_time (str or float): The new expected time value.
+
+    Returns:
+        dict: A dictionary indicating the status of the operation.
+    """
+    if not task_name:
+        return {"status": "error", "message": "Task name is required."}
+
+    try:
+        # --- PERMISSION CHECK ---
+        project = frappe.db.get_value('Task', task_name, 'project')
+        if not project:
+            return {"status": "error", "message": "This task is not linked to a project."}
+
+        if not frappe.has_permission('Project', ptype='write', doc=project):
+            return {"status": "error", "message": "You do not have permission to modify tasks for this project."}
+        # --- END PERMISSION CHECK ---
+
+        # --- VALIDATION ---
+        try:
+            time_val = float(expected_time)
+            if time_val < 0:
+                return {"status": "error", "message": "Expected time cannot be negative."}
+        except (ValueError, TypeError):
+            return {"status": "error", "message": "Invalid input. Expected time must be a number."}
+        # --- END VALIDATION ---
+
+        frappe.db.set_value('Task', task_name, 'expected_time', time_val)
+        return {"status": "success"}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"Error updating expected time for task {task_name}")
+        return {"status": "error", "message": "Could not update task's expected time. See logs for details."}
