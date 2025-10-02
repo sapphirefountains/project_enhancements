@@ -421,7 +421,7 @@ def update_task_date(task_name, field, value):
             if start_date and new_date and new_date < start_date:
                 return {"status": "error", "message": "End date cannot be before start date."}
 
-        frappe.db..set_value("Task", task_name, field, new_date)
+        frappe.db.set_value("Task", task_name, field, new_date)
         return {"status": "success"}
 
     except Exception as e:

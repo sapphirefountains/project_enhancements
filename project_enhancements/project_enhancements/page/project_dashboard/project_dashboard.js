@@ -708,6 +708,9 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 return;
             }
 
+            // Ensure assignees is always an array to prevent runtime errors.
+            task.assignees = task.assignees || [];
+
             const dialog = new frappe.ui.Dialog({
                 title: `Assignees for ${task.subject}`,
                 fields: [
