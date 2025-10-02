@@ -493,7 +493,9 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                                 <a href="/app/task/${task.name}">${task.subject}</a>
                             </div>
                         </td>
-                        <td>${task.assigned_to || ''}</td>
+                        <td class="assignee-cell">
+                            <a href="#" class="assignee-link">${task.assigned_to || 'Unassigned'}</a>
+                        </td>
                         <td>
                             <select class="form-control form-control-sm task-status-select" style="width: 120px;">
                                 ${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}
@@ -591,7 +593,9 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 const row = $(`
                     <tr class="task-row" data-task-id="${task.name}" data-parent-id="${task.parent_task || ''}">
                         <td><div style="padding-left: ${level * 20}px;">${task.children.length > 0 ? '<i class="fa fa-fw fa-caret-down toggle-child-tasks mr-1"></i>' : '<i class="fa fa-fw mr-1"></i>'}<a href="/app/task/${task.name}">${task.subject}</a></div></td>
-                        <td>${task.assigned_to || ''}</td>
+                        <td class="assignee-cell">
+                            <a href="#" class="assignee-link">${task.assigned_to || 'Unassigned'}</a>
+                        </td>
                         <td>
                             <select class="form-control form-control-sm task-status-select" style="width: 120px;">
                                 ${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}
@@ -1140,6 +1144,117 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                     }
                 }
             });
+        });
+
+        function showAssigneeDialog(taskName) {
+            // Find the task in the local data model to get the most current assignee list
+            let task;
+            function findTask(tasks, taskId) {
+                for (const t of tasks) {
+                    if (t.name === taskId) return t;
+                    if (t.children && t.children.length > 0) {
+                        const found = findTask(t.children, taskId);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            }
+            task = findTask(currentProjectTasks, taskName);
+
+            if (!task) {
+                frappe.show_alert({ message: 'Could not find task data.', indicator: 'red' });
+                return;
+            }
+
+            const dialog = new frappe.ui.Dialog({
+                title: `Assignees for ${task.subject}`,
+                fields: [
+                    { fieldname: 'assignee_list', fieldtype: 'HTML' },
+                    {
+                        fieldname: 'user_to_add',
+                        fieldtype: 'Link',
+                        options: 'User',
+                        label: 'Add User'
+                    },
+                ],
+                primary_action_label: 'Close',
+                primary_action: () => {
+                    dialog.hide();
+                }
+            });
+
+            const assigneeListWrapper = dialog.get_field('assignee_list').$wrapper;
+            const addUserControl = dialog.get_field('user_to_add');
+
+            function renderAssignees(assignees) {
+                assigneeListWrapper.empty();
+                if (assignees && assignees.length > 0) {
+                    const assigneeHTML = assignees.map(user => `
+                        <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+                            <span>${user.full_name}</span>
+                            <button class="btn btn-xs btn-danger remove-assignee" data-user-id="${user.email}">Remove</button>
+                        </div>
+                    `).join('');
+                    assigneeListWrapper.html(assigneeHTML);
+                } else {
+                    assigneeListWrapper.html('<p class="text-muted p-2">No users are assigned to this task.</p>');
+                }
+
+                // Update the main task row in the background
+                const assigneeNames = assignees.map(u => u.full_name).join(', ') || 'Unassigned';
+                const taskRow = taskContent.find(`tr[data-task-id="${taskName}"]`);
+                taskRow.find('.assignee-link').text(assigneeNames);
+            }
+
+            function updateAssignees(taskName, newAssignees) {
+                // Update the local data model first for immediate UI responsiveness
+                task.assignees = newAssignees;
+                task.assigned_to = newAssignees.map(u => u.full_name).join(', ') || '';
+                renderAssignees(newAssignees);
+            }
+
+            assigneeListWrapper.on('click', '.remove-assignee', function() {
+                const userId = $(this).data('user-id');
+                frappe.call({
+                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.remove_task_assignee',
+                    args: { task_name: taskName, user_id: userId },
+                    callback: function(r) {
+                        if (r.message && r.message.status === 'success') {
+                            updateAssignees(taskName, r.message.assignees);
+                        }
+                    }
+                });
+            });
+
+            addUserControl.input.on('change', function() {
+                const userId = addUserControl.get_value();
+                if (userId) {
+                     // Check if user is already assigned
+                    if (task.assignees.some(a => a.email === userId)) {
+                        addUserControl.set_value(''); // Clear input
+                        return; // Do nothing if already assigned
+                    }
+                    frappe.call({
+                        method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.add_task_assignee',
+                        args: { task_name: taskName, user_id: userId },
+                        callback: function(r) {
+                            if (r.message && r.message.status === 'success') {
+                                updateAssignees(taskName, r.message.assignees);
+                                addUserControl.set_value(''); // Clear input after adding
+                            }
+                        }
+                    });
+                }
+            });
+
+            renderAssignees(task.assignees);
+            dialog.show();
+        }
+
+        taskContent.on('click', '.assignee-link', function(e) {
+            e.preventDefault();
+            const taskName = $(this).closest('tr').data('task-id');
+            showAssigneeDialog(taskName);
         });
 
         // Helper Functions
