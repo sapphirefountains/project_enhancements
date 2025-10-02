@@ -44,6 +44,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         let allProjects = [];
         let priorityOptionsList = [];
         let statusOptionsList = [];
+        let taskStatusOptionsList = [];
         let currentSort = { field: 'project_name', order: 'asc' };
         let activeTab = 'ActiveProjects'; // Default to 'ActiveProjects'
         let priorityView = 'grouped'; // 'grouped' or 'ranked'
@@ -493,7 +494,11 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                             </div>
                         </td>
                         <td>${task.assigned_to || ''}</td>
-                        <td>${task.status}</td>
+                        <td>
+                            <select class="form-control form-control-sm task-status-select" style="width: 120px;">
+                                ${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+                            </select>
+                        </td>
                         <td>${start_date}</td>
                         <td>${end_date}</td>
                         <td>
@@ -581,7 +586,11 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                     <tr class="task-row" data-task-id="${task.name}" data-parent-id="${task.parent_task || ''}">
                         <td><div style="padding-left: ${level * 20}px;">${task.children.length > 0 ? '<i class="fa fa-fw fa-caret-down toggle-child-tasks mr-1"></i>' : '<i class="fa fa-fw mr-1"></i>'}<a href="/app/task/${task.name}">${task.subject}</a></div></td>
                         <td>${task.assigned_to || ''}</td>
-                        <td>${task.status}</td>
+                        <td>
+                            <select class="form-control form-control-sm task-status-select" style="width: 120px;">
+                                ${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+                            </select>
+                        </td>
                         <td>${start_date}</td>
                         <td>${end_date}</td>
                         <td><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
@@ -621,6 +630,67 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 currentTaskSort.order = 'asc';
             }
             applyTaskFiltersAndSort();
+        });
+
+        taskContent.on('change', '.task-status-select', function() {
+            const select = $(this);
+            const taskName = select.closest('tr').data('task-id');
+            const newStatus = select.val();
+
+            // Find the original status from the data model before making the call
+            let originalStatus = '';
+            function findTaskStatus(tasks, taskId) {
+                for (const task of tasks) {
+                    if (task.name === taskId) {
+                        return task.status;
+                    }
+                    if (task.children && task.children.length > 0) {
+                        const foundStatus = findTaskStatus(task.children, taskId);
+                        if (foundStatus) return foundStatus;
+                    }
+                }
+                return null;
+            }
+            originalStatus = findTaskStatus(currentProjectTasks, taskName);
+
+            frappe.call({
+                method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_status',
+                args: {
+                    task_name: taskName,
+                    status: newStatus
+                },
+                callback: function(r) {
+                    if (r.message && r.message.status === 'success') {
+                        // Update status in the local data model to keep it in sync
+                        function findAndUpdateTask(tasks, taskId, status) {
+                            for (let task of tasks) {
+                                if (task.name === taskId) {
+                                    task.status = status;
+                                    return true;
+                                }
+                                if (task.children && task.children.length > 0) {
+                                    if (findAndUpdateTask(task.children, taskId, status)) {
+                                        return true;
+                                    }
+                                }
+                            }
+                            return false;
+                        }
+                        findAndUpdateTask(currentProjectTasks, taskName, newStatus);
+                    } else {
+                        // On failure, revert the dropdown to the original status
+                        if (originalStatus) {
+                            select.val(originalStatus);
+                        }
+                    }
+                },
+                error: function() {
+                    // On error, also revert
+                    if (originalStatus) {
+                        select.val(originalStatus);
+                    }
+                }
+            });
         });
 
         /**
@@ -930,7 +1000,18 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_data"
             });
 
-            Promise.all([fetchPriorities, fetchStatuses, fetchProjects]).then(results => {
+            const fetchTaskStatuses = frappe.call({
+                method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_task_status_options"
+            }).then(r => {
+                if (r.message && !r.message.error) {
+                    taskStatusOptionsList = r.message;
+                } else {
+                    console.error("Could not fetch task status options", r.message ? r.message.error : 'Unknown error');
+                    taskStatusOptionsList = ['Open', 'Working', 'Completed', 'Cancelled']; // Default fallback
+                }
+            });
+
+            Promise.all([fetchPriorities, fetchStatuses, fetchProjects, fetchTaskStatuses]).then(results => {
                 const r_proj = results[2]; // Project data is the third promise result
                 if (r_proj.message && !r_proj.message.error) {
                     allProjects = r_proj.message;
