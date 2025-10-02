@@ -288,12 +288,14 @@ def _fetch_all_project_tasks(project_name):
         "progress",
         "expected_time",
         "parent_task",
+        "custom_subtask_order",
+        "creation",
     ]
 
     try:
-        direct_tasks = frappe.get_list(
-            "Task", fields=task_fields, filters={"project": project_name}, order_by="subject"
-        )
+        # We fetch all tasks related to the project without initial sorting,
+        # as sorting will be handled comprehensively later.
+        direct_tasks = frappe.get_list("Task", fields=task_fields, filters={"project": project_name})
     except Exception as e:
         frappe.log_error(
             f"Initial task fetch failed for project {project_name}: {e}", frappe.get_traceback()
@@ -301,6 +303,8 @@ def _fetch_all_project_tasks(project_name):
         return []
 
     all_tasks = {task["name"]: task for task in direct_tasks}
+    # This iterative approach is to ensure all descendants are fetched,
+    # even if they are not directly linked to the project.
     tasks_to_process = [task["name"] for task in direct_tasks]
 
     while tasks_to_process:
@@ -309,7 +313,7 @@ def _fetch_all_project_tasks(project_name):
 
         try:
             children = frappe.get_list(
-                "Task", fields=task_fields, filters={"parent_task": ("in", parent_ids)}, order_by="subject"
+                "Task", fields=task_fields, filters={"parent_task": ("in", parent_ids)}
             )
 
             for child in children:
@@ -332,7 +336,8 @@ def get_project_tasks(project):
 
     Retrieves all tasks and sub-tasks for a project, enriches them with
     assignee details, and then builds a tree structure based on the
-    'parent_task' field.
+    'parent_task' field. The tasks are sorted by a custom order field
+    and then by creation date.
 
     Args:
         project (str): The name (ID) of the project to fetch tasks for.
@@ -356,14 +361,25 @@ def get_project_tasks(project):
             else:
                 task["assigned_to"] = ""
 
+        # Sort all tasks based on custom order, then by creation date.
+        # Tasks with no order are treated as having an infinite order value,
+        # placing them after ordered tasks.
+        tasks.sort(
+            key=lambda t: (
+                float(t.get("custom_subtask_order") or float("inf")),
+                getdate(t.get("creation")),
+            )
+        )
+
         task_map = {task["name"]: task for task in tasks}
         for task in tasks:
             task["children"] = []
 
         root_tasks = []
         for task in tasks:
-            if task.get("parent_task") and task["parent_task"] in task_map:
-                parent = task_map[task["parent_task"]]
+            parent_task_id = task.get("parent_task")
+            if parent_task_id and parent_task_id in task_map:
+                parent = task_map[parent_task_id]
                 parent["children"].append(task)
             else:
                 root_tasks.append(task)
@@ -544,3 +560,71 @@ def remove_task_assignee(task_name, user_id):
         frappe.log_error(frappe.get_traceback(), f"Error removing user {user_id} from task {task_name}")
         return {"status": "error", "message": "Could not remove user. Please check the logs."}
 
+
+@frappe.whitelist()
+def update_task_structure(project_name, tasks):
+    """Updates the parent and ordering for a list of tasks.
+
+    This function is called after a drag-and-drop operation on the frontend
+    task tree. It validates permissions and ensures data integrity before
+    committing changes.
+
+    Args:
+        project_name (str): The name (ID) of the project being modified.
+        tasks (list[dict]): A list of dictionaries, where each dictionary
+            represents a task and contains its 'name', 'parent_task', and
+            'custom_subtask_order'.
+
+    Returns:
+        dict: A dictionary indicating the status of the operation.
+    """
+    if not project_name or not tasks:
+        return {"status": "error", "message": "Project name and task data are required."}
+
+    # Security check: Ensure the user has write permission for the project.
+    if not frappe.has_permission("Project", ptype="write", doc=project_name):
+        return {
+            "status": "error",
+            "message": "You do not have permission to modify tasks for this project.",
+        }
+
+    try:
+        task_names = [t.get("name") for t in tasks if t.get("name")]
+
+        # Data integrity check: Verify that all tasks belong to the specified project.
+        if task_names:
+            db_task_projects = frappe.get_all(
+                "Task", filters={"name": ("in", task_names)}, fields=["name", "project"]
+            )
+            if len(db_task_projects) != len(task_names):
+                return {"status": "error", "message": "One or more tasks could not be found."}
+
+            for task in db_task_projects:
+                if task.project != project_name:
+                    return {
+                        "status": "error",
+                        "message": f"Task {task.name} does not belong to project {project_name}.",
+                    }
+
+        # Atomically update all tasks within a single database transaction.
+        for task_data in tasks:
+            task_name = task_data.get("name")
+            if not task_name:
+                continue
+
+            # Ensure parent_task is None if it's an empty string or not provided.
+            parent_task = task_data.get("parent_task") or None
+            order = task_data.get("custom_subtask_order")
+
+            frappe.db.set_value(
+                "Task", task_name, {"parent_task": parent_task, "custom_subtask_order": order}
+            )
+
+        return {"status": "success"}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"Error updating task structure for {project_name}")
+        return {
+            "status": "error",
+            "message": "An unexpected error occurred while saving the new task order.",
+        }
