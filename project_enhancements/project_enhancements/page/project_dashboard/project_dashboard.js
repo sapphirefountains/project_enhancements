@@ -463,52 +463,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                     ghostClass: 'sortable-ghost',
                     chosenClass: 'sortable-chosen',
                     onEnd: function (evt) {
-                        const indicator = $('#task-saving-indicator');
-                        indicator.show();
-
-                        const updates = [];
-                        // Find all task nodes in their new order and structure
-                        taskContent.find('.task-node').each(function(index) {
-                            const taskNode = $(this);
-                            const taskId = taskNode.data('task-id');
-
-                            // Determine the new parent by checking the DOM hierarchy
-                            const parentNode = taskNode.parent().closest('.task-node');
-                            const parentId = parentNode.length ? parentNode.data('task-id') : null;
-
-                            // The order is the element's index within its direct parent container
-                            const order = taskNode.index();
-
-                            updates.push({
-                                name: taskId,
-                                parent_task: parentId,
-                                custom_subtask_order: order,
-                            });
-                        });
-
-                        frappe.call({
-                            method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_structure',
-                            args: {
-                                project_name: project.name,
-                                tasks: updates
-                            },
-                            callback: function(r) {
-                                if (r.message && r.message.status === 'success') {
-                                    // Optionally, refresh tasks to confirm changes from backend
-                                    loadAndRenderTasks(project.name);
-                                } else {
-                                    frappe.show_alert({
-                                        message: r.message.message || 'Could not save task order.',
-                                        indicator: 'red'
-                                    });
-                                    // Revert UI if save fails
-                                    loadAndRenderTasks(project.name);
-                                }
-                            },
-                            always: function() {
-                                indicator.hide();
-                            }
-                        });
+                        // When the user finishes dragging, show the save button.
+                        $('#save-task-order').show();
                     }
                 });
                 taskSortableInstance.push(instance);
@@ -527,6 +483,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                         </div>
                         <div class="d-flex align-items-center">
                             <span id="task-saving-indicator" class="text-muted mr-3" style="display: none;"><i class="fa fa-spinner fa-spin"></i> Saving...</span>
+                            <button class="btn btn-sm btn-success mr-2" id="save-task-order" style="display: none;">Save Order</button>
                             <a href="/app/task/new-task?project=${project.name}" class="btn btn-primary btn-sm">Add Task</a>
                         </div>
                     </div>
@@ -620,7 +577,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 const node = $(`
                     <div class="task-node" data-task-id="${task.name}">
                         <div class="task-grid-row">
-                            <div class="task-grid-cell task-drag-handle" style="padding-left: ${level * 20}px;">
+                            <div class="task-grid-cell" style="padding-left: ${level * 20}px;">
+                                <i class="fa fa-bars task-drag-handle mr-2 text-muted"></i>
                                 <i class="fa fa-fw ${task.children.length > 0 ? 'fa-caret-down toggle-child-tasks' : ''} mr-1"></i>
                                 <a href="/app/task/${task.name}">${task.subject}</a>
                             </div>
@@ -931,6 +889,49 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         $(page.body).on('click', '.collapsible-header', function() { const groupId = $(this).data('group-id'); const body = $(this).next('.collapsible-body'); body.slideToggle(200); $(this).find('svg').toggleClass('rotate-180'); if (body.is(':visible')) { expandedGroups.add(groupId); } else { expandedGroups.delete(groupId); } });
         taskContent.on('click', '.view-tasks-btn', function() { pageState.project = $(this).data('project'); updateURL(true); loadAndRenderTasks(pageState.project); });
         taskContent.on('click', '#back-to-projects', function() { pageState.project = null; activeTab = 'TasksTree'; updateURL(true); applyFiltersAndRender(); });
+        taskContent.on('click', '#save-task-order', function() {
+            const saveButton = $(this);
+            const indicator = $('#task-saving-indicator');
+            const projectName = pageState.project;
+
+            if (!projectName) {
+                frappe.show_alert({ message: 'Could not determine the current project.', indicator: 'red' });
+                return;
+            }
+
+            indicator.show();
+            saveButton.prop('disabled', true);
+
+            const updates = [];
+            taskContent.find('.task-node').each(function(index) {
+                const taskNode = $(this);
+                const taskId = taskNode.data('task-id');
+                const parentNode = taskNode.parent().closest('.task-node');
+                const parentId = parentNode.length ? parentNode.data('task-id') : null;
+                const order = taskNode.index();
+                updates.push({ name: taskId, parent_task: parentId, custom_subtask_order: order });
+            });
+
+            frappe.call({
+                method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_structure',
+                args: { project_name: projectName, tasks: updates },
+                callback: function(r) {
+                    if (r.message && r.message.status === 'success') {
+                        saveButton.hide();
+                        // Refresh the tasks to show the new saved order.
+                        // This also has the effect of re-rendering the header, hiding the save button until the next change.
+                        loadAndRenderTasks(projectName);
+                    } else {
+                        frappe.show_alert({ message: r.message.message || 'Could not save task order.', indicator: 'red' });
+                        loadAndRenderTasks(projectName); // Revert on failure
+                    }
+                },
+                always: function() {
+                    indicator.hide();
+                    saveButton.prop('disabled', false);
+                }
+            });
+        });
         taskContent.on('click', '.toggle-child-tasks', function() { const $icon = $(this); const $row = $icon.closest('tr'); const taskId = $row.data('task-id'); $icon.toggleClass('fa-caret-down fa-caret-right'); const children = taskContent.find(`tr[data-parent-id="${taskId}"]`); function hideDescendants(parentId) { taskContent.find(`tr[data-parent-id="${parentId}"]`).each(function() { const childRow = $(this); childRow.hide(); childRow.find('.toggle-child-tasks').removeClass('fa-caret-down').addClass('fa-caret-right'); hideDescendants(childRow.data('task-id')); }); } if ($icon.hasClass('fa-caret-right')) { children.each(function() { $(this).hide(); hideDescendants($(this).data('task-id')); }); } else { children.show(); } });
         taskContent.on('click', '.editable-date a', function(e) {
             e.preventDefault();
