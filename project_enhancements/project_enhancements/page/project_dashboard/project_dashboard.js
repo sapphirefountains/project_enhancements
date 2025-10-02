@@ -499,8 +499,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                                 ${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}
                             </select>
                         </td>
-                        <td>${start_date}</td>
-                        <td>${end_date}</td>
+                        <td class="editable-date" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${task.exp_start_date || ''}">
+                            <a href="#">${start_date}</a>
+                        </td>
+                        <td class="editable-date" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${task.exp_end_date || ''}">
+                            <a href="#">${end_date}</a>
+                        </td>
                         <td>
                             <div class="progress" style="height: 15px;">
                                 <div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div>
@@ -591,8 +595,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                                 ${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}
                             </select>
                         </td>
-                        <td>${start_date}</td>
-                        <td>${end_date}</td>
+                        <td class="editable-date" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${task.exp_start_date || ''}">
+                            <a href="#">${start_date}</a>
+                        </td>
+                        <td class="editable-date" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${task.exp_end_date || ''}">
+                            <a href="#">${end_date}</a>
+                        </td>
                         <td><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
                         <td>${task.expected_time || 0}</td>
                     </tr>`).appendTo(tableBody);
@@ -897,6 +905,91 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 // If expanding, only show direct children
                 children.show();
             }
+        });
+
+        taskContent.on('click', '.editable-date a', function(e) {
+            e.preventDefault();
+            const link = $(this);
+            const cell = link.closest('td');
+            const taskName = cell.data('task-id');
+            const field = cell.data('field');
+            const originalValue = cell.data('original-date'); // YYYY-MM-DD format
+
+            // Create a temporary input to attach the datepicker to
+            // Position it relative to the cell for better placement
+            cell.css('position', 'relative');
+            const input = $('<input type="text" class="form-control form-control-sm" style="width: 120px; position: absolute; top: 0; left: 0; z-index: 10;">');
+            cell.append(input);
+            link.hide();
+            input.focus();
+
+            input.datepicker({
+                dateFormat: "yy-mm-dd", // jQuery UI format for YYYY-MM-DD
+                changeYear: true,
+                changeMonth: true,
+                onSelect: function(dateText) {
+                    const newValue = dateText;
+
+                    // Optimistically update UI with user-formatted date
+                    link.text(frappe.datetime.str_to_user(newValue));
+
+                    frappe.call({
+                        method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_date',
+                        args: {
+                            task_name: taskName,
+                            field: field,
+                            value: newValue
+                        },
+                        callback: function(r) {
+                            if (r.message && r.message.status === 'success') {
+                                // Update was successful, so update the data attributes
+                                cell.data('original-date', newValue);
+
+                                // Also update the local data model to maintain state
+                                function findAndUpdateTask(tasks, taskId, fieldName, newDate) {
+                                    for (let task of tasks) {
+                                        if (task.name === taskId) {
+                                            task[fieldName] = newDate;
+                                            return true;
+                                        }
+                                        if (task.children && task.children.length > 0) {
+                                            if (findAndUpdateTask(task.children, taskId, fieldName, newDate)) {
+                                                return true;
+                                            }
+                                        }
+                                    }
+                                    return false;
+                                }
+                                findAndUpdateTask(currentProjectTasks, taskName, field, newValue);
+                            } else {
+                                // On failure, revert the UI to the original value
+                                const originalUserFormat = originalValue ? frappe.datetime.str_to_user(originalValue) : '';
+                                link.text(originalUserFormat);
+                            }
+                        },
+                        error: function() {
+                            // On error, also revert
+                            const originalUserFormat = originalValue ? frappe.datetime.str_to_user(originalValue) : '';
+                            link.text(originalUserFormat);
+                        }
+                    });
+
+                    input.remove();
+                    link.show();
+                },
+                onClose: function() {
+                    // Remove input and show link if no date was selected
+                    input.remove();
+                    link.show();
+                }
+            });
+
+            if (originalValue) {
+                // SetDate requires a Date object
+                input.datepicker("setDate", frappe.datetime.str_to_obj(originalValue));
+            }
+
+            input.datepicker("show");
         });
 
         content.on('click', 'thead th', function() {
