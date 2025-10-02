@@ -5,6 +5,7 @@ Project Dashboard, including data retrieval, permission checks, and in-place
 updates for projects and tasks. All functions intended to be called from the
 frontend are decorated with `@frappe.whitelist()`.
 """
+import json
 import frappe
 from frappe.utils import getdate
 
@@ -580,6 +581,12 @@ def update_task_structure(project_name, tasks):
     """
     if not project_name or not tasks:
         return {"status": "error", "message": "Project name and task data are required."}
+
+    if isinstance(tasks, str):
+        try:
+            tasks = json.loads(tasks)
+        except json.JSONDecodeError:
+            return {"status": "error", "message": "Invalid task data format."}
 
     # Security check: Ensure the user has write permission for the project.
     if not frappe.has_permission("Project", ptype="write", doc=project_name):
