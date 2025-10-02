@@ -510,7 +510,9 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                                 <div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div>
                             </div>
                         </td>
-                        <td>${task.expected_time || 0}</td>
+                        <td class="editable-time" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}">
+                            <a href="#">${task.expected_time || 0}</a>
+                        </td>
                     </tr>
                 `).appendTo(tableBody);
 
@@ -602,7 +604,9 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                             <a href="#">${end_date}</a>
                         </td>
                         <td><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
-                        <td>${task.expected_time || 0}</td>
+                        <td class="editable-time" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}">
+                            <a href="#">${task.expected_time || 0}</a>
+                        </td>
                     </tr>`).appendTo(tableBody);
                 if (task.children && task.children.length > 0) {
                     task.children.forEach(child => renderTaskRow(child, level + 1));
@@ -1000,6 +1004,99 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                        cleanup();
                     }
                 }, 300);
+            });
+        });
+
+        taskContent.on('click', '.editable-time a', function(e) {
+            e.preventDefault();
+            const link = $(this);
+            const cell = link.closest('td');
+
+            if (cell.find('.time-input').length > 0) {
+                return;
+            }
+
+            const taskName = cell.data('task-id');
+            const originalValue = cell.data('original-value');
+
+            link.hide();
+
+            const input = $(`<input type="number" class="form-control form-control-sm time-input" style="width: 80px;" min="0" step="0.5">`);
+            input.val(originalValue);
+            cell.append(input);
+            input.focus();
+
+            const saveChanges = () => {
+                const newValue = input.val();
+
+                // Client-side validation
+                if (newValue === '' || isNaN(newValue) || parseFloat(newValue) < 0) {
+                    cleanup(); // Revert without saving if invalid
+                    return;
+                }
+
+                const newFloatValue = parseFloat(newValue);
+
+                // Optimistically update UI
+                link.text(newFloatValue);
+
+                // Call backend to save
+                frappe.call({
+                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_expected_time',
+                    args: {
+                        task_name: taskName,
+                        expected_time: newFloatValue
+                    },
+                    callback: function(r) {
+                        if (r.message && r.message.status === 'success') {
+                            // On success, update the data attribute and local model
+                            cell.data('original-value', newFloatValue);
+                            function findAndUpdateTask(tasks, taskId, value) {
+                                for (let task of tasks) {
+                                    if (task.name === taskId) {
+                                        task.expected_time = value;
+                                        return true;
+                                    }
+                                    if (task.children && task.children.length > 0) {
+                                        if (findAndUpdateTask(task.children, taskId, value)) {
+                                            return true;
+                                        }
+                                    }
+                                }
+                                return false;
+                            }
+                            findAndUpdateTask(currentProjectTasks, taskName, newFloatValue);
+                        } else {
+                            // On failure, revert the UI to original value
+                            link.text(originalValue);
+                        }
+                    },
+                    error: function() {
+                        // On error, also revert
+                        link.text(originalValue);
+                    }
+                }).always(() => {
+                    cleanup();
+                });
+            };
+
+            const cleanup = () => {
+                input.remove();
+                link.show();
+            };
+
+            input.on('blur', () => {
+                saveChanges();
+            });
+
+            input.on('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    input.blur(); // Trigger the blur event to save
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cleanup(); // Revert changes and hide input
+                }
             });
         });
 
