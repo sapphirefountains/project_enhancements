@@ -1,11 +1,21 @@
 /**
- * Initializes the Project Dashboard page.
+ * @file This file contains the client-side logic for the Project Dashboard page.
+ * @description It handles the entire lifecycle of the dashboard, including initialization,
+ * permission checks, data fetching, rendering different views (grouped, ranked, tasks),
+ * user interactions (sorting, filtering, inline editing), and state management via URL hashes.
+ * @namespace project_dashboard
+ */
+
+/**
+ * Initializes the Project Dashboard page on load.
  *
- * This function is the entry point for the project dashboard. It first checks
- * for user permissions and then either displays an access denied message or
- * proceeds to initialize the full dashboard.
+ * This function is the entry point for the dashboard. It first checks if the
+ * current user has the necessary permissions to view the page. If permission is
+ * granted, it proceeds to initialize the full dashboard UI and functionality.
+ * Otherwise, it displays an "Access Denied" message.
  *
- * @param {HTMLElement} wrapper - The parent element for the page content.
+ * @param {HTMLElement} wrapper - The parent DOM element for the page content,
+ * provided by the Frappe framework.
  */
 frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     const page = frappe.ui.make_app_page({
@@ -14,14 +24,15 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         single_column: true
     });
 
+    // Check permissions before rendering the main dashboard.
     frappe.call({
         method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.check_permission",
         callback: function(r) {
             if (r.message) {
-                // User has permission, initialize the dashboard
+                // User has permission, initialize the main dashboard logic.
                 initialize_dashboard(page);
             } else {
-                // User does not have permission, show an error message
+                // User does not have permission, show an access denied message.
                 page.set_title('Access Denied');
                 $(page.body).html(`
                     <div class="container py-5">
@@ -35,24 +46,39 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         }
     });
 
+    /**
+     * Sets up the main dashboard UI, state variables, and event listeners.
+     *
+     * This function is called after a successful permission check. It is responsible
+     * for setting up all the core components of the dashboard, including:
+     * - State variables for projects, filters, and sorting.
+     * - DOM elements for tabs, search, and other controls.
+     * - Initial data fetching from the server.
+     * - Event listeners for all user interactions.
+     *
+     * @param {object} page - The Frappe page object.
+     */
     function initialize_dashboard(page) {
         console.log("Loading Project Dashboard JS - Version 5.3 (Priority View and Collapse Fix)");
 
+        // Dynamically load SortableJS library for drag-and-drop functionality.
         const script_url = "https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js";
         frappe.require(script_url, () => {});
 
+        // --- State Variables ---
         let allProjects = [];
         let priorityOptionsList = [];
         let statusOptionsList = [];
         let taskStatusOptionsList = [];
         let currentSort = { field: 'project_name', order: 'asc' };
-        let activeTab = 'ActiveProjects'; // Default to 'ActiveProjects'
+        let activeTab = 'ActiveProjects';
         let priorityView = 'grouped'; // 'grouped' or 'ranked'
         let expandedGroups = new Set();
         let currentTaskSort = { field: 'subject', order: 'asc' };
-        let currentProjectTasks = []; // To hold the original, unfiltered task tree
-        let pageState = {}; // To hold the entire state of the dashboard
+        let currentProjectTasks = []; // Holds the original, unfiltered task tree for a project.
+        let pageState = {}; // Holds the state parsed from the URL hash.
 
+        // --- UI Element Creation ---
         const tabContainer = $(`
             <ul class="nav nav-tabs px-3">
                 <li class="nav-item">
@@ -110,8 +136,10 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         let taskContent = $(`<div class="project-tasks-content p-3" style="display: none;"></div>`).appendTo(page.body);
 
         /**
-         * Updates the URL hash based on the current state of the dashboard.
-         * @param {boolean} push - If true, creates a new entry in browser history.
+         * Updates the URL hash to reflect the current state of the dashboard.
+         * This allows for bookmarking and sharing specific views/filters.
+         * @param {boolean} [push=false] - If true, creates a new entry in the browser's
+         * history, allowing the user to use the back button.
          */
         function updateURL(push = false) {
             const tab = activeTab;
@@ -144,11 +172,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
         /**
          * Parses the URL hash on page load to set the initial dashboard state.
+         * This function reads the tab, search terms, and other view parameters
+         * from the URL and applies them to the UI.
          */
         function parseURLAndSetState() {
             const hash = window.location.hash.substring(1);
             if (!hash) {
-                // Set default tab and update URL
                 activeTab = 'ActiveProjects';
                 tabContainer.find(`.nav-link[data-status="${activeTab}"]`).addClass('active');
                 updateURL();
@@ -161,13 +190,10 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             activeTab = tab || 'ActiveProjects';
             pageState = Object.fromEntries(params.entries());
 
-            // Set UI elements based on parsed state
             tabContainer.find('.nav-link').removeClass('active');
             tabContainer.find(`.nav-link[data-status="${activeTab}"]`).addClass('active');
 
-            if (activeTab === 'TasksTree' && pageState.project) {
-                // The task view will be rendered later in the load sequence
-            } else {
+            if (activeTab !== 'TasksTree') {
                 searchInput.val(pageState.search || '');
                 groupSortSelect.val(pageState.sort || 'custom');
                 if (activeTab === 'PriorityOverview') {
@@ -182,12 +208,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         }
 
         /**
-         * Main render function for the dashboard.
+         * Main render function for the project views.
          *
          * Clears the content area and calls the appropriate rendering function
-         * based on the currently active tab and view mode.
+         * based on the currently active tab and view mode (e.g., grouped vs. ranked).
          *
-         * @param {Array<Object>} projects - The array of project objects to render.
+         * @param {Array<object>} projects - The array of project objects to render.
          */
         function renderDashboard(projects) {
             content.empty();
@@ -196,7 +222,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 return;
             }
 
-            if (activeTab === 'Priority' && priorityView === 'ranked') {
+            if (activeTab === 'PriorityOverview' && priorityView === 'ranked') {
                 renderRankedPriorityView(projects);
             } else {
                 renderGroupedView(projects);
@@ -207,12 +233,11 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
          * Renders the 'Ranked Priority' view.
          *
          * Displays projects in a simple table, sorted numerically by their
-         * 'custom_project_priority' field.
+         * priority, for a quick overview of the most important projects.
          *
-         * @param {Array<Object>} projects - The array of project objects to render.
+         * @param {Array<object>} projects - The array of project objects to render.
          */
         function renderRankedPriorityView(projects) {
-            // Sort by priority (assuming it's a number)
             projects.sort((a, b) => {
                 const priorityA = parseInt(a.custom_project_priority, 10) || Infinity;
                 const priorityB = parseInt(b.custom_project_priority, 10) || Infinity;
@@ -237,7 +262,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
          * for each type. The order of these groups and the sorting of projects
          * within each group are user-configurable.
          *
-         * @param {Array<Object>} projects - The array of project objects to render.
+         * @param {Array<object>} projects - The array of project objects to render.
          */
         function renderGroupedView(projects) {
             const groupedProjects = projects.reduce((acc, project) => {
@@ -325,10 +350,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         }
         
         /**
-         * Filters the master project list and triggers a re-render.
-         *
-         * Applies filters based on the active tab (is_active, priority) and
-         * the search input value, then calls the main render function.
+         * Filters the master project list based on the active tab and search term, then
+         * triggers a re-render of the appropriate view (project or task).
          */
         function applyFiltersAndRender() {
             const is_task_view = activeTab === 'TasksTree';
@@ -365,9 +388,9 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         }
 
         /**
-         * Renders the project selection view for the 'Tasks' tab.
-         *
-         * Groups active projects by type and displays them with a 'View Tasks' button.
+         * Renders the project selection interface for the 'Tasks Tree' tab.
+         * This view is shown when no specific project has been selected yet,
+         * allowing the user to choose a project to view its tasks.
          */
         function renderProjectSelectionForTasks() {
             taskContent.empty();
@@ -397,7 +420,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 projectsInGroup.sort((a, b) => a.project_name.localeCompare(b.project_name));
 
                 projectsInGroup.forEach(project => {
-                    const listItem = $(`
+                    $(`
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a>
                             <button class="btn btn-primary btn-sm view-tasks-btn" data-project="${project.name}">View Tasks</button>
@@ -415,8 +438,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         /**
          * Renders the main task tree view for a selected project.
          *
-         * @param {Object} project - The project object.
-         * @param {Array<Object>} tasks - The hierarchical list of task objects.
+         * @param {object} project - The project object whose tasks are being displayed.
+         * @param {Array<object>} tasks - The hierarchical list of task objects.
          */
         function renderTaskTreeView(project, tasks) {
             taskContent.empty();
@@ -451,9 +474,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 </div>
             `).appendTo(taskContent);
 
-            // Populate status filter
             const status_filter = header.find('#task-status-filter');
-            const unique_statuses = [...new Set(tasks.map(t => t.status))];
+            const unique_statuses = [...new Set(tasks.flatMap(t => [t.status, ...t.children.map(c => c.status)]))].filter(Boolean);
             unique_statuses.forEach(s => status_filter.append(`<option value="${s}">${s}</option>`));
 
             if (!tasks || tasks.length === 0) {
@@ -478,63 +500,18 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 </table>
             `).appendTo(taskContent);
 
-            const tableBody = table.find('tbody');
-
-            function renderTaskRow(task, level) {
-                const start_date = task.exp_start_date ? frappe.datetime.str_to_user(task.exp_start_date) : 'Set Date';
-                const end_date = task.exp_end_date ? frappe.datetime.str_to_user(task.exp_end_date) : 'Set Date';
-                const progress = task.progress || 0;
-
-                const row = $(`
-                    <tr class="task-row" data-task-id="${task.name}" data-parent-id="${task.parent_task || ''}">
-                        <td>
-                            <div style="padding-left: ${level * 20}px;">
-                                ${task.children.length > 0 ? '<i class="fa fa-fw fa-caret-down toggle-child-tasks mr-1"></i>' : '<i class="fa fa-fw mr-1"></i>'}
-                                <a href="/app/task/${task.name}">${task.subject}</a>
-                            </div>
-                        </td>
-                        <td class="assignee-cell">
-                            <a href="#" class="assignee-link">${task.assigned_to || 'Unassigned'}</a>
-                        </td>
-                        <td>
-                            <select class="form-control form-control-sm task-status-select" style="width: 120px;">
-                                ${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}
-                            </select>
-                        </td>
-                        <td class="editable-date" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${task.exp_start_date || ''}">
-                            <a href="#">${start_date}</a>
-                        </td>
-                        <td class="editable-date" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${task.exp_end_date || ''}">
-                            <a href="#">${end_date}</a>
-                        </td>
-                        <td>
-                            <div class="progress" style="height: 15px;">
-                                <div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div>
-                            </div>
-                        </td>
-                        <td class="editable-time" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}">
-                            <a href="#">${task.expected_time || 0}</a>
-                        </td>
-                    </tr>
-                `).appendTo(tableBody);
-
-                if (task.children && task.children.length > 0) {
-                    task.children.forEach(child => renderTaskRow(child, level + 1));
-                }
-            }
-
-            tasks.forEach(task => renderTaskRow(task, 0));
+            redrawTaskTableBody(tasks);
         }
 
         /**
-         * Applies the current filters and sorting to the task list and redraws the table.
+         * Applies the current filters (name, owner, status) and sorting to the
+         * task list and triggers a redraw of the table.
          */
         function applyTaskFiltersAndSort() {
             const nameFilter = (taskContent.find('#task-name-filter').val() || '').toLowerCase();
             const ownerFilter = (taskContent.find('#task-owner-filter').val() || '').toLowerCase();
             const statusFilter = taskContent.find('#task-status-filter').val();
 
-            // Deep copy the original tasks to avoid mutation
             let tasks = JSON.parse(JSON.stringify(currentProjectTasks));
 
             function filterNode(task) {
@@ -576,7 +553,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
         /**
          * Clears and redraws the body of the task table with the provided tasks.
-         * @param {Array<Object>} tasks - The hierarchical list of tasks to render.
+         * This function is responsible for recursively rendering each task and its children.
+         * @param {Array<object>} tasks - The hierarchical list of tasks to render.
          */
         function redrawTaskTableBody(tasks) {
             const tableBody = taskContent.find('table tbody');
@@ -593,24 +571,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 const row = $(`
                     <tr class="task-row" data-task-id="${task.name}" data-parent-id="${task.parent_task || ''}">
                         <td><div style="padding-left: ${level * 20}px;">${task.children.length > 0 ? '<i class="fa fa-fw fa-caret-down toggle-child-tasks mr-1"></i>' : '<i class="fa fa-fw mr-1"></i>'}<a href="/app/task/${task.name}">${task.subject}</a></div></td>
-                        <td class="assignee-cell">
-                            <a href="#" class="assignee-link">${task.assigned_to || 'Unassigned'}</a>
-                        </td>
-                        <td>
-                            <select class="form-control form-control-sm task-status-select" style="width: 120px;">
-                                ${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}
-                            </select>
-                        </td>
-                        <td class="editable-date" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${task.exp_start_date || ''}">
-                            <a href="#">${start_date}</a>
-                        </td>
-                        <td class="editable-date" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${task.exp_end_date || ''}">
-                            <a href="#">${end_date}</a>
-                        </td>
+                        <td class="assignee-cell"><a href="#" class="assignee-link">${task.assigned_to || 'Unassigned'}</a></td>
+                        <td><select class="form-control form-control-sm task-status-select" style="width: 120px;">${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
+                        <td class="editable-date" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${task.exp_start_date || ''}"><a href="#">${start_date}</a></td>
+                        <td class="editable-date" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${task.exp_end_date || ''}"><a href="#">${end_date}</a></td>
                         <td><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
-                        <td class="editable-time" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}">
-                            <a href="#">${task.expected_time || 0}</a>
-                        </td>
+                        <td class="editable-time" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}"><a href="#">${task.expected_time || 0}</a></td>
                     </tr>`).appendTo(tableBody);
                 if (task.children && task.children.length > 0) {
                     task.children.forEach(child => renderTaskRow(child, level + 1));
@@ -621,7 +587,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         }
 
         /**
-         * Updates sort indicator icons in the task table header.
+         * Updates sort indicator icons (▲/▼) in the task table header.
          */
         function updateTaskSortIcons() {
             taskContent.find('thead th').removeClass('sorted-asc sorted-desc');
@@ -629,91 +595,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             currentTh.addClass(currentTaskSort.order === 'asc' ? 'sorted-asc' : 'sorted-desc');
         }
 
-        // Event handlers for task filtering and sorting
-        taskContent.on('keyup', '#task-name-filter, #task-owner-filter', frappe.utils.debounce(() => { applyTaskFiltersAndSort(); updateURL(); }, 300));
-        taskContent.on('change', '#task-status-filter', () => { applyTaskFiltersAndSort(); updateURL(); });
-        taskContent.on('click', '#clear-task-filters', function() {
-            taskContent.find('#task-name-filter, #task-owner-filter, #task-status-filter').val('');
-            applyTaskFiltersAndSort();
-            updateURL();
-        });
-        taskContent.on('click', '.task-view-header + .table thead th[data-sort]', function() {
-            const field = $(this).data('sort');
-            if (currentTaskSort.field === field) {
-                currentTaskSort.order = currentTaskSort.order === 'asc' ? 'desc' : 'asc';
-            } else {
-                currentTaskSort.field = field;
-                currentTaskSort.order = 'asc';
-            }
-            applyTaskFiltersAndSort();
-        });
-
-        taskContent.on('change', '.task-status-select', function() {
-            const select = $(this);
-            const taskName = select.closest('tr').data('task-id');
-            const newStatus = select.val();
-
-            // Find the original status from the data model before making the call
-            let originalStatus = '';
-            function findTaskStatus(tasks, taskId) {
-                for (const task of tasks) {
-                    if (task.name === taskId) {
-                        return task.status;
-                    }
-                    if (task.children && task.children.length > 0) {
-                        const foundStatus = findTaskStatus(task.children, taskId);
-                        if (foundStatus) return foundStatus;
-                    }
-                }
-                return null;
-            }
-            originalStatus = findTaskStatus(currentProjectTasks, taskName);
-
-            frappe.call({
-                method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_status',
-                args: {
-                    task_name: taskName,
-                    status: newStatus
-                },
-                callback: function(r) {
-                    if (r.message && r.message.status === 'success') {
-                        // Update status in the local data model to keep it in sync
-                        function findAndUpdateTask(tasks, taskId, status) {
-                            for (let task of tasks) {
-                                if (task.name === taskId) {
-                                    task.status = status;
-                                    return true;
-                                }
-                                if (task.children && task.children.length > 0) {
-                                    if (findAndUpdateTask(task.children, taskId, status)) {
-                                        return true;
-                                    }
-                                }
-                            }
-                            return false;
-                        }
-                        findAndUpdateTask(currentProjectTasks, taskName, newStatus);
-                    } else {
-                        // On failure, revert the dropdown to the original status
-                        if (originalStatus) {
-                            select.val(originalStatus);
-                        }
-                    }
-                },
-                error: function() {
-                    // On error, also revert
-                    if (originalStatus) {
-                        select.val(originalStatus);
-                    }
-                }
-            });
-        });
-
         /**
-         * Updates the sort indicator icons in table headers.
-         *
-         * Clears existing sort indicators and adds the appropriate 'asc' or 'desc'
-         * indicator to the currently sorted column header.
+         * Updates sort indicator icons in the project tables headers.
          */
         function updateSortIcons() {
             content.find('thead th').removeClass('sorted-asc sorted-desc');
@@ -723,23 +606,13 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
         /**
          * Opens a dialog for configuring the custom sort order of project groups.
-         *
          * The dialog displays a draggable list of project types, allowing the user
-         * to save a custom order to localStorage.
+         * to save a preferred order to localStorage.
          */
         function openSortConfiguration() {
-            let projectsForTab;
-            if (activeTab === 'Priority') {
-                projectsForTab = allProjects.filter(p => p.is_active === 'Yes' && p.status !== 'Completed' && p.status !== 'Cancelled');
-            } else {
-                const isActiveFilter = activeTab;
-                projectsForTab = allProjects.filter(p => p.is_active === isActiveFilter);
-            }
-
-            const groupedProjects = projectsForTab.reduce((acc, p) => {
+            const groupedProjects = allProjects.reduce((acc, p) => {
                 const type = p.project_type || 'Uncategorized';
-                if (!acc[type]) acc[type] = [];
-                acc[type].push(p);
+                acc[type] = true;
                 return acc;
             }, {});
 
@@ -764,7 +637,6 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                     groupSortSelect.val('custom');
                     applyFiltersAndRender();
                     dialog.hide();
-                    frappe.show_alert({ message: 'Custom order saved!', indicator: 'green' });
                 }
             });
             dialog.show();
@@ -777,6 +649,10 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             const sortable = new Sortable(listElement, { animation: 150, ghostClass: 'bg-light' });
         }
 
+        /**
+         * Fetches and renders the task tree for a specific project.
+         * @param {string} project_name - The name (ID) of the project.
+         */
         function loadAndRenderTasks(project_name) {
             const project = allProjects.find(p => p.name === project_name);
             if (!project) {
@@ -794,15 +670,11 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 args: { project: project_name },
                 callback: function(r) {
                     if (r.message && !r.message.error) {
-                        currentProjectTasks = r.message; // Store the original tasks
+                        currentProjectTasks = r.message;
                         renderTaskTreeView(project, r.message);
-
-                        // Apply filters from URL state if they exist
                         taskContent.find('#task-name-filter').val(pageState.task_name || '');
                         taskContent.find('#task-owner-filter').val(pageState.task_owner || '');
                         taskContent.find('#task-status-filter').val(pageState.task_status || '');
-
-                        // Trigger filtering if any filter has a value
                         if (pageState.task_name || pageState.task_owner || pageState.task_status) {
                             applyTaskFiltersAndSort();
                         }
@@ -813,341 +685,11 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             });
         }
 
-        // Event Listeners
-        searchInput.on('keyup', frappe.utils.debounce(() => { applyFiltersAndRender(); updateURL(); }, 300));
-        groupSortSelect.on('change', () => { applyFiltersAndRender(); updateURL(); });
-        configureSortBtn.on('click', openSortConfiguration);
-
-        tabContainer.on('click', '.nav-link', function(e) {
-            e.preventDefault();
-            const clickedTab = $(this);
-            if (clickedTab.hasClass('active')) return;
-
-            tabContainer.find('.nav-link').removeClass('active');
-            clickedTab.addClass('active');
-            activeTab = clickedTab.data('status');
-
-            // Reset page state on tab switch
-            pageState = {};
-            searchInput.val('');
-
-            if (activeTab === 'PriorityOverview') {
-                priorityViewToggle.show();
-            } else {
-                priorityViewToggle.hide();
-            }
-
-            updateURL(true); // Push new state to history for tab changes
-            applyFiltersAndRender();
-        });
-
-        priorityViewToggle.on('click', 'button', function() {
-            const $btn = $(this);
-            if ($btn.hasClass('active')) return;
-
-            priorityViewToggle.find('button').removeClass('active');
-            $btn.addClass('active');
-            priorityView = $btn.data('view');
-            updateURL();
-            applyFiltersAndRender();
-        });
-
-        // Combined event handler for collapsible headers in both views
-        $(page.body).on('click', '.collapsible-header', function() {
-            const groupId = $(this).data('group-id');
-            const body = $(this).next('.collapsible-body');
-            body.slideToggle(200);
-            $(this).find('svg').toggleClass('rotate-180');
-
-            if (body.is(':visible')) {
-                expandedGroups.add(groupId);
-            } else {
-                expandedGroups.delete(groupId);
-            }
-        });
-
-        taskContent.on('click', '.view-tasks-btn', function() {
-            const project_name = $(this).data('project');
-            pageState.project = project_name;
-            updateURL(true); // Push new state for task view
-            loadAndRenderTasks(project_name);
-        });
-
-        taskContent.on('click', '#back-to-projects', function() {
-            // Manually reset the state to go back to the project selection view
-            pageState.project = null;
-            activeTab = 'TasksTree'; // Ensure the tab is correctly set
-            updateURL(true); // Update the URL to #TasksTree and push to history
-            applyFiltersAndRender(); // Re-render the view
-        });
-
-        taskContent.on('click', '.toggle-child-tasks', function() {
-            const $icon = $(this);
-            const $row = $icon.closest('tr');
-            const taskId = $row.data('task-id');
-
-            $icon.toggleClass('fa-caret-down fa-caret-right');
-
-            // Find all direct children and toggle them
-            const children = taskContent.find(`tr[data-parent-id="${taskId}"]`);
-
-            // Function to recursively hide descendants
-            function hideDescendants(parentId) {
-                const descendants = taskContent.find(`tr[data-parent-id="${parentId}"]`);
-                descendants.each(function() {
-                    const childRow = $(this);
-                    const childId = childRow.data('task-id');
-                    childRow.hide();
-                    childRow.find('.toggle-child-tasks').removeClass('fa-caret-down').addClass('fa-caret-right');
-                    hideDescendants(childId);
-                });
-            }
-
-            if ($icon.hasClass('fa-caret-right')) {
-                // If collapsing, hide all children and their descendants
-                children.each(function() {
-                    $(this).hide();
-                    hideDescendants($(this).data('task-id'));
-                });
-            } else {
-                // If expanding, only show direct children
-                children.show();
-            }
-        });
-
-        taskContent.on('click', '.editable-date a', function(e) {
-            e.preventDefault();
-            const link = $(this);
-            const cell = link.closest('td');
-
-            // Prevent opening multiple datepickers in the same cell
-            if (cell.find('.datepicker-input').length > 0) {
-                return;
-            }
-
-            const taskName = cell.data('task-id');
-            const field = cell.data('field');
-            const originalValue = cell.data('original-date'); // YYYY-MM-DD format
-
-            link.hide();
-
-            // Create a temporary div for the control
-            const control_wrapper = $('<div class="datepicker-input" style="width: 130px;"></div>').appendTo(cell);
-
-            let datepicker = frappe.ui.form.make_control({
-                parent: control_wrapper,
-                df: {
-                    fieldtype: 'Date',
-                    fieldname: field,
-                },
-                render_input: true,
-            });
-            datepicker.set_value(originalValue);
-            datepicker.input.focus();
-
-            const cleanup = () => {
-                control_wrapper.remove();
-                link.show();
-            };
-
-            datepicker.input.on('change', () => {
-                const newValue = datepicker.get_value(); // Should be in 'YYYY-MM-DD' format
-
-                // Optimistically update UI
-                const displayValue = newValue ? frappe.datetime.str_to_user(newValue) : 'Set Date';
-                link.text(displayValue);
-
-                frappe.call({
-                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_date',
-                    args: {
-                        task_name: taskName,
-                        field: field,
-                        value: newValue
-                    },
-                    callback: function(r) {
-                        if (r.message && r.message.status === 'success') {
-                            // Update successful, update data attributes
-                            cell.data('original-date', newValue);
-
-                            // Update local data model
-                            function findAndUpdateTask(tasks, taskId, fieldName, newDate) {
-                                for (let task of tasks) {
-                                    if (task.name === taskId) {
-                                        task[fieldName] = newDate;
-                                        return true;
-                                    }
-                                    if (task.children && task.children.length > 0) {
-                                        if (findAndUpdateTask(task.children, taskId, fieldName, newDate)) {
-                                            return true;
-                                        }
-                                    }
-                                }
-                                return false;
-                            }
-                            findAndUpdateTask(currentProjectTasks, taskName, field, newValue);
-                        } else {
-                            // On failure, revert UI
-                            const originalDisplay = originalValue ? frappe.datetime.str_to_user(originalValue) : 'Set Date';
-                            link.text(originalDisplay);
-                        }
-                    },
-                    error: function() {
-                        // On error, also revert
-                        const originalDisplay = originalValue ? frappe.datetime.str_to_user(originalValue) : 'Set Date';
-                        link.text(originalDisplay);
-                    }
-                }).always(() => {
-                    cleanup();
-                });
-            });
-
-            datepicker.input.on('blur', () => {
-                // Use a small timeout to allow the change event to fire before cleanup
-                setTimeout(() => {
-                    if (control_wrapper.parent().length > 0) {
-                       cleanup();
-                    }
-                }, 300);
-            });
-        });
-
-        taskContent.on('click', '.editable-time a', function(e) {
-            e.preventDefault();
-            const link = $(this);
-            const cell = link.closest('td');
-
-            if (cell.find('.time-input').length > 0) {
-                return;
-            }
-
-            const taskName = cell.data('task-id');
-            const originalValue = cell.data('original-value');
-
-            link.hide();
-
-            const input = $(`<input type="number" class="form-control form-control-sm time-input" style="width: 80px;" min="0" step="0.5">`);
-            input.val(originalValue);
-            cell.append(input);
-            input.focus();
-
-            const saveChanges = () => {
-                const newValue = input.val();
-
-                // Client-side validation
-                if (newValue === '' || isNaN(newValue) || parseFloat(newValue) < 0) {
-                    cleanup(); // Revert without saving if invalid
-                    return;
-                }
-
-                const newFloatValue = parseFloat(newValue);
-
-                // Optimistically update UI
-                link.text(newFloatValue);
-
-                // Call backend to save
-                frappe.call({
-                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_expected_time',
-                    args: {
-                        task_name: taskName,
-                        expected_time: newFloatValue
-                    },
-                    callback: function(r) {
-                        if (r.message && r.message.status === 'success') {
-                            // On success, update the data attribute and local model
-                            cell.data('original-value', newFloatValue);
-                            function findAndUpdateTask(tasks, taskId, value) {
-                                for (let task of tasks) {
-                                    if (task.name === taskId) {
-                                        task.expected_time = value;
-                                        return true;
-                                    }
-                                    if (task.children && task.children.length > 0) {
-                                        if (findAndUpdateTask(task.children, taskId, value)) {
-                                            return true;
-                                        }
-                                    }
-                                }
-                                return false;
-                            }
-                            findAndUpdateTask(currentProjectTasks, taskName, newFloatValue);
-                        } else {
-                            // On failure, revert the UI to original value
-                            link.text(originalValue);
-                        }
-                    },
-                    error: function() {
-                        // On error, also revert
-                        link.text(originalValue);
-                    }
-                }).always(() => {
-                    cleanup();
-                });
-            };
-
-            const cleanup = () => {
-                input.remove();
-                link.show();
-            };
-
-            input.on('blur', () => {
-                saveChanges();
-            });
-
-            input.on('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    input.blur(); // Trigger the blur event to save
-                } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    cleanup(); // Revert changes and hide input
-                }
-            });
-        });
-
-        content.on('click', 'thead th', function() {
-            const field = $(this).data('sort');
-            if (!field) return;
-
-            if (currentSort.field === field) {
-                currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
-            } else {
-                currentSort.field = field;
-                currentSort.order = 'asc';
-            }
-            applyFiltersAndRender();
-        });
-
-        content.on('change', 'select', function() {
-            const select = $(this);
-            const projectName = select.closest('tr').data('project-name');
-            const field = select.data('field');
-            const value = select.val();
-
-            frappe.call({
-                method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_project_details',
-                args: {
-                    project_name: projectName,
-                    field: field,
-                    value: value
-                },
-                callback: function(r) {
-                    if (r.message && r.message.status === 'success') {
-                        frappe.show_alert({ message: 'Project updated!', indicator: 'green' });
-                        // find the project in allProjects and update its value
-                        const project = allProjects.find(p => p.name === projectName);
-                        if (project) {
-                            project[field] = value;
-                        }
-                        applyFiltersAndRender();
-                    } else {
-                        frappe.show_alert({ message: 'Error updating project.', indicator: 'red' });
-                    }
-                }
-            });
-        });
-
+        /**
+         * Shows a dialog to manage assignees for a specific task.
+         * @param {string} taskName - The name (ID) of the task.
+         */
         function showAssigneeDialog(taskName) {
-            // Find the task in the local data model to get the most current assignee list
             let task;
             function findTask(tasks, taskId) {
                 for (const t of tasks) {
@@ -1170,17 +712,10 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 title: `Assignees for ${task.subject}`,
                 fields: [
                     { fieldname: 'assignee_list', fieldtype: 'HTML' },
-                    {
-                        fieldname: 'user_to_add',
-                        fieldtype: 'Link',
-                        options: 'User',
-                        label: 'Add User'
-                    },
+                    { fieldname: 'user_to_add', fieldtype: 'Link', options: 'User', label: 'Add User' },
                 ],
                 primary_action_label: 'Close',
-                primary_action: () => {
-                    dialog.hide();
-                }
+                primary_action: () => dialog.hide()
             });
 
             const assigneeListWrapper = dialog.get_field('assignee_list').$wrapper;
@@ -1193,21 +728,16 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                         <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
                             <span>${user.full_name}</span>
                             <button class="btn btn-xs btn-danger remove-assignee" data-user-id="${user.email}">Remove</button>
-                        </div>
-                    `).join('');
+                        </div>`).join('');
                     assigneeListWrapper.html(assigneeHTML);
                 } else {
                     assigneeListWrapper.html('<p class="text-muted p-2">No users are assigned to this task.</p>');
                 }
-
-                // Update the main task row in the background
                 const assigneeNames = assignees.map(u => u.full_name).join(', ') || 'Unassigned';
-                const taskRow = taskContent.find(`tr[data-task-id="${taskName}"]`);
-                taskRow.find('.assignee-link').text(assigneeNames);
+                taskContent.find(`tr[data-task-id="${taskName}"]`).find('.assignee-link').text(assigneeNames);
             }
 
             function updateAssignees(taskName, newAssignees) {
-                // Update the local data model first for immediate UI responsiveness
                 task.assignees = newAssignees;
                 task.assigned_to = newAssignees.map(u => u.full_name).join(', ') || '';
                 renderAssignees(newAssignees);
@@ -1218,31 +748,17 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 frappe.call({
                     method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.remove_task_assignee',
                     args: { task_name: taskName, user_id: userId },
-                    callback: function(r) {
-                        if (r.message && r.message.status === 'success') {
-                            updateAssignees(taskName, r.message.assignees);
-                        }
-                    }
+                    callback: (r) => { if (r.message && r.message.status === 'success') updateAssignees(taskName, r.message.assignees); }
                 });
             });
 
             addUserControl.input.on('change', function() {
                 const userId = addUserControl.get_value();
-                if (userId) {
-                     // Check if user is already assigned
-                    if (task.assignees.some(a => a.email === userId)) {
-                        addUserControl.set_value(''); // Clear input
-                        return; // Do nothing if already assigned
-                    }
+                if (userId && !task.assignees.some(a => a.email === userId)) {
                     frappe.call({
                         method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.add_task_assignee',
                         args: { task_name: taskName, user_id: userId },
-                        callback: function(r) {
-                            if (r.message && r.message.status === 'success') {
-                                updateAssignees(taskName, r.message.assignees);
-                                addUserControl.set_value(''); // Clear input after adding
-                            }
-                        }
+                        callback: (r) => { if (r.message && r.message.status === 'success') { updateAssignees(taskName, r.message.assignees); addUserControl.set_value(''); } }
                     });
                 }
             });
@@ -1251,13 +767,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             dialog.show();
         }
 
-        taskContent.on('click', '.assignee-link', function(e) {
-            e.preventDefault();
-            const taskName = $(this).closest('tr').data('task-id');
-            showAssigneeDialog(taskName);
-        });
-
-        // Helper Functions
+        // --- Helper Functions ---
         /**
          * Gets a Bootstrap badge class based on project status.
          * @param {string} status - The status of the project.
@@ -1286,82 +796,64 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             }
         }
 
-        // Initial Data Load
+        /**
+         * Loads all initial data required for the dashboard to function.
+         * Fetches projects, priorities, and statuses from the server in parallel.
+         */
         function loadInitialData() {
-            parseURLAndSetState(); // Parse URL first to set initial state
+            parseURLAndSetState();
 
-            const fetchPriorities = frappe.call({
-                method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_priority_options"
-            }).then(r => {
-                if (r.message && !r.message.error) {
-                    priorityOptionsList = r.message;
-                } else {
-                    console.error("Could not fetch priority options", r.message ? r.message.error : 'Unknown error');
-                    priorityOptionsList = ['High', 'Medium', 'Low']; // Default fallback
-                }
+            const fetchPriorities = frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_priority_options" }).then(r => {
+                priorityOptionsList = (r.message && !r.message.error) ? r.message : ['High', 'Medium', 'Low'];
             });
-
-            const fetchStatuses = frappe.call({
-                method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_status_options"
-            }).then(r => {
-                if (r.message && !r.message.error) {
-                    statusOptionsList = r.message;
-                } else {
-                    console.error("Could not fetch status options", r.message ? r.message.error : 'Unknown error');
-                    statusOptionsList = ['Open', 'Completed', 'Overdue', 'Cancelled']; // Default fallback
-                }
+            const fetchStatuses = frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_status_options" }).then(r => {
+                statusOptionsList = (r.message && !r.message.error) ? r.message : ['Open', 'Completed', 'Overdue', 'Cancelled'];
             });
-
-            const fetchProjects = frappe.call({
-                method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_data"
-            });
-
-            const fetchTaskStatuses = frappe.call({
-                method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_task_status_options"
-            }).then(r => {
-                if (r.message && !r.message.error) {
-                    taskStatusOptionsList = r.message;
-                } else {
-                    console.error("Could not fetch task status options", r.message ? r.message.error : 'Unknown error');
-                    taskStatusOptionsList = ['Open', 'Working', 'Completed', 'Cancelled']; // Default fallback
-                }
+            const fetchProjects = frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_data" });
+            const fetchTaskStatuses = frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_task_status_options" }).then(r => {
+                taskStatusOptionsList = (r.message && !r.message.error) ? r.message : ['Open', 'Working', 'Completed', 'Cancelled'];
             });
 
             Promise.all([fetchPriorities, fetchStatuses, fetchProjects, fetchTaskStatuses]).then(results => {
-                const r_proj = results[2]; // Project data is the third promise result
+                const r_proj = results[2];
                 if (r_proj.message && !r_proj.message.error) {
                     allProjects = r_proj.message;
-                    applyFiltersAndRender(); // Render based on state from URL
+                    applyFiltersAndRender();
                 } else {
-                    content.html(`<p class="text-danger">Error: ${r_proj.message ? r_proj.message.error : 'An unexpected error occurred while fetching projects.'}</p>`);
+                    content.html(`<p class="text-danger">Error: ${r_proj.message ? r_proj.message.error : 'An unexpected error occurred.'}</p>`);
                 }
             }).catch(err => {
                 console.error("Error loading initial data", err);
-                content.html(`<p class="text-danger">A critical error occurred while loading the dashboard. Please check the console.</p>`);
+                content.html(`<p class="text-danger">A critical error occurred. Please check the console.</p>`);
             });
         }
 
-        // Listen for browser navigation (back/forward buttons)
-        window.addEventListener('popstate', () => {
-            if (allProjects.length > 0) {
-                parseURLAndSetState();
-                applyFiltersAndRender();
-            } else {
-                // If data isn't loaded, a page refresh is likely needed.
-                // This can happen if the user navigates away and then back.
-                window.location.reload();
-            }
-        });
+        // --- Event Listeners ---
+        searchInput.on('keyup', frappe.utils.debounce(() => { applyFiltersAndRender(); updateURL(); }, 300));
+        groupSortSelect.on('change', () => { applyFiltersAndRender(); updateURL(); });
+        configureSortBtn.on('click', openSortConfiguration);
+        tabContainer.on('click', '.nav-link', function(e) { e.preventDefault(); const clickedTab = $(this); if (clickedTab.hasClass('active')) return; tabContainer.find('.nav-link').removeClass('active'); clickedTab.addClass('active'); activeTab = clickedTab.data('status'); pageState = {}; searchInput.val(''); priorityViewToggle.toggle(activeTab === 'PriorityOverview'); updateURL(true); applyFiltersAndRender(); });
+        priorityViewToggle.on('click', 'button', function() { const $btn = $(this); if ($btn.hasClass('active')) return; priorityViewToggle.find('button').removeClass('active'); $btn.addClass('active'); priorityView = $btn.data('view'); updateURL(); applyFiltersAndRender(); });
+        $(page.body).on('click', '.collapsible-header', function() { const groupId = $(this).data('group-id'); const body = $(this).next('.collapsible-body'); body.slideToggle(200); $(this).find('svg').toggleClass('rotate-180'); if (body.is(':visible')) { expandedGroups.add(groupId); } else { expandedGroups.delete(groupId); } });
+        taskContent.on('click', '.view-tasks-btn', function() { pageState.project = $(this).data('project'); updateURL(true); loadAndRenderTasks(pageState.project); });
+        taskContent.on('click', '#back-to-projects', function() { pageState.project = null; activeTab = 'TasksTree'; updateURL(true); applyFiltersAndRender(); });
+        taskContent.on('click', '.toggle-child-tasks', function() { const $icon = $(this); const $row = $icon.closest('tr'); const taskId = $row.data('task-id'); $icon.toggleClass('fa-caret-down fa-caret-right'); const children = taskContent.find(`tr[data-parent-id="${taskId}"]`); function hideDescendants(parentId) { taskContent.find(`tr[data-parent-id="${parentId}"]`).each(function() { const childRow = $(this); childRow.hide(); childRow.find('.toggle-child-tasks').removeClass('fa-caret-down').addClass('fa-caret-right'); hideDescendants(childRow.data('task-id')); }); } if ($icon.hasClass('fa-caret-right')) { children.each(function() { $(this).hide(); hideDescendants($(this).data('task-id')); }); } else { children.show(); } });
+        taskContent.on('click', '.editable-date a', function(e) { e.preventDefault(); const link = $(this); const cell = link.closest('td'); if (cell.find('.datepicker-input').length > 0) return; const taskName = cell.data('task-id'); const field = cell.data('field'); const originalValue = cell.data('original-date'); link.hide(); const control_wrapper = $('<div class="datepicker-input" style="width: 130px;"></div>').appendTo(cell); let datepicker = frappe.ui.form.make_control({ parent: control_wrapper, df: { fieldtype: 'Date', fieldname: field }, render_input: true }); datepicker.set_value(originalValue); datepicker.input.focus(); const cleanup = () => { control_wrapper.remove(); link.show(); }; datepicker.input.on('change', () => { const newValue = datepicker.get_value(); const displayValue = newValue ? frappe.datetime.str_to_user(newValue) : 'Set Date'; link.text(displayValue); frappe.call({ method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_date', args: { task_name: taskName, field: field, value: newValue }, callback: (r) => { if (r.message && r.message.status === 'success') { cell.data('original-date', newValue); function findAndUpdateTask(tasks, taskId, fieldName, newDate) { for (let task of tasks) { if (task.name === taskId) { task[fieldName] = newDate; return true; } if (task.children && task.children.length > 0 && findAndUpdateTask(task.children, taskId, fieldName, newDate)) return true; } return false; } findAndUpdateTask(currentProjectTasks, taskName, field, newValue); } else { link.text(originalValue ? frappe.datetime.str_to_user(originalValue) : 'Set Date'); } }, error: () => { link.text(originalValue ? frappe.datetime.str_to_user(originalValue) : 'Set Date'); } }).always(cleanup); }); datepicker.input.on('blur', () => { setTimeout(() => { if (control_wrapper.parent().length > 0) cleanup(); }, 300); }); });
+        taskContent.on('click', '.editable-time a', function(e) { e.preventDefault(); const link = $(this); const cell = link.closest('td'); if (cell.find('.time-input').length > 0) return; const taskName = cell.data('task-id'); const originalValue = cell.data('original-value'); link.hide(); const input = $(`<input type="number" class="form-control form-control-sm time-input" style="width: 80px;" min="0" step="0.5">`).val(originalValue).appendTo(cell).focus(); const cleanup = () => { input.remove(); link.show(); }; const saveChanges = () => { const newValue = input.val(); if (newValue === '' || isNaN(newValue) || parseFloat(newValue) < 0) { cleanup(); return; } const newFloatValue = parseFloat(newValue); link.text(newFloatValue); frappe.call({ method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_expected_time', args: { task_name: taskName, expected_time: newFloatValue }, callback: (r) => { if (r.message && r.message.status === 'success') { cell.data('original-value', newFloatValue); function findAndUpdateTask(tasks, taskId, value) { for (let task of tasks) { if (task.name === taskId) { task.expected_time = value; return true; } if (task.children && task.children.length > 0 && findAndUpdateTask(task.children, taskId, value)) return true; } return false; } findAndUpdateTask(currentProjectTasks, taskName, newFloatValue); } else { link.text(originalValue); } }, error: () => link.text(originalValue) }).always(cleanup); }; input.on('blur', saveChanges).on('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } else if (e.key === 'Escape') { e.preventDefault(); cleanup(); } }); });
+        content.on('click', 'thead th', function() { const field = $(this).data('sort'); if (!field) return; if (currentSort.field === field) { currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc'; } else { currentSort.field = field; currentSort.order = 'asc'; } applyFiltersAndRender(); });
+        content.on('change', 'select', function() { const select = $(this); const projectName = select.closest('tr').data('project-name'); const field = select.data('field'); const value = select.val(); frappe.call({ method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_project_details', args: { project_name: projectName, field: field, value: value }, callback: (r) => { if (r.message && r.message.status === 'success') { const project = allProjects.find(p => p.name === projectName); if (project) project[field] = value; } else { frappe.show_alert({ message: 'Error updating project.', indicator: 'red' }); applyFiltersAndRender(); } } }); });
+        taskContent.on('click', '.assignee-link', function(e) { e.preventDefault(); showAssigneeDialog($(this).closest('tr').data('task-id')); });
+        window.addEventListener('popstate', () => { if (allProjects.length > 0) { parseURLAndSetState(); applyFiltersAndRender(); } else { window.location.reload(); } });
 
+        // --- Initial Load ---
         loadInitialData();
 
+        // --- Custom Styles ---
         $(`<style>
             .table thead th { cursor: pointer; user-select: none; }
             .table thead th.sorted-asc::after { content: ' ▲'; font-size: 10px; }
             .table thead th.sorted-desc::after { content: ' ▼'; font-size: 10px; }
             #sortable-list li { cursor: grab; }
-            .nav-tabs { border-bottom: 1px solid #d1d8dd; }
-            .nav-tabs .nav-link { border: 1px solid transparent; border-top-left-radius: .25rem; border-top-right-radius: .25rem; }
             .nav-tabs .nav-link.active { color: #495057; background-color: #fff; border-color: #d1d8dd #d1d8dd #fff; }
             .task-row td { vertical-align: middle; }
             .task-row:hover { background-color: #f8f9fa; }
