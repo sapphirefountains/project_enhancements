@@ -358,42 +358,55 @@ def get_project_tasks(project):
 @frappe.whitelist()
 def update_task_date(task_name, field, value):
     """
-    Updates the start or end date of a single task.
+    Updates the start or end date of a single task, ensuring the user has
+    the necessary permissions on the parent project.
 
     Args:
         task_name (str): The name (ID) of the task to update.
         field (str): The date field to update ('exp_start_date' or 'exp_end_date').
-        value (str): The new date value in 'YYYY-MM-DD' format.
+        value (str): The new date value in 'YYYY-MM-DD' format. Can be None or empty.
 
     Returns:
         dict: A dictionary indicating the status of the operation.
     """
-    # Permission check: Only 'Project Manager' and 'Project User' can edit
-    allowed_roles = {"Project Manager", "Project User"}
-    user_roles = set(frappe.get_roles())
-    if not allowed_roles.intersection(user_roles):
-        return {"status": "error", "message": "You do not have permission to perform this action."}
+    if not task_name or not field:
+        return {"status": "error", "message": "Task and field are required."}
 
     if field not in ['exp_start_date', 'exp_end_date']:
         return {"status": "error", "message": "Invalid field specified."}
 
     try:
+        # --- PERMISSION CHECK ---
+        # Get the project associated with the task
+        project = frappe.db.get_value('Task', task_name, 'project')
+
+        if not project:
+            # If a task has no project, deny permission to edit it from this dashboard
+            return {"status": "error", "message": "This task is not linked to a project."}
+
+        # Check if the user has 'write' permission on the project.
+        # This check respects roles and direct sharing.
+        if not frappe.has_permission('Project', ptype='write', doc=project):
+            return {"status": "error", "message": "You do not have permission to modify tasks for this project."}
+        # --- END PERMISSION CHECK ---
+
+        # Validate and update the date
         task = frappe.get_doc('Task', task_name)
 
-        # Date validation
+        # Allow clearing the date
+        new_date = getdate(value) if value else None
+
         if field == 'exp_start_date':
-            start_date = getdate(value)
             end_date = getdate(task.exp_end_date)
-            if end_date and start_date > end_date:
+            if end_date and new_date and new_date > end_date:
                 return {"status": "error", "message": "Start date cannot be after end date."}
 
         if field == 'exp_end_date':
-            end_date = getdate(value)
             start_date = getdate(task.exp_start_date)
-            if start_date and end_date < start_date:
+            if start_date and new_date and new_date < start_date:
                 return {"status": "error", "message": "End date cannot be before start date."}
 
-        frappe.db.set_value('Task', task_name, field, value)
+        frappe.db.set_value('Task', task_name, field, new_date)
         return {"status": "success"}
 
     except Exception as e:
