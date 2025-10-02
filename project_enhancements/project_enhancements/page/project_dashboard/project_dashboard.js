@@ -481,8 +481,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             const tableBody = table.find('tbody');
 
             function renderTaskRow(task, level) {
-                const start_date = task.exp_start_date ? frappe.datetime.str_to_user(task.exp_start_date) : '';
-                const end_date = task.exp_end_date ? frappe.datetime.str_to_user(task.exp_end_date) : '';
+                const start_date = task.exp_start_date ? frappe.datetime.str_to_user(task.exp_start_date) : 'Set Date';
+                const end_date = task.exp_end_date ? frappe.datetime.str_to_user(task.exp_end_date) : 'Set Date';
                 const progress = task.progress || 0;
 
                 const row = $(`
@@ -583,8 +583,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 return;
             }
             function renderTaskRow(task, level) {
-                const start_date = task.exp_start_date ? frappe.datetime.str_to_user(task.exp_start_date) : '';
-                const end_date = task.exp_end_date ? frappe.datetime.str_to_user(task.exp_end_date) : '';
+                const start_date = task.exp_start_date ? frappe.datetime.str_to_user(task.exp_start_date) : 'Set Date';
+                const end_date = task.exp_end_date ? frappe.datetime.str_to_user(task.exp_end_date) : 'Set Date';
                 const progress = task.progress || 0;
                 const row = $(`
                     <tr class="task-row" data-task-id="${task.name}" data-parent-id="${task.parent_task || ''}">
@@ -911,85 +911,96 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             e.preventDefault();
             const link = $(this);
             const cell = link.closest('td');
+
+            // Prevent opening multiple datepickers in the same cell
+            if (cell.find('.datepicker-input').length > 0) {
+                return;
+            }
+
             const taskName = cell.data('task-id');
             const field = cell.data('field');
             const originalValue = cell.data('original-date'); // YYYY-MM-DD format
 
-            // Create a temporary input to attach the datepicker to
-            // Position it relative to the cell for better placement
-            cell.css('position', 'relative');
-            const input = $('<input type="text" class="form-control form-control-sm" style="width: 120px; position: absolute; top: 0; left: 0; z-index: 10;">');
-            cell.append(input);
             link.hide();
-            input.focus();
 
-            input.datepicker({
-                dateFormat: "yy-mm-dd", // jQuery UI format for YYYY-MM-DD
-                changeYear: true,
-                changeMonth: true,
-                onSelect: function(dateText) {
-                    const newValue = dateText;
+            // Create a temporary div for the control
+            const control_wrapper = $('<div class="datepicker-input" style="width: 130px;"></div>').appendTo(cell);
 
-                    // Optimistically update UI with user-formatted date
-                    link.text(frappe.datetime.str_to_user(newValue));
+            let datepicker = frappe.ui.form.make_control({
+                parent: control_wrapper,
+                df: {
+                    fieldtype: 'Date',
+                    fieldname: field,
+                },
+                render_input: true,
+            });
+            datepicker.set_value(originalValue);
+            datepicker.input.focus();
 
-                    frappe.call({
-                        method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_date',
-                        args: {
-                            task_name: taskName,
-                            field: field,
-                            value: newValue
-                        },
-                        callback: function(r) {
-                            if (r.message && r.message.status === 'success') {
-                                // Update was successful, so update the data attributes
-                                cell.data('original-date', newValue);
+            const cleanup = () => {
+                control_wrapper.remove();
+                link.show();
+            };
 
-                                // Also update the local data model to maintain state
-                                function findAndUpdateTask(tasks, taskId, fieldName, newDate) {
-                                    for (let task of tasks) {
-                                        if (task.name === taskId) {
-                                            task[fieldName] = newDate;
+            datepicker.input.on('change', () => {
+                const newValue = datepicker.get_value(); // Should be in 'YYYY-MM-DD' format
+
+                // Optimistically update UI
+                const displayValue = newValue ? frappe.datetime.str_to_user(newValue) : 'Set Date';
+                link.text(displayValue);
+
+                frappe.call({
+                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_date',
+                    args: {
+                        task_name: taskName,
+                        field: field,
+                        value: newValue
+                    },
+                    callback: function(r) {
+                        if (r.message && r.message.status === 'success') {
+                            // Update successful, update data attributes
+                            cell.data('original-date', newValue);
+
+                            // Update local data model
+                            function findAndUpdateTask(tasks, taskId, fieldName, newDate) {
+                                for (let task of tasks) {
+                                    if (task.name === taskId) {
+                                        task[fieldName] = newDate;
+                                        return true;
+                                    }
+                                    if (task.children && task.children.length > 0) {
+                                        if (findAndUpdateTask(task.children, taskId, fieldName, newDate)) {
                                             return true;
                                         }
-                                        if (task.children && task.children.length > 0) {
-                                            if (findAndUpdateTask(task.children, taskId, fieldName, newDate)) {
-                                                return true;
-                                            }
-                                        }
                                     }
-                                    return false;
                                 }
-                                findAndUpdateTask(currentProjectTasks, taskName, field, newValue);
-                            } else {
-                                // On failure, revert the UI to the original value
-                                const originalUserFormat = originalValue ? frappe.datetime.str_to_user(originalValue) : '';
-                                link.text(originalUserFormat);
+                                return false;
                             }
-                        },
-                        error: function() {
-                            // On error, also revert
-                            const originalUserFormat = originalValue ? frappe.datetime.str_to_user(originalValue) : '';
-                            link.text(originalUserFormat);
+                            findAndUpdateTask(currentProjectTasks, taskName, field, newValue);
+                        } else {
+                            // On failure, revert UI
+                            const originalDisplay = originalValue ? frappe.datetime.str_to_user(originalValue) : 'Set Date';
+                            link.text(originalDisplay);
                         }
-                    });
-
-                    input.remove();
-                    link.show();
-                },
-                onClose: function() {
-                    // Remove input and show link if no date was selected
-                    input.remove();
-                    link.show();
-                }
+                    },
+                    error: function() {
+                        // On error, also revert
+                        const originalDisplay = originalValue ? frappe.datetime.str_to_user(originalValue) : 'Set Date';
+                        link.text(originalDisplay);
+                    }
+                }).always(() => {
+                    cleanup();
+                });
             });
 
-            if (originalValue) {
-                // SetDate requires a Date object
-                input.datepicker("setDate", frappe.datetime.str_to_obj(originalValue));
-            }
-
-            input.datepicker("show");
+            datepicker.input.on('blur', () => {
+                // Use a small timeout to allow the change event to fire before cleanup
+                setTimeout(() => {
+                    if (control_wrapper.parent().length > 0) {
+                       cleanup();
+                    }
+                }, 300);
+            });
         });
 
         content.on('click', 'thead th', function() {
