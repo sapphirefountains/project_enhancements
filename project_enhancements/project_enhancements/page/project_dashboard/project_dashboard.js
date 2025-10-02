@@ -553,7 +553,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             const grid = $(`
                 <div class="task-grid">
                     <div class="task-grid-header">
-                        <div class="task-grid-cell" style="width: 40%;">Task</div>
+                        <div class="task-grid-cell">Task</div>
                         <div class="task-grid-cell">Owner</div>
                         <div class="task-grid-cell">Status</div>
                         <div class="task-grid-cell">Start Date</div>
@@ -620,7 +620,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 const node = $(`
                     <div class="task-node" data-task-id="${task.name}">
                         <div class="task-grid-row">
-                            <div class="task-grid-cell task-drag-handle" style="width: 40%; padding-left: ${level * 20}px;">
+                            <div class="task-grid-cell task-drag-handle" style="padding-left: ${level * 20}px;">
                                 <i class="fa fa-fw ${task.children.length > 0 ? 'fa-caret-down toggle-child-tasks' : ''} mr-1"></i>
                                 <a href="/app/task/${task.name}">${task.subject}</a>
                             </div>
@@ -1045,11 +1045,11 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             .task-grid-header { font-weight: bold; background-color: #f8f9fa; }
             .task-grid-cell { padding: 0 0.5rem; flex-shrink: 0; display: flex; align-items: center; }
             .task-grid-cell:nth-child(1) { flex: 0 0 40%; }
-            .task-grid-cell:nth-child(2) { flex: 1 1 15%; }
-            .task-grid-cell:nth-child(3) { flex: 1 1 12%; }
-            .task-grid-cell:nth-child(4), .task-grid-cell:nth-child(5) { flex: 1 1 10%; }
-            .task-grid-cell:nth-child(6) { flex: 1 1 8%; }
-            .task-grid-cell:nth-child(7) { flex: 1 1 5%; }
+            .task-grid-cell:nth-child(2) { flex: 0 0 15%; }
+            .task-grid-cell:nth-child(3) { flex: 0 0 12%; }
+            .task-grid-cell:nth-child(4), .task-grid-cell:nth-child(5) { flex: 0 0 10%; }
+            .task-grid-cell:nth-child(6) { flex: 0 0 8%; }
+            .task-grid-cell:nth-child(7) { flex: 0 0 5%; }
             .task-node .task-grid-row:hover { background-color: #f1f3f5; }
             .child-tasks-container { padding-left: 20px; }
 
