@@ -157,6 +157,28 @@ def update_project_details(project_name, field, value):
         frappe.log_error(frappe.get_traceback(), f"Error updating project {project_name}")
         return {"status": "error", "message": "Could not update project. Please check the logs."}
 
+
+@frappe.whitelist()
+def update_task_status(task_name, status):
+    """
+    Updates the status of a single task.
+
+    Args:
+        task_name (str): The name (ID) of the task to update.
+        status (str): The new status for the task.
+
+    Returns:
+        dict: A dictionary indicating the status of the operation.
+    """
+    if not check_permission():
+            return {"status": "error", "message": "You do not have permission to perform this action."}
+    try:
+        frappe.db.set_value('Task', task_name, 'status', status)
+        return {"status": "success"}
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"Error updating task {task_name}")
+        return {"status": "error", "message": "Could not update task status. Please check the logs."}
+
 @frappe.whitelist()
 def get_priority_options():
     """
@@ -210,6 +232,30 @@ def get_status_options():
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error fetching status options")
         return {"error": "Could not fetch status options."}
+
+@frappe.whitelist()
+def get_task_status_options():
+    """
+    Retrieves the configured options for the 'status'
+    field from the Task DocType metadata.
+
+    Returns:
+        list[str]: A list of available status options.
+                   Returns a dictionary with an 'error' key on failure.
+    """
+    try:
+        task_doctype = frappe.get_meta('Task')
+        status_field = next((df for df in task_doctype.fields if df.fieldname == 'status'), None)
+
+        if status_field and status_field.options:
+            options = [opt for opt in status_field.options.split('\n') if opt]
+            return options
+        else:
+            return []
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error fetching task status options")
+        return {"error": "Could not fetch task status options."}
 
 def _fetch_all_project_tasks(project_name):
     """
