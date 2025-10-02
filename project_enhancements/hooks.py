@@ -1,3 +1,25 @@
+# -*- coding: utf-8 -*-
+"""Frappe App Hooks.
+
+This file is a central configuration point for the 'Project Enhancements' app,
+allowing it to integrate with the Frappe framework. Hooks are used to extend
+or modify the core behavior of Frappe by listening to events, overriding
+methods, defining scheduled jobs, and more.
+
+Each variable or dictionary in this file corresponds to a specific type of
+hook. For example:
+- `doc_events`: Trigger custom functions on document lifecycle events (e.g.,
+  on_update, on_submit).
+- `scheduler_events`: Define background jobs to run at specified intervals
+  (e.g., daily, weekly).
+- `override_doctype_class`: Replace a standard DocType controller class with a
+  custom one.
+- `doctype_js`, `doctype_list_js`: Inject custom JavaScript into DocType views.
+
+For a full list and explanation of available hooks, see the Frappe framework
+documentation on Hooks.
+"""
+
 app_name = "project_enhancements"
 app_title = "Project Enhancements"
 app_publisher = "Sapphire Fountains"
