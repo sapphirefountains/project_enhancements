@@ -1052,7 +1052,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             .task-grid-cell:nth-child(6) { flex: 0 0 8%; }
             .task-grid-cell:nth-child(7) { flex: 0 0 5%; }
             .task-node .task-grid-row:hover { background-color: #f1f3f5; }
-            .child-tasks-container { padding-left: 20px; }
+            .child-tasks-container {  }
 
             /* Sticky Header Styles */
             .project-dashboard-controls {
