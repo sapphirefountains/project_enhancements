@@ -902,15 +902,47 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             indicator.show();
             saveButton.prop('disabled', true);
 
-            const updates = [];
-            taskContent.find('.task-node').each(function(index) {
-                const taskNode = $(this);
-                const taskId = taskNode.data('task-id');
-                const parentNode = taskNode.parent().closest('.task-node');
-                const parentId = parentNode.length ? parentNode.data('task-id') : null;
-                const order = taskNode.index();
-                updates.push({ name: taskId, parent_task: parentId, custom_subtask_order: order });
-            });
+            function getTaskUpdatesFromDOM() {
+                const updates = [];
+
+                function recurse(container, parentOrderString) {
+                    const children = $(container).children('.task-node');
+
+                    children.each(function(index) {
+                        const taskNode = $(this);
+                        const taskId = taskNode.data('task-id');
+                        const parentNode = taskNode.parent().closest('.task-node');
+                        const parentId = parentNode.length ? parentNode.data('task-id') : null;
+
+                        let currentOrderString;
+                        if (parentOrderString) {
+                            currentOrderString = parentOrderString + (index + 1);
+                        } else {
+                            currentOrderString = (index + 1) + ".0";
+                        }
+
+                        updates.push({
+                            name: taskId,
+                            parent_task: parentId,
+                            custom_subtask_order: parseFloat(currentOrderString)
+                        });
+
+                        const childContainer = taskNode.children('.child-tasks-container');
+                        if (childContainer.children('.task-node').length > 0) {
+                            let nextParentOrderString = currentOrderString.endsWith('.0')
+                                ? currentOrderString.slice(0, -2) + '.'
+                                : currentOrderString;
+                            recurse(childContainer, nextParentOrderString);
+                        }
+                    });
+                }
+
+                recurse(taskContent.find('.task-grid-body'), null);
+
+                return updates;
+            }
+
+            const updates = getTaskUpdatesFromDOM();
 
             frappe.call({
                 method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_structure',
