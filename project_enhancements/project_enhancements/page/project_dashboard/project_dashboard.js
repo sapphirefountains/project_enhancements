@@ -249,7 +249,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             const tableBody = table.find('tbody');
 
             projects.forEach(project => {
-                const tasks_link = `<a href="/app/task?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a>`;
+                const tasks_link = `<a href="/app/project-dashboard#TasksTree?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a>`;
                 const rowHTML = `<tr><td class="${getPriorityClass(project.custom_project_priority)}">${project.custom_project_priority || ''}</td><td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td><td>${project.name}</td><td><span class="badge ${getStatusClass(project.status)}">${project.status}</span></td><td>${tasks_link}</td><td>${project.project_user || ''}</td></tr>`;
                 tableBody.append(rowHTML);
             });
@@ -335,7 +335,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                                     ${priorityOptions}
                                 </select>
                             </td>
-                            <td><a href="/app/task?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a></td>
+                            <td><a href="/app/project-dashboard#TasksTree?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a></td>
                             <td>${project.project_user || ''}</td>
                         </tr>`;
                     tableBody.append(rowHTML);
