@@ -887,6 +887,38 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         tabContainer.on('click', '.nav-link', function(e) { e.preventDefault(); const clickedTab = $(this); if (clickedTab.hasClass('active')) return; tabContainer.find('.nav-link').removeClass('active'); clickedTab.addClass('active'); activeTab = clickedTab.data('status'); pageState = {}; searchInput.val(''); priorityViewToggle.toggle(activeTab === 'PriorityOverview'); updateURL(true); applyFiltersAndRender(); });
         priorityViewToggle.on('click', 'button', function() { const $btn = $(this); if ($btn.hasClass('active')) return; priorityViewToggle.find('button').removeClass('active'); $btn.addClass('active'); priorityView = $btn.data('view'); updateURL(); applyFiltersAndRender(); });
         $(page.body).on('click', '.collapsible-header', function() { const groupId = $(this).data('group-id'); const body = $(this).next('.collapsible-body'); body.slideToggle(200); $(this).find('svg').toggleClass('rotate-180'); if (body.is(':visible')) { expandedGroups.add(groupId); } else { expandedGroups.delete(groupId); } });
+
+        // Handle clicks on task links within the project tables to navigate to the task tree view.
+        content.on('click', 'a[href*="#TasksTree"]', function(e) {
+            e.preventDefault();
+
+            // Extract the project name from the link's href attribute.
+            const url = new URL($(this).attr('href'), window.location.origin);
+            const params = new URLSearchParams(url.hash.split('?')[1]);
+            const projectName = params.get('project');
+
+            if (!projectName) {
+                console.error("Could not find project name in link.", this);
+                return;
+            }
+
+            // --- Manually orchestrate the tab switch ---
+            // 1. Set the active tab and page state.
+            activeTab = 'TasksTree';
+            pageState = { project: projectName };
+
+            // 2. Update the tab UI to highlight the 'Tasks Tree' tab.
+            tabContainer.find('.nav-link').removeClass('active');
+            tabContainer.find('.nav-link[data-status="TasksTree"]').addClass('active');
+            priorityViewToggle.hide(); // Not visible on task tree.
+
+            // 3. Update the browser URL and history.
+            updateURL(true); // push=true to allow using the back button.
+
+            // 4. Trigger the main render function, which will now render the task view.
+            applyFiltersAndRender();
+        });
+
         taskContent.on('click', '.view-tasks-btn', function() { pageState.project = $(this).data('project'); updateURL(true); loadAndRenderTasks(pageState.project); });
         taskContent.on('click', '#back-to-projects', function() { pageState.project = null; activeTab = 'TasksTree'; updateURL(true); applyFiltersAndRender(); });
         taskContent.on('click', '#save-task-order', function() {
