@@ -76,6 +76,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         let expandedGroups = new Set();
         let currentTaskSort = { field: 'subject', order: 'asc' };
         let currentProjectTasks = []; // Holds the original, unfiltered task tree for a project.
+        let collapsedTasks = new Set(); // Holds the set of collapsed task IDs for the current project.
         let pageState = {}; // Holds the state parsed from the URL hash.
         let taskSortableInstance = null;
 
@@ -573,13 +574,19 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 const start_date = task.exp_start_date ? frappe.datetime.str_to_user(task.exp_start_date) : 'Set Date';
                 const end_date = task.exp_end_date ? frappe.datetime.str_to_user(task.exp_end_date) : 'Set Date';
                 const progress = task.progress || 0;
+                const isCollapsed = collapsedTasks.has(task.name);
+
+                // Determine the correct icon class based on whether the task has children and its collapsed state.
+                const iconClass = task.children.length > 0
+                    ? (isCollapsed ? 'fa-caret-right' : 'fa-caret-down') + ' toggle-child-tasks'
+                    : '';
 
                 const node = $(`
                     <div class="task-node" data-task-id="${task.name}">
                         <div class="task-grid-row">
                             <div class="task-grid-cell" style="padding-left: ${level * 20}px;">
                                 <i class="fa fa-bars task-drag-handle mr-2 text-muted"></i>
-                                <i class="fa fa-fw ${task.children.length > 0 ? 'fa-caret-down toggle-child-tasks' : ''} mr-1"></i>
+                                <i class="fa fa-fw ${iconClass} mr-1"></i>
                                 <a href="/app/task/${task.name}">${task.subject}</a>
                             </div>
                             <div class="task-grid-cell assignee-cell"><a href="#" class="assignee-link">${task.assigned_to || 'Unassigned'}</a></div>
@@ -589,7 +596,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                             <div class="task-grid-cell"><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></div>
                             <div class="task-grid-cell editable-time" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}"><a href="#">${task.expected_time || 0}</a></div>
                         </div>
-                        <div class="child-tasks-container"></div>
+                        <div class="child-tasks-container" style="${isCollapsed ? 'display: none;' : ''}"></div>
                     </div>
                 `).appendTo(container);
 
@@ -678,6 +685,14 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             }
 
             taskContent.html(`<div class="text-center p-5"><div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div></div>`);
+
+            // Load the collapsed state for this specific project from local storage.
+            const savedState = localStorage.getItem(`collapsedTasks_${project_name}`);
+            if (savedState) {
+                collapsedTasks = new Set(JSON.parse(savedState));
+            } else {
+                collapsedTasks = new Set();
+            }
 
             frappe.call({
                 method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_tasks',
@@ -996,7 +1011,29 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 }
             });
         });
-        taskContent.on('click', '.toggle-child-tasks', function() { const $icon = $(this); const $row = $icon.closest('tr'); const taskId = $row.data('task-id'); $icon.toggleClass('fa-caret-down fa-caret-right'); const children = taskContent.find(`tr[data-parent-id="${taskId}"]`); function hideDescendants(parentId) { taskContent.find(`tr[data-parent-id="${parentId}"]`).each(function() { const childRow = $(this); childRow.hide(); childRow.find('.toggle-child-tasks').removeClass('fa-caret-down').addClass('fa-caret-right'); hideDescendants(childRow.data('task-id')); }); } if ($icon.hasClass('fa-caret-right')) { children.each(function() { $(this).hide(); hideDescendants($(this).data('task-id')); }); } else { children.show(); } });
+        taskContent.on('click', '.toggle-child-tasks', function() {
+            const $icon = $(this);
+            const $taskNode = $icon.closest('.task-node');
+            const taskId = $taskNode.data('task-id');
+            const $childContainer = $taskNode.find('.child-tasks-container');
+
+            // Toggle the icon and the visibility of the child container
+            $icon.toggleClass('fa-caret-down fa-caret-right');
+            $childContainer.slideToggle(200);
+
+            // Update the collapsed state
+            if ($icon.hasClass('fa-caret-right')) {
+                collapsedTasks.add(taskId);
+            } else {
+                collapsedTasks.delete(taskId);
+            }
+
+            // Save the updated state to local storage for the current project
+            const projectName = pageState.project;
+            if (projectName) {
+                localStorage.setItem(`collapsedTasks_${projectName}`, JSON.stringify(Array.from(collapsedTasks)));
+            }
+        });
         taskContent.on('click', '.editable-date a', function(e) {
             e.preventDefault();
             const link = $(this);
