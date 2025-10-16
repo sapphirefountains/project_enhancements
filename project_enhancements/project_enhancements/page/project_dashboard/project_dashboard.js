@@ -719,9 +719,9 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
          * @param {jQuery} assigneeLink - The jQuery object for the clicked assignee link.
          */
         function showTaskAssigneeDialog(assigneeLink) {
-            const taskRow = assigneeLink.closest('tr');
-            const taskName = taskRow.data('task-id');
-            const taskSubject = taskRow.find('td:first a').text();
+            const taskNode = assigneeLink.closest('.task-node');
+            const taskName = taskNode.data('task-id');
+            const taskSubject = taskNode.find('.task-grid-cell:first a').text();
 
             // Find the task from the main task list to get assignee details
             let task;
