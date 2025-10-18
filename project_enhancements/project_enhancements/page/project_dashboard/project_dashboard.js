@@ -72,7 +72,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         let taskStatusOptionsList = [];
         let currentSort = { field: 'project_name', order: 'asc' };
         let activeTab = 'ActiveProjects';
-        let priorityView = 'grouped'; // 'grouped' or 'ranked'
+        let priorityView = 'ranked'; // 'grouped' or 'ranked'
         let expandedGroups = new Set();
         let currentTaskSort = { field: 'subject', order: 'asc' };
         let currentProjectTasks = []; // Holds the original, unfiltered task tree for a project.
@@ -108,8 +108,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                         <div class="d-flex justify-content-end">
                             <div id="priority-view-toggle" class="mr-2" style="display: none;">
                                  <div class="btn-group btn-group-sm">
-                                    <button type="button" class="btn btn-secondary active" data-view="grouped">By Type</button>
-                                    <button type="button" class="btn btn-secondary" data-view="ranked">By Priority</button>
+                                    <button type="button" class="btn btn-secondary" data-view="grouped">By Type</button>
+                                    <button type="button" class="btn btn-secondary active" data-view="ranked">By Priority</button>
                                 </div>
                             </div>
                             <div class="input-group input-group-sm">
@@ -199,7 +199,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 searchInput.val(pageState.search || '');
                 groupSortSelect.val(pageState.sort || 'custom');
                 if (activeTab === 'PriorityOverview') {
-                    priorityView = pageState.view || 'grouped';
+                    priorityView = pageState.view || 'ranked';
                     priorityViewToggle.find('button').removeClass('active');
                     priorityViewToggle.find(`button[data-view="${priorityView}"]`).addClass('active');
                     priorityViewToggle.show();
@@ -246,13 +246,26 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 return priorityA - priorityB;
             });
 
-            const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="custom_project_priority">Priority</th><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="tasks">Tasks</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(content);
+            const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="custom_project_priority">Priority</th><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="tasks">Tasks</th><th data-sort="percent_complete">% Complete</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(content);
             const tableBody = table.find('tbody');
 
             projects.forEach(project => {
                 const tasks_link = `<a href="/app/project-dashboard#TasksTree?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a>`;
-                const rowHTML = `<tr><td class="${getPriorityClass(project.custom_project_priority)}">${project.custom_project_priority || ''}</td><td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td><td>${project.name}</td><td><span class="badge ${getStatusClass(project.status)}">${project.status}</span></td><td>${tasks_link}</td><td>${project.project_user || ''}</td></tr>`;
-                tableBody.append(rowHTML);
+                const priorityOptions = priorityOptionsList.map(p => `<option value="${p}" ${project.custom_project_priority === p ? 'selected' : ''}>${p}</option>`).join('');
+                const progress = project.percent_complete || 0;
+
+                const row = $(`
+                    <tr data-project-name="${project.name}">
+                        <td><select class="form-control form-control-sm" data-field="custom_project_priority">${priorityOptions}</select></td>
+                        <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
+                        <td>${project.name}</td>
+                        <td><span class="badge ${getStatusClass(project.status)}">${project.status}</span></td>
+                        <td>${tasks_link}</td>
+                        <td><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
+                        <td class="assignee-cell"><a href="#" class="project-assignee-link">${project.project_user || 'Unassigned'}</a></td>
+                    </tr>
+                `);
+                tableBody.append(row);
             });
             updateSortIcons();
         }
@@ -718,6 +731,109 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
          * Shows a dialog to manage multiple assignees for a task.
          * @param {jQuery} assigneeLink - The jQuery object for the clicked assignee link.
          */
+        function showProjectAssigneeDialog(assigneeLink) {
+            const projectRow = assigneeLink.closest('tr');
+            const projectName = projectRow.data('project-name');
+            const projectTitle = projectRow.find('td:nth-child(2) a').text();
+
+            let project = allProjects.find(p => p.name === projectName);
+
+            if (!project) {
+                frappe.show_alert({ message: 'Could not find project details.', indicator: 'red' });
+                return;
+            }
+
+            const dialog = new frappe.ui.Dialog({
+                title: `Assignments for: ${projectTitle}`,
+                fields: [
+                    {
+                        fieldname: 'assign_to',
+                        fieldtype: 'Link',
+                        options: 'User',
+                        label: 'Assign a user',
+                        description: 'Select a user to add them to the project.'
+                    },
+                    {
+                        fieldname: 'assignees_html',
+                        fieldtype: 'HTML',
+                        options: '<div class="assignee-list-wrapper mt-3"></div>'
+                    }
+                ]
+            });
+
+            const assigneeWrapper = dialog.get_field('assignees_html').$wrapper;
+            const assigneeListWrapper = assigneeWrapper.find('.assignee-list-wrapper');
+
+            function renderAssignees() {
+                assigneeListWrapper.empty();
+                if (project.assignees && project.assignees.length > 0) {
+                    const assigneeItems = project.assignees.map(assignee => `
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            ${assignee.full_name}
+                            <button class="btn btn-xs btn-danger remove-assignee" data-user-id="${assignee.email}">Remove</button>
+                        </li>
+                    `).join('');
+                    assigneeListWrapper.html(`<ul class="list-group">${assigneeItems}</ul>`);
+                } else {
+                    assigneeListWrapper.html('<p class="text-muted">No users are assigned to this project.</p>');
+                }
+            }
+
+            function updateProjectRowAssignees() {
+                const newAssigneeText = project.assignees && project.assignees.length > 0
+                    ? project.assignees.map(a => a.full_name).join(', ')
+                    : 'Unassigned';
+                assigneeLink.text(newAssigneeText);
+                project.project_user = newAssigneeText; // Update the underlying data model
+            }
+
+            dialog.get_field('assign_to').df.onchange = () => {
+                const userId = dialog.get_value('assign_to');
+                if (!userId) return;
+
+                if (project.assignees && project.assignees.find(a => a.email === userId)) {
+                    frappe.show_alert({ message: 'User is already assigned.', indicator: 'info' });
+                    dialog.set_value('assign_to', '');
+                    return;
+                }
+
+                frappe.call({
+                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.add_project_assignee',
+                    args: { project_name: projectName, user_id: userId },
+                    callback: function(r) {
+                        if (r.message && r.message.status === 'success') {
+                            project.assignees = r.message.assignees;
+                            renderAssignees();
+                            updateProjectRowAssignees();
+                            dialog.set_value('assign_to', '');
+                        } else {
+                            frappe.show_alert({ message: r.message.message || 'Could not assign user.', indicator: 'red' });
+                        }
+                    }
+                });
+            };
+
+            assigneeListWrapper.on('click', '.remove-assignee', function() {
+                const userId = $(this).data('user-id');
+                frappe.call({
+                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.remove_project_assignee',
+                    args: { project_name: projectName, user_id: userId },
+                    callback: function(r) {
+                        if (r.message && r.message.status === 'success') {
+                            project.assignees = r.message.assignees;
+                            renderAssignees();
+                            updateProjectRowAssignees();
+                        } else {
+                            frappe.show_alert({ message: r.message.message || 'Could not remove user.', indicator: 'red' });
+                        }
+                    }
+                });
+            });
+
+            dialog.show();
+            renderAssignees();
+        }
+
         function showTaskAssigneeDialog(assigneeLink) {
             const taskNode = assigneeLink.closest('.task-node');
             const taskName = taskNode.data('task-id');
@@ -1122,6 +1238,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         content.on('click', 'thead th', function() { const field = $(this).data('sort'); if (!field) return; if (currentSort.field === field) { currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc'; } else { currentSort.field = field; currentSort.order = 'asc'; } applyFiltersAndRender(); });
         content.on('change', 'select', function() { const select = $(this); const projectName = select.closest('tr').data('project-name'); const field = select.data('field'); const value = select.val(); frappe.call({ method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_project_details', args: { project_name: projectName, field: field, value: value }, callback: (r) => { if (r.message && r.message.status === 'success') { const project = allProjects.find(p => p.name === projectName); if (project) project[field] = value; } else { frappe.show_alert({ message: 'Error updating project.', indicator: 'red' }); applyFiltersAndRender(); } } }); });
         taskContent.on('click', '.assignee-link', function(e) { e.preventDefault(); showTaskAssigneeDialog($(this)); });
+        content.on('click', '.project-assignee-link', function(e) { e.preventDefault(); showProjectAssigneeDialog($(this)); });
         window.addEventListener('popstate', () => { if (allProjects.length > 0) { parseURLAndSetState(); applyFiltersAndRender(); } else { window.location.reload(); } });
 
         // --- Initial Load ---

@@ -118,6 +118,7 @@ def get_project_data():
                 "project_user",
                 "custom_project_priority",
                 "is_active",
+                "percent_complete",
             ],
             filters={"status": ["!=", "Cancelled"]},
             order_by="creation desc",
@@ -131,6 +132,7 @@ def get_project_data():
             project["completed_tasks"] = completed_tasks
             # Replace the placeholder 'project_user' with actual assignee names
             assignees = _get_assignee_names("Project", project_name)
+            project["assignees"] = assignees
             if assignees:
                 project["project_user"] = ", ".join([d["full_name"] for d in assignees])
             else:
@@ -141,6 +143,72 @@ def get_project_data():
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error fetching project data")
         return {"error": "Could not fetch project data. Please check the logs."}
+
+
+@frappe.whitelist()
+def add_project_assignee(project_name, user_id):
+    """Assigns a user to a project with permission checks.
+
+    Verifies 'write' permission on the project before using Frappe's
+    standard assignment function.
+
+    Args:
+        project_name (str): The name (ID) of the project.
+        user_id (str): The email/ID of the user to assign.
+
+    Returns:
+        dict: Status of the operation and the updated list of assignees.
+    """
+    if not project_name or not user_id:
+        return {"status": "error", "message": "Project and User are required."}
+
+    try:
+        if not frappe.has_permission("Project", ptype="write", doc=project_name):
+            return {"status": "error", "message": "You do not have permission to modify this project."}
+
+        from frappe.desk.form.assign_to import add
+
+        add({"doctype": "Project", "name": project_name, "assign_to": [user_id]})
+
+        updated_assignees = _get_assignee_names("Project", project_name)
+        return {"status": "success", "assignees": updated_assignees}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"Error assigning user {user_id} to project {project_name}")
+        return {"status": "error", "message": "Could not assign user. Please check the logs."}
+
+
+@frappe.whitelist()
+def remove_project_assignee(project_name, user_id):
+    """Removes a user's assignment from a project with permission checks.
+
+    Verifies 'write' permission on the project before using Frappe's
+    standard assignment removal function.
+
+    Args:
+        project_name (str): The name (ID) of the project.
+        user_id (str): The email/ID of the user to un-assign.
+
+    Returns:
+        dict: Status of the operation and the updated list of assignees.
+    """
+    if not project_name or not user_id:
+        return {"status": "error", "message": "Project and User are required."}
+
+    try:
+        if not frappe.has_permission("Project", ptype="write", doc=project_name):
+            return {"status": "error", "message": "You do not have permission to modify this project."}
+
+        from frappe.desk.form.assign_to import remove
+
+        remove("Project", project_name, user_id)
+
+        updated_assignees = _get_assignee_names("Project", project_name)
+        return {"status": "success", "assignees": updated_assignees}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"Error removing user {user_id} from project {project_name}")
+        return {"status": "error", "message": "Could not remove user. Please check the logs."}
 
 
 @frappe.whitelist()
