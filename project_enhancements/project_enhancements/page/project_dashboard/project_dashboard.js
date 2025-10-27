@@ -252,6 +252,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             projects.forEach(project => {
                 const tasks_link = `<a href="/app/project-dashboard#TasksTree?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a>`;
                 const priorityOptions = priorityOptionsList.map(p => `<option value="${p}" ${project.custom_project_priority === p ? 'selected' : ''}>${p}</option>`).join('');
+                const statusOptions = statusOptionsList.map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
                 const progress = project.percent_complete || 0;
 
                 const row = $(`
@@ -259,7 +260,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                         <td><select class="form-control form-control-sm" data-field="custom_project_priority">${priorityOptions}</select></td>
                         <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
                         <td>${project.name}</td>
-                        <td><span class="badge ${getStatusClass(project.status)}">${project.status}</span></td>
+                        <td><select class="form-control form-control-sm" data-field="status">${statusOptions}</select></td>
                         <td>${tasks_link}</td>
                         <td><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
                         <td class="assignee-cell"><a href="#" class="project-assignee-link">${project.project_user || 'Unassigned'}</a></td>
