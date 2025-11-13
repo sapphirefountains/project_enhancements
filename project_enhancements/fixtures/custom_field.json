@@ -55,5 +55,21 @@
   "translatable": 0,
   "unique": 0,
   "width": null
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Project",
+  "fieldname": "custom_gantt_chart_section",
+  "fieldtype": "Section Break",
+  "label": "Gantt Chart",
+  "insert_after": "sales_order"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Project",
+  "fieldname": "custom_gantt_chart_html",
+  "fieldtype": "HTML",
+  "label": "Gantt Chart View",
+  "insert_after": "custom_gantt_chart_section"
  }
 ]
