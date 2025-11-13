@@ -713,3 +713,138 @@ def update_task_structure(project_name, tasks):
             # which is acceptable in this internal tool's context.
             "message": f"An unexpected error occurred while saving the new task order: {e}",
         }
+
+
+@frappe.whitelist()
+def get_gantt_tasks_for_project(project_name):
+    """
+    Fetches all tasks for a specific project, formatted for the frappe-gantt library.
+
+    Args:
+        project_name (str): The name (ID) of the project.
+
+    Returns:
+        list[dict] | dict: A list of task dictionaries for the Gantt chart,
+            or a dictionary with an 'error' key on failure.
+    """
+    if not project_name:
+        return {"error": "Project name is required."}
+
+    try:
+        tasks = frappe.get_all(
+            "Task",
+            fields=["name", "subject", "exp_start_date", "exp_end_date", "progress"],
+            filters={"project": project_name},
+        )
+
+        task_names = [task['name'] for task in tasks]
+
+        dependencies = frappe.get_all(
+            "Task Depends On",
+            fields=["parent", "task"],
+            filters={"parent": ("in", task_names)},
+        )
+
+        dependency_map = {}
+        for dep in dependencies:
+            if dep.parent not in dependency_map:
+                dependency_map[dep.parent] = []
+            dependency_map[dep.parent].append(dep.task)
+
+        gantt_tasks = []
+        for task in tasks:
+            task_dependencies = dependency_map.get(task.name, [])
+            gantt_tasks.append({
+                "id": task.name,
+                "name": task.subject,
+                "start": task.exp_start_date,
+                "end": task.exp_end_date,
+                "progress": task.progress,
+                "dependencies": ",".join(task_dependencies),
+            })
+
+        return gantt_tasks
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"Error fetching Gantt tasks for project {project_name}")
+        return {"error": f"Could not fetch Gantt tasks for project {project_name}. Please check logs."}
+
+
+@frappe.whitelist()
+def update_task_dates_from_gantt(task_name, start_date, end_date):
+    """
+    Updates a task's start and end dates from the Gantt chart.
+
+    Args:
+        task_name (str): The name (ID) of the task to update.
+        start_date (str): The new start date in 'YYYY-MM-DD' format.
+        end_date (str): The new end date in 'YYYY-MM-DD' format.
+
+    Returns:
+        dict: A dictionary indicating the status of the operation.
+    """
+    if not task_name or not start_date or not end_date:
+        return {"status": "error", "message": "Task, start date, and end date are required."}
+
+    try:
+        project = frappe.db.get_value("Task", task_name, "project")
+        if not project:
+            return {"status": "error", "message": "This task is not linked to a project."}
+
+        if not frappe.has_permission("Project", ptype="write", doc=project):
+            return {
+                "status": "error",
+                "message": "You do not have permission to modify tasks for this project.",
+            }
+
+        frappe.db.set_value("Task", task_name, {
+            "exp_start_date": start_date,
+            "exp_end_date": end_date
+        })
+        return {"status": "success"}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"Error updating task dates from Gantt for {task_name}")
+        return {"status": "error", "message": "Could not update task dates. Please check the logs."}
+
+
+@frappe.whitelist()
+def update_task_progress_from_gantt(task_name, progress):
+    """
+    Updates a task's progress from the Gantt chart.
+
+    Args:
+        task_name (str): The name (ID) of the task to update.
+        progress (int): The new progress value (0-100).
+
+    Returns:
+        dict: A dictionary indicating the status of the operation.
+    """
+    if not task_name:
+        return {"status": "error", "message": "Task name is required."}
+
+    try:
+        project = frappe.db.get_value("Task", task_name, "project")
+        if not project:
+            return {"status": "error", "message": "This task is not linked to a project."}
+
+        if not frappe.has_permission("Project", ptype="write", doc=project):
+            return {
+                "status": "error",
+                "message": "You do not have permission to modify tasks for this project.",
+            }
+
+        try:
+            progress_val = int(progress)
+            if not (0 <= progress_val <= 100):
+                 return {"status": "error", "message": "Progress must be between 0 and 100."}
+        except (ValueError, TypeError):
+            return {"status": "error", "message": "Invalid input. Progress must be a number."}
+
+
+        frappe.db.set_value("Task", task_name, "progress", progress_val)
+        return {"status": "success"}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"Error updating task progress from Gantt for {task_name}")
+        return {"status": "error", "message": "Could not update task progress. Please check the logs."}
