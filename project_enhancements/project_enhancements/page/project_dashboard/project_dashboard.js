@@ -58,12 +58,28 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
      *
      * @param {object} page - The Frappe page object.
      */
-    function initialize_dashboard(page) {
-        console.log("Loading Project Dashboard JS - Version 5.3 (Priority View and Collapse Fix)");
+	console.log("Loading Project Dashboard JS - Version 5.3 (Priority View and Collapse Fix)");
 
         // Dynamically load SortableJS library for drag-and-drop functionality.
         const script_url = "https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js";
         frappe.require(script_url, () => {});
+
+        // --- ADD THIS BLOCK ---
+        // Dynamically load Frappe Gantt library assets.
+        const gantt_css_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css";
+        const gantt_js_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js";
+
+        // Inject the CSS file into the document's head
+        if (!$(`link[href="${gantt_css_url}"]`).length) {
+            $('<link>', {
+                rel: 'stylesheet',
+                type: 'text/css',
+                href: gantt_css_url
+            }).appendTo('head');
+        }
+        // Load the JS file; frappe.require ensures it's loaded before being used.
+        frappe.require(gantt_js_url, () => {});
+        // --- END OF BLOCK TO ADD ---
 
         // --- State Variables ---
         let allProjects = [];
