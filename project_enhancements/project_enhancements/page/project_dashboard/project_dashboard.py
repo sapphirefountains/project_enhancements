@@ -851,3 +851,44 @@ def update_task_progress_from_gantt(task_name, progress):
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), f"Error updating task progress from Gantt for {task_name}")
         return {"status": "error", "message": "Could not update task progress. Please check the logs."}
+@frappe.whitelist()
+def get_all_projects_for_gantt():
+    """
+    Fetches all active projects, formatted for the frappe-gantt library.
+    This is for a portfolio-level view.
+
+    Returns:
+        list[dict] | dict: A list of project dictionaries for the Gantt chart,
+            or a dictionary with an 'error' key on failure.
+    """
+    if not check_permission():
+        return {"error": "You do not have permission to view the Project Dashboard."}
+
+    try:
+        # Fetching projects that are active and have a defined start date
+        projects = frappe.get_all(
+            "Project",
+            fields=["name", "project_name", "expected_start_date", "expected_end_date", "percent_complete"],
+            filters={
+                "is_active": "Yes",
+                "status": ["!=", "Cancelled"],
+                "expected_start_date": ["is", "set"],
+            },
+        )
+
+        gantt_projects = []
+        for project in projects:
+            gantt_projects.append({
+                "id": project.name,
+                "name": project.project_name,
+                "start": project.expected_start_date,
+                "end": project.expected_end_date,
+                "progress": project.percent_complete or 0,
+                "dependencies": ""  # No dependencies in this high-level view
+            })
+
+        return gantt_projects
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error fetching all projects for Gantt view")
+        return {"error": "Could not fetch project data for the Gantt chart. Please check logs."}
