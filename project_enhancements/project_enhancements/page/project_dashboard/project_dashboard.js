@@ -81,7 +81,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         let taskSortableInstance = null;
 
         // --- UI Element Creation ---
-        const tabContainer = $(`
+		const tabContainer = $(`
             <ul class="nav nav-tabs px-3">
                 <li class="nav-item">
                     <a class="nav-link" href="javascript:void(0);" data-status="ActiveProjects">Active Projects</a>
@@ -91,6 +91,9 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="javascript:void(0);" data-status="PriorityOverview">Priority Overview</a>
+                </li>
+                 <li class="nav-item">
+                    <a class="nav-link" href="javascript:void(0);" data-status="PortfolioGantt">Portfolio Gantt</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="javascript:void(0);" data-status="TasksTree">Tasks Tree</a>
@@ -217,8 +220,13 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
          *
          * @param {Array<object>} projects - The array of project objects to render.
          */
-        function renderDashboard(projects) {
+function renderDashboard(projects) {
             content.empty();
+            if (activeTab === 'PortfolioGantt') {
+                renderPortfolioGanttView();
+                return;
+            }
+
             if (!projects || projects.length === 0) {
                 content.html('<p class="text-muted text-center p-4">No projects found in this view.</p>');
                 return;
@@ -269,6 +277,37 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 tableBody.append(row);
             });
             updateSortIcons();
+        }
+		/**
+         * Renders the 'Portfolio Gantt' view.
+         *
+         * Fetches all active projects and displays them in a single Gantt chart.
+         * Clicking on a project bar will navigate to the detailed project workspace.
+         */
+        function renderPortfolioGanttView() {
+            content.html('<p class="text-muted text-center p-4">Loading Portfolio Gantt Chart...</p>');
+
+            frappe.call({
+                method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_all_projects_for_gantt",
+                callback: function(r) {
+                    if (r.message && !r.message.error && r.message.length > 0) {
+                        content.empty();
+                        const gantt_container = $('<div class="gantt-container"></div>').appendTo(content);
+
+                        new Gantt(gantt_container[0], r.message, {
+                            view_mode: 'Month', // Default view mode
+                            on_click: (project) => {
+                                // IMPORTANT: This route will not work until we create the Project Workspace.
+                                frappe.set_route('app', 'project-workspace', project.id);
+                            },
+                        });
+                    } else if (r.message && r.message.length === 0) {
+                        content.html('<p class="text-muted text-center p-4">No active projects with start dates were found to display in the Gantt chart.</p>');
+                    } else {
+                         content.html(`<p class="text-danger text-center p-4">Error: ${r.message ? r.message.error : 'Could not load Gantt chart data.'}</p>`);
+                    }
+                }
+            });
         }
 
         /**
