@@ -19,6 +19,7 @@
         }
     ],
     "is_workspace": 1,
+    "route": "project-workspace",
     "label": "Project Workspace",
     "plural_label": "Project Workspaces",
     "show_in_menu": 1
