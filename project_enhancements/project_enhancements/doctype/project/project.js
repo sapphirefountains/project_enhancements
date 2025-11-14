@@ -69,7 +69,26 @@ frappe.ui.form.on('Project', {
                         };
 
                         // It is now safe to instantiate the Gantt chart
-                        new Gantt(gantt_wrapper[0], tasks, options);
+                        const gantt = new Gantt(gantt_wrapper[0], tasks, options);
+
+                        // Automatically scroll to today's date
+                        setTimeout(() => {
+                            const gantt_container = gantt_wrapper.find(".gantt-container");
+                            if (gantt_container.length > 0 && gantt.gantt_start) {
+                                const today = new Date();
+                                const diff_days = moment(today).diff(gantt.gantt_start, 'days');
+                                
+                                if (diff_days > 0) {
+                                    const column_width = gantt.options.column_width;
+                                    const container_width = gantt_container.width();
+                                    
+                                    // Scroll to center today's date in the view
+                                    const scroll_left = (diff_days * column_width) + (column_width / 2) - (container_width / 2);
+                                    
+                                    gantt_container.scrollLeft(scroll_left);
+                                }
+                            }
+                        }, 100);
 
                     } else {
                         gantt_wrapper.html('<p class="text-muted">No tasks found for this project.</p>');
