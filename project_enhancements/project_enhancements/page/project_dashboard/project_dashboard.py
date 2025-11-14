@@ -7,7 +7,8 @@ frontend are decorated with `@frappe.whitelist()`.
 """
 import json
 import frappe
-from frappe.utils import getdate
+from frappe.utils import getdate, nowdate
+from datetime import timedelta
 
 
 @frappe.whitelist()
@@ -719,13 +720,7 @@ def update_task_structure(project_name, tasks):
 def get_gantt_tasks_for_project(project_name):
     """
     Fetches all tasks for a specific project, formatted for the frappe-gantt library.
-
-    Args:
-        project_name (str): The name (ID) of the project.
-
-    Returns:
-        list[dict] | dict: A list of task dictionaries for the Gantt chart,
-            or a dictionary with an 'error' key on failure.
+    If tasks are missing start or end dates, it provides sensible defaults.
     """
     if not project_name:
         return {"error": "Project name is required."}
@@ -738,7 +733,6 @@ def get_gantt_tasks_for_project(project_name):
         )
 
         task_names = [task['name'] for task in tasks]
-
         dependencies = frappe.get_all(
             "Task Depends On",
             fields=["parent", "task"],
@@ -752,14 +746,23 @@ def get_gantt_tasks_for_project(project_name):
             dependency_map[dep.parent].append(dep.task)
 
         gantt_tasks = []
+        today = getdate(nowdate())
+
         for task in tasks:
+            start_date = getdate(task.exp_start_date) if task.exp_start_date else today
+            end_date = getdate(task.exp_end_date) if task.exp_end_date else start_date + timedelta(days=3)
+
+            # Ensure end date is not before start date
+            if end_date < start_date:
+                end_date = start_date + timedelta(days=3)
+
             task_dependencies = dependency_map.get(task.name, [])
             gantt_tasks.append({
                 "id": task.name,
                 "name": task.subject,
-                "start": task.exp_start_date,
-                "end": task.exp_end_date,
-                "progress": task.progress,
+                "start": start_date.strftime('%Y-%m-%d'),
+                "end": end_date.strftime('%Y-%m-%d'),
+                "progress": task.progress or 0,
                 "dependencies": ",".join(task_dependencies),
             })
 
