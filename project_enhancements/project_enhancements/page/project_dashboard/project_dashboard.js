@@ -58,13 +58,13 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
      *
      * @param {object} page - The Frappe page object.
      */
-	console.log("Loading Project Dashboard JS - Version 5.3 (Priority View and Collapse Fix)");
+    function initialize_dashboard(page) {
+        console.log("Loading Project Dashboard JS - Version 5.3 (Priority View and Collapse Fix)");
 
         // Dynamically load SortableJS library for drag-and-drop functionality.
         const script_url = "https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js";
         frappe.require(script_url, () => {});
 
-        // --- ADD THIS BLOCK ---
         // Dynamically load Frappe Gantt library assets.
         const gantt_css_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css";
         const gantt_js_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js";
@@ -79,7 +79,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         }
         // Load the JS file; frappe.require ensures it's loaded before being used.
         frappe.require(gantt_js_url, () => {});
-        // --- END OF BLOCK TO ADD ---
+
 
         // --- State Variables ---
         let allProjects = [];
@@ -97,7 +97,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         let taskSortableInstance = null;
 
         // --- UI Element Creation ---
-		const tabContainer = $(`
+        const tabContainer = $(`
             <ul class="nav nav-tabs px-3">
                 <li class="nav-item">
                     <a class="nav-link" href="javascript:void(0);" data-status="ActiveProjects">Active Projects</a>
@@ -236,7 +236,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
          *
          * @param {Array<object>} projects - The array of project objects to render.
          */
-function renderDashboard(projects) {
+        function renderDashboard(projects) {
             content.empty();
             if (activeTab === 'PortfolioGantt') {
                 renderPortfolioGanttView();
@@ -294,6 +294,7 @@ function renderDashboard(projects) {
             });
             updateSortIcons();
         }
+
 		/**
          * Renders the 'Portfolio Gantt' view.
          *
@@ -419,7 +420,7 @@ function renderDashboard(projects) {
 
             updateSortIcons();
         }
-        
+
         /**
          * Filters the master project list based on the active tab and search term, then
          * triggers a re-render of the appropriate view (project or task).
@@ -428,7 +429,8 @@ function renderDashboard(projects) {
             const is_task_view = activeTab === 'TasksTree';
             content.toggle(!is_task_view);
             taskContent.toggle(is_task_view);
-            controlsContainer.toggle(!is_task_view);
+            controlsContainer.toggle(!is_task_view && activeTab !== 'PortfolioGantt');
+
 
             if (is_task_view) {
                 if (pageState.project) {
@@ -436,6 +438,11 @@ function renderDashboard(projects) {
                 } else {
                     renderProjectSelectionForTasks();
                 }
+                return;
+            }
+
+            if (activeTab === 'PortfolioGantt') {
+                renderDashboard([]);
                 return;
             }
 
