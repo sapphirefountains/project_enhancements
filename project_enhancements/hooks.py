@@ -27,6 +27,33 @@ app_description = "ERPNext enhancements of Projects for Sapphire Fountains."
 app_email = "info@sapphirefountains.com"
 app_license = "mit"
 
+# ------------------
+# doctype_js
+# ------------------
+# This hook tells the Frappe framework to load your custom JavaScript file
+# on the Project doctype's form view. The path is relative to the app's root.
+
+doctype_js = {
+	"Project": "project_enhancements/doctype/project/project.js"
+}
+
+# ------------------
+# fixtures
+# ------------------
+# This hook tells the Frappe framework to export/import the custom fields
+# you have created for the Project doctype. This ensures that the fields
+# "Gantt Chart" and "Gantt Chart View" are created in the database when
+# the app is installed or migrated.
+
+fixtures = [
+    {
+        "doctype": "Custom Field",
+        "filters": [
+            ["dt", "=", "Project"]
+        ]
+    }
+]
+
 # Apps
 # ------------------
 
