@@ -1,0 +1,25 @@
+{
+    "name": "Project Workspace",
+    "doctype": "DocType",
+    "module": "Project Enhancements",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "role": "System Manager",
+            "read": 1,
+            "write": 1
+        },
+        {
+            "role": "Project Manager",
+            "read": 1
+        },
+        {
+            "role": "Project User",
+            "read": 1
+        }
+    ],
+    "is_workspace": 1,
+    "label": "Project Workspace",
+    "plural_label": "Project Workspaces",
+    "show_in_menu": 1
+}
