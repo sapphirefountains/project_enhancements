@@ -28,7 +28,7 @@ frappe.ui.form.on('Project', {
 
         const gantt_wrapper = frm.get_field('custom_gantt_chart_html').$wrapper;
         gantt_wrapper.css({
-            'height': '300px',
+            'height': '500px',
             'overflow-y': 'auto',
         });
         gantt_wrapper.empty().html('<p class="text-muted">Loading Gantt library...</p>');
