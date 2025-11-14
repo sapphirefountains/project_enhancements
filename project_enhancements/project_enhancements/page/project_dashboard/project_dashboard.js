@@ -313,10 +313,10 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
                         new Gantt(gantt_container[0], r.message, {
                             view_mode: 'Month', // Default view mode
-                            on_click: (project) => {
-                                // IMPORTANT: This route will not work until we create the Project Workspace.
-                                frappe.set_route('app', 'project-workspace', project.id);
-                            },
+							on_click: (project) => {
+							    // Redirect to the standard Gantt chart view for Tasks, filtered by the clicked project.
+							    frappe.set_route('List', 'Task', 'Gantt', { project: project.id });
+							},
                         });
                     } else if (r.message && r.message.length === 0) {
                         content.html('<p class="text-muted text-center p-4">No active projects with start dates were found to display in the Gantt chart.</p>');
