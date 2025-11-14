@@ -62,7 +62,8 @@
   "fieldname": "custom_gantt_chart_section",
   "fieldtype": "Section Break",
   "label": "Gantt Chart",
-  "insert_after": "sales_order"
+  "insert_after": "sales_order",
+  "name": "Project-custom_gantt_chart_section"
  },
  {
   "doctype": "Custom Field",
@@ -70,6 +71,7 @@
   "fieldname": "custom_gantt_chart_html",
   "fieldtype": "HTML",
   "label": "Gantt Chart View",
-  "insert_after": "custom_gantt_chart_section"
+  "insert_after": "custom_gantt_chart_section",
+  "name": "Project-custom_gantt_chart_html"
  }
 ]
