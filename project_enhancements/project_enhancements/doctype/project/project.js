@@ -29,13 +29,25 @@ frappe.ui.form.on('Project', {
         const gantt_wrapper = frm.get_field('custom_gantt_chart_html').$wrapper;
         gantt_wrapper.css({
             'height': '500px',
-			'overflow-y': 'auto',
         });
-        gantt_wrapper.empty().html('<p class="text-muted">Loading Gantt library...</p>');
+
+        // Add scroll buttons
+        const button_html = `
+            <div class="gantt-controls" style="margin-bottom: 10px;">
+                <button class="btn btn-default btn-sm" data-action="scroll-left">
+                    <i class="fa fa-chevron-left"></i>
+                </button>
+                <button class="btn btn-default btn-sm" data-action="scroll-right">
+                    <i class="fa fa-chevron-right"></i>
+                </button>
+            </div>
+        `;
+        gantt_wrapper.empty().html(button_html + '<div class="gantt-chart-container" style="height: 100%;"></div>');
+
 
         load_cdn_assets().then(() => {
-            // This part of the code will only run AFTER the assets are successfully loaded from the CDN.
-            gantt_wrapper.empty().html('<p class="text-muted">Loading chart data...</p>');
+            const chart_container = gantt_wrapper.find('.gantt-chart-container');
+            chart_container.html('<p class="text-muted">Loading chart data...</p>');
 
             frappe.call({
                 method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_gantt_tasks_for_project",
@@ -69,26 +81,47 @@ frappe.ui.form.on('Project', {
                         };
 
                         // It is now safe to instantiate the Gantt chart
-                        const gantt = new Gantt(gantt_wrapper[0], tasks, options);
+                        const gantt = new Gantt(gantt_wrapper.find('.gantt-chart-container')[0], tasks, options);
 
-                        // Automatically scroll to today's date
-                        setTimeout(() => {
-                            const gantt_container = gantt_wrapper.find(".gantt-container");
+                        const gantt_container = gantt_wrapper.find(".gantt-container");
+
+                        // Add event listeners for scroll buttons
+                        gantt_wrapper.find('[data-action="scroll-left"]').on('click', () => {
+                            gantt_container.scrollLeft(gantt_container.scrollLeft() - gantt.options.column_width);
+                        });
+
+                        gantt_wrapper.find('[data-action="scroll-right"]').on('click', () => {
+                            gantt_container.scrollLeft(gantt_container.scrollLeft() + gantt.options.column_width);
+                        });
+
+                        // Function to scroll to today
+                        function scroll_to_today() {
                             if (gantt_container.length > 0 && gantt.gantt_start) {
                                 const today = new Date();
-                                const diff_days = moment(today).diff(gantt.gantt_start, 'days');
-                                
-                                if (diff_days > 0) {
+                                const diff_days = moment(today).diff(moment(gantt.gantt_start).startOf('day'), 'days');
+
+                                if (diff_days >= 0) {
                                     const column_width = gantt.options.column_width;
                                     const container_width = gantt_container.width();
-                                    
-                                    // Scroll to center today's date in the view
                                     const scroll_left = (diff_days * column_width) + (column_width / 2) - (container_width / 2);
-                                    
-                                    gantt_container.scrollLeft(scroll_left);
+
+                                    if(scroll_left > 0) {
+                                        gantt_container.scrollLeft(scroll_left);
+                                    }
                                 }
                             }
-                        }, 100);
+                        }
+
+                        // The chart may take a moment to render.
+                        // We will try to scroll a few times to make sure it happens.
+                        let scroll_attempts = 0;
+                        const scroll_interval = setInterval(() => {
+                            scroll_to_today();
+                            scroll_attempts++;
+                            if (scroll_attempts > 5) {
+                                clearInterval(scroll_interval);
+                            }
+                        }, 200);
 
                     } else {
                         gantt_wrapper.html('<p class="text-muted">No tasks found for this project.</p>');
