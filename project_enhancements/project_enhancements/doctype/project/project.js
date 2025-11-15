@@ -29,6 +29,7 @@ frappe.ui.form.on('Project', {
         const gantt_wrapper = frm.get_field('custom_gantt_chart_html').$wrapper;
         gantt_wrapper.css({
             'height': '500px',
+            'overflow': 'hidden'
         });
 
         // Add scroll buttons
@@ -84,6 +85,7 @@ frappe.ui.form.on('Project', {
                         const gantt = new Gantt(gantt_wrapper.find('.gantt-chart-container')[0], tasks, options);
 
                         const gantt_container = gantt_wrapper.find(".gantt-container");
+                        gantt_container.css('overflow-x', 'scroll');
 
                         // Add event listeners for scroll buttons
                         gantt_wrapper.find('[data-action="scroll-left"]').on('click', () => {
