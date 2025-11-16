@@ -82,6 +82,7 @@ frappe.ui.form.on('Project', {
                         };
 
                         // It is now safe to instantiate the Gantt chart
+                        gantt_wrapper.find('.gantt-chart-container').empty();
                         const gantt = new Gantt(gantt_wrapper.find('.gantt-chart-container')[0], tasks, options);
 
                         const gantt_container = gantt_wrapper.find(".gantt-container");
