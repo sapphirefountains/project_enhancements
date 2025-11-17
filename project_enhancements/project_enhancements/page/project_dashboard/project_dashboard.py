@@ -892,3 +892,42 @@ def get_all_projects_for_gantt():
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error fetching all projects for Gantt view")
         return {"error": "Could not fetch project data for the Gantt chart. Please check logs."}
+
+
+@frappe.whitelist()
+def update_multiple_docs(project_updates, task_updates):
+    """Updates multiple project and task documents in a single transaction.
+
+    This function is designed to handle batch updates from the dashboard.
+
+    Args:
+        project_updates (str): A JSON string representing a dictionary of
+            project updates. Example: '{"PROJ-001": {"status": "Completed"}}'
+        task_updates (str): A JSON string representing a dictionary of
+            task updates. Example: '{"TASK-001": {"status": "Working"}}'
+
+    Returns:
+        dict: A dictionary indicating the status of the operation.
+    """
+    if not check_permission():
+        return {"status": "error", "message": "You do not have permission to perform this action."}
+
+    try:
+        project_updates = json.loads(project_updates or '{}')
+        task_updates = json.loads(task_updates or '{}')
+
+        for doc_name, changes in project_updates.items():
+            if not frappe.has_permission("Project", ptype="write", doc=doc_name):
+                return {"status": "error", "message": f"No write permission for Project {doc_name}"}
+            frappe.db.set_value("Project", doc_name, changes)
+
+        for doc_name, changes in task_updates.items():
+            project = frappe.db.get_value("Task", doc_name, "project")
+            if not project or not frappe.has_permission("Project", ptype="write", doc=project):
+                return {"status": "error", "message": f"No write permission for parent Project of Task {doc_name}"}
+            frappe.db.set_value("Task", doc_name, changes)
+
+        return {"status": "success"}
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error in batch update")
+        return {"status": "error", "message": str(e)}
