@@ -95,6 +95,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         let collapsedTasks = new Set(); // Holds the set of collapsed task IDs for the current project.
         let pageState = {}; // Holds the state parsed from the URL hash.
         let taskSortableInstance = null;
+        let pendingProjectChanges = {};
+        let pendingTaskChanges = {};
 
         // --- UI Element Creation ---
         const tabContainer = $(`
@@ -125,6 +127,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                     </div>
                     <div class="col-md-6">
                         <div class="d-flex justify-content-end">
+                            <div id="pending-changes-controls" class="mr-2" style="display: none;">
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-success" id="save-pending-changes">Save Changes</button>
+                                    <button type="button" class="btn btn-danger" id="discard-pending-changes">Discard Changes</button>
+                                </div>
+                            </div>
                             <div id="priority-view-toggle" class="mr-2" style="display: none;">
                                  <div class="btn-group btn-group-sm">
                                     <button type="button" class="btn btn-secondary" data-view="grouped">By Type</button>
@@ -560,6 +568,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                         </div>
                         <div class="d-flex align-items-center">
                             <span id="task-saving-indicator" class="text-muted mr-3" style="display: none;"><i class="fa fa-spinner fa-spin"></i> Saving...</span>
+                            <div id="task-pending-changes-controls" class="mr-2" style="display: none;">
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-success" id="save-task-pending-changes">Save Changes</button>
+                                    <button type="button" class="btn btn-danger" id="discard-task-pending-changes">Discard Changes</button>
+                                </div>
+                            </div>
                             <button class="btn btn-sm btn-success mr-2" id="save-task-order" style="display: none;">Save Order</button>
                             <a href="/app/task/new-task?project=${project.name}" class="btn btn-primary btn-sm">Add Task</a>
                         </div>
@@ -1078,7 +1092,41 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         searchInput.on('keyup', frappe.utils.debounce(() => { applyFiltersAndRender(); updateURL(); }, 300));
         groupSortSelect.on('change', () => { applyFiltersAndRender(); updateURL(); });
         configureSortBtn.on('click', openSortConfiguration);
-        tabContainer.on('click', '.nav-link', function(e) { e.preventDefault(); const clickedTab = $(this); if (clickedTab.hasClass('active')) return; tabContainer.find('.nav-link').removeClass('active'); clickedTab.addClass('active'); activeTab = clickedTab.data('status'); pageState = {}; searchInput.val(''); priorityViewToggle.toggle(activeTab === 'PriorityOverview'); updateURL(true); applyFiltersAndRender(); });
+        tabContainer.on('click', '.nav-link', function(e) {
+            e.preventDefault();
+            const clickedTab = $(this);
+            if (clickedTab.hasClass('active')) return;
+
+            const hasPendingChanges = Object.keys(pendingProjectChanges).length > 0 || Object.keys(pendingTaskChanges).length > 0;
+
+            if (hasPendingChanges) {
+                frappe.confirm(
+                    'You have unsaved changes. Are you sure you want to switch tabs and discard them?',
+                    () => {
+                        // User confirmed, proceed with tab switch and discard changes
+                        discardAllPendingChanges(); // This will also hide the buttons and reload data
+                        proceedWithTabSwitch(clickedTab);
+                    },
+                    () => {
+                        // User cancelled, do nothing
+                    }
+                );
+            } else {
+                // No pending changes, switch tabs immediately
+                proceedWithTabSwitch(clickedTab);
+            }
+        });
+
+        function proceedWithTabSwitch(clickedTab) {
+            tabContainer.find('.nav-link').removeClass('active');
+            clickedTab.addClass('active');
+            activeTab = clickedTab.data('status');
+            pageState = {}; // Reset page state like filters
+            searchInput.val('');
+            priorityViewToggle.toggle(activeTab === 'PriorityOverview');
+            updateURL(true);
+            applyFiltersAndRender();
+        }
         priorityViewToggle.on('click', 'button', function() { const $btn = $(this); if ($btn.hasClass('active')) return; priorityViewToggle.find('button').removeClass('active'); $btn.addClass('active'); priorityView = $btn.data('view'); updateURL(); applyFiltersAndRender(); });
         $(page.body).on('click', '.collapsible-header', function() { const groupId = $(this).data('group-id'); const body = $(this).next('.collapsible-body'); body.slideToggle(200); $(this).find('svg').toggleClass('rotate-180'); if (body.is(':visible')) { expandedGroups.add(groupId); } else { expandedGroups.delete(groupId); } });
 
@@ -1248,40 +1296,32 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 // Optimistically update the UI
                 link.text(displayValue);
 
-                frappe.call({
-                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_date',
-                    args: { task_name: taskName, field: field, value: newValue },
-                    callback: (r) => {
-                        if (r.message && r.message.status === 'success') {
-                            // On success, update the original date stored in the cell
-                            cell.data('original-date', newValue);
-                            // Update the underlying data model
-                            function findAndUpdateTask(tasks, taskId, fieldName, newDate) {
-                                for (let task of tasks) {
-                                    if (task.name === taskId) {
-                                        task[fieldName] = newDate;
-                                        return true;
-                                    }
-                                    if (task.children && task.children.length > 0) {
-                                        if (findAndUpdateTask(task.children, taskId, fieldName, newDate)) return true;
-                                    }
-                                }
-                                return false;
-                            }
-                            findAndUpdateTask(currentProjectTasks, taskName, field, newValue);
-                        } else {
-                            // On failure, revert the UI silently
-                            link.text(originalValue ? frappe.datetime.str_to_user(originalValue) : 'Set Date');
+                // Store change locally instead of calling the server
+                if (!pendingTaskChanges[taskName]) {
+                    pendingTaskChanges[taskName] = {};
+                }
+                pendingTaskChanges[taskName][field] = newValue;
+
+                // Show the save/discard buttons
+                $('#task-pending-changes-controls').show();
+
+                // Update the underlying data model for future re-renders
+                function findAndUpdateTask(tasks, taskId, fieldName, newDate) {
+                    for (let task of tasks) {
+                        if (task.name === taskId) {
+                            task[fieldName] = newDate;
+                            return true;
                         }
-                    },
-                    error: (err) => {
-                        // On error, revert the UI silently
-                        link.text(originalValue ? frappe.datetime.str_to_user(originalValue) : 'Set Date');
+                        if (task.children && task.children.length > 0) {
+                            if (findAndUpdateTask(task.children, taskId, fieldName, newDate)) return true;
+                        }
                     }
-                }).always(() => {
-                    // Cleanup is now part of the call's lifecycle
-                    cleanup();
-                });
+                    return false;
+                }
+                findAndUpdateTask(currentProjectTasks, taskName, field, newValue);
+
+                // The input is removed on blur, which happens right after this
+                cleanup();
             });
 
             $(datepicker.input).on('blur', () => {
@@ -1297,11 +1337,155 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 }, 200); // 200ms delay
             });
         });
-        taskContent.on('click', '.editable-time a', function(e) { e.preventDefault(); const link = $(this); const cell = link.closest('td'); if (cell.find('.time-input').length > 0) return; const taskName = cell.data('task-id'); const originalValue = cell.data('original-value'); link.hide(); const input = $(`<input type="number" class="form-control form-control-sm time-input" style="width: 80px;" min="0" step="0.5">`).val(originalValue).appendTo(cell).focus(); const cleanup = () => { input.remove(); link.show(); }; const saveChanges = () => { const newValue = input.val(); if (newValue === '' || isNaN(newValue) || parseFloat(newValue) < 0) { cleanup(); return; } const newFloatValue = parseFloat(newValue); link.text(newFloatValue); frappe.call({ method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_expected_time', args: { task_name: taskName, expected_time: newFloatValue }, callback: (r) => { if (r.message && r.message.status === 'success') { cell.data('original-value', newFloatValue); function findAndUpdateTask(tasks, taskId, value) { for (let task of tasks) { if (task.name === taskId) { task.expected_time = value; return true; } if (task.children && task.children.length > 0 && findAndUpdateTask(task.children, taskId, value)) return true; } return false; } findAndUpdateTask(currentProjectTasks, taskName, newFloatValue); } else { link.text(originalValue); } }, error: () => link.text(originalValue) }).always(cleanup); }; input.on('blur', saveChanges).on('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } else if (e.key === 'Escape') { e.preventDefault(); cleanup(); } }); });
+        taskContent.on('click', '.editable-time a', function(e) {
+            e.preventDefault();
+            const link = $(this);
+            const cell = link.closest('td');
+            if (cell.find('.time-input').length > 0) return;
+
+            const taskName = cell.data('task-id');
+            const originalValue = cell.data('original-value');
+            link.hide();
+
+            const input = $(`<input type="number" class="form-control form-control-sm time-input" style="width: 80px;" min="0" step="0.5">`)
+                .val(originalValue)
+                .appendTo(cell)
+                .focus();
+
+            const cleanup = () => {
+                input.remove();
+                link.show();
+            };
+
+            const saveChanges = () => {
+                const newValue = input.val();
+                if (newValue === '' || isNaN(newValue) || parseFloat(newValue) < 0) {
+                    cleanup();
+                    return;
+                }
+                const newFloatValue = parseFloat(newValue);
+                link.text(newFloatValue);
+
+                // Store change locally
+                if (!pendingTaskChanges[taskName]) {
+                    pendingTaskChanges[taskName] = {};
+                }
+                pendingTaskChanges[taskName]['expected_time'] = newFloatValue;
+
+                // Show save/discard buttons
+                $('#task-pending-changes-controls').show();
+
+                // Optimistically update the main data object
+                function findAndUpdateTask(tasks, taskId, value) {
+                    for (let task of tasks) {
+                        if (task.name === taskId) {
+                            task.expected_time = value;
+                            return true;
+                        }
+                        if (task.children && task.children.length > 0 && findAndUpdateTask(task.children, taskId, value)) return true;
+                    }
+                    return false;
+                }
+                findAndUpdateTask(currentProjectTasks, taskName, newFloatValue);
+                cleanup();
+            };
+
+            input.on('blur', saveChanges).on('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    input.blur();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cleanup();
+                }
+            });
+        });
         content.on('click', 'thead th', function() { const field = $(this).data('sort'); if (!field) return; if (currentSort.field === field) { currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc'; } else { currentSort.field = field; currentSort.order = 'asc'; } applyFiltersAndRender(); });
-        content.on('change', 'select', function() { const select = $(this); const projectName = select.closest('tr').data('project-name'); const field = select.data('field'); const value = select.val(); frappe.call({ method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_project_details', args: { project_name: projectName, field: field, value: value }, callback: (r) => { if (r.message && r.message.status === 'success') { const project = allProjects.find(p => p.name === projectName); if (project) project[field] = value; } else { frappe.show_alert({ message: 'Error updating project.', indicator: 'red' }); applyFiltersAndRender(); } } }); });
+        content.on('change', 'select', function() {
+            const select = $(this);
+            const projectName = select.closest('tr').data('project-name');
+            const field = select.data('field');
+            const value = select.val();
+
+            if (!pendingProjectChanges[projectName]) {
+                pendingProjectChanges[projectName] = {};
+            }
+            pendingProjectChanges[projectName][field] = value;
+
+            $('#pending-changes-controls').show();
+
+            // Optimistically update the main data object for re-renders
+            const project = allProjects.find(p => p.name === projectName);
+            if (project) {
+                project[field] = value;
+            }
+        });
         taskContent.on('click', '.assignee-link', function(e) { e.preventDefault(); showTaskAssigneeDialog($(this)); });
+        taskContent.on('change', '.task-status-select', function() {
+            const select = $(this);
+            const taskName = select.closest('.task-node').data('task-id');
+            const value = select.val();
+
+            if (!pendingTaskChanges[taskName]) {
+                pendingTaskChanges[taskName] = {};
+            }
+            pendingTaskChanges[taskName]['status'] = value;
+            $('#task-pending-changes-controls').show();
+
+            function findAndUpdateTask(tasks, taskId, status) {
+                for (let task of tasks) {
+                    if (task.name === taskId) {
+                        task.status = status;
+                        return true;
+                    }
+                    if (task.children && task.children.length > 0 && findAndUpdateTask(task.children, taskId, status)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            findAndUpdateTask(currentProjectTasks, taskName, value);
+        });
         content.on('click', '.project-assignee-link', function(e) { e.preventDefault(); showProjectAssigneeDialog($(this)); });
+
+        function saveAllPendingChanges() {
+            frappe.call({
+                method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_multiple_docs',
+                args: {
+                    project_updates: JSON.stringify(pendingProjectChanges),
+                    task_updates: JSON.stringify(pendingTaskChanges)
+                },
+                callback: function(r) {
+                    if (r.message && r.message.status === 'success') {
+                        frappe.show_alert({ message: 'Changes saved!', indicator: 'green' });
+                        pendingProjectChanges = {};
+                        pendingTaskChanges = {};
+                        $('#pending-changes-controls').hide();
+                        $('#task-pending-changes-controls').hide();
+                        // No need to reload data as we updated it optimistically
+                    } else {
+                        frappe.show_alert({ message: r.message.message || 'Error saving changes.', indicator: 'red' });
+                        // Optionally, trigger a full reload to revert optimistic updates on failure
+                        loadInitialData();
+                    }
+                }
+            });
+        }
+
+        $('#save-pending-changes, #save-task-pending-changes').on('click', saveAllPendingChanges);
+
+        function discardAllPendingChanges() {
+            pendingProjectChanges = {};
+            pendingTaskChanges = {};
+            $('#pending-changes-controls').hide();
+            $('#task-pending-changes-controls').hide();
+            // Reload data from the server to revert optimistic UI updates
+            loadInitialData();
+            frappe.show_alert({ message: 'Changes discarded.', indicator: 'info' });
+        }
+
+        $('#discard-pending-changes, #discard-task-pending-changes').on('click', discardAllPendingChanges);
+
         window.addEventListener('popstate', () => { if (allProjects.length > 0) { parseURLAndSetState(); applyFiltersAndRender(); } else { window.location.reload(); } });
 
         // --- Initial Load ---
