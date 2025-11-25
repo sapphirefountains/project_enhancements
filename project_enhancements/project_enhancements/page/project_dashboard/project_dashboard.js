@@ -310,6 +310,41 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         }
 
         /**
+         * Renders a standardized table for the 'By Company' priority view.
+         * This helper function is used to avoid code duplication.
+         *
+         * @param {jQuery} container - The parent jQuery element to append the table to.
+         * @param {Array<object>} projects - The list of project objects to render in the table.
+         */
+        function _renderCompanyPriorityTable(container, projects) {
+            const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="custom_company_priority">Company Priority</th><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="tasks">Tasks</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(container);
+            const tableBody = table.find('tbody');
+
+            projects.forEach(project => {
+                const tasks_link = `<a href="/app/project-dashboard#TasksTree?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a>`;
+                const statusOptions = statusOptionsList.map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
+                const companyPriorityValue = project.custom_company_priority || '';
+                let companyPriorityOptions = '<option value="">Not Assigned</option>';
+                for (let i = 1; i <= 30; i++) {
+                    companyPriorityOptions += `<option value="${i}" ${companyPriorityValue == i ? 'selected' : ''}>${i}</option>`;
+                }
+                const companyPriorityInput = `<select class="form-control form-control-sm" data-field="custom_company_priority" style="width: 120px;">${companyPriorityOptions}</select>`;
+
+                const row = $(`
+                    <tr data-project-name="${project.name}">
+                        <td>${companyPriorityInput}</td>
+                        <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
+                        <td>${project.name}</td>
+                        <td><select class="form-control form-control-sm" data-field="status">${statusOptions}</select></td>
+                        <td>${tasks_link}</td>
+                        <td class="assignee-cell"><a href="#" class="project-assignee-link">${project.project_user || 'Unassigned'}</a></td>
+                    </tr>
+                `);
+                tableBody.append(row);
+            });
+        }
+
+        /**
          * Renders the 'By Company' view.
          *
          * Groups projects into Ranked (1-30), Maintenance, Repair Visit, and Not Assigned.
@@ -318,75 +353,48 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
          */
         function renderCompanyPriorityView(projects) {
             const groups = {
-                'Ranked': [],
-                'Maintenance': [],
-                'Repair Visit': [],
+                'Company Priority Ranking': [],
                 'Not Assigned': []
             };
 
             projects.forEach(p => {
                 const companyPriority = parseInt(p.custom_company_priority, 10);
                 if (!isNaN(companyPriority) && companyPriority >= 1 && companyPriority <= 30) {
-                    groups['Ranked'].push(p);
+                    groups['Company Priority Ranking'].push(p);
                 } else if (p.project_type === 'Maintenance') {
-                    groups['Maintenance'].push(p);
+                    groups['Company Priority Ranking'].push(p);
                 } else if (p.project_type === 'Repair Visit') {
-                    groups['Repair Visit'].push(p);
+                    groups['Company Priority Ranking'].push(p);
                 } else {
                     groups['Not Assigned'].push(p);
                 }
             });
 
-            // Sort Ranked group by custom_company_priority
-            groups['Ranked'].sort((a, b) => {
-                return parseInt(a.custom_company_priority, 10) - parseInt(b.custom_company_priority, 10);
+            groups['Company Priority Ranking'].sort((a, b) => {
+                const priorityA = a.custom_company_priority ? parseInt(a.custom_company_priority, 10) : Infinity;
+                const priorityB = b.custom_company_priority ? parseInt(b.custom_company_priority, 10) : Infinity;
+
+                if (priorityA === Infinity && priorityB === Infinity) {
+                    return a.project_name.localeCompare(b.project_name);
+                }
+
+                return priorityA - priorityB;
             });
 
-            const groupOrder = ['Ranked', 'Maintenance', 'Repair Visit', 'Not Assigned'];
+            const groupOrder = ['Company Priority Ranking', 'Not Assigned'];
 
             groupOrder.forEach(groupName => {
                 const groupProjects = groups[groupName];
                 if (groupProjects.length === 0) return;
 
-                const groupHeaderHTML = `<div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data-group-id="${groupName}"><div class="font-bold text-sm text-gray-700">${groupName} (${groupProjects.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
-                const groupHeader = $(groupHeaderHTML).appendTo(content);
-                const groupBody = $('<div class="collapsible-body" style="display: none;"></div>').appendTo(content); // Default collapsed? Or expanded? Let's keep default collapsed logic or expand all? User didn't specify, sticking to default.
-
-                // Expand 'Ranked' by default as it's the main view
-                if (groupName === 'Ranked') {
-                    groupBody.show();
-                    groupHeader.find('svg').addClass('rotate-180');
+                if (groupName === 'Company Priority Ranking') {
+                    _renderCompanyPriorityTable(content, groupProjects);
+                } else {
+                    const groupHeaderHTML = `<div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data-group-id="${groupName}"><div class="font-bold text-sm text-gray-700">${groupName} (${groupProjects.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
+                    const groupHeader = $(groupHeaderHTML).appendTo(content);
+                    const groupBody = $('<div class="collapsible-body" style="display: none;"></div>').appendTo(content);
+                    _renderCompanyPriorityTable(groupBody, groupProjects);
                 }
-
-                const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="custom_company_priority">Company Priority</th><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="tasks">Tasks</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(groupBody);
-                const tableBody = table.find('tbody');
-
-                groupProjects.forEach(project => {
-                    const tasks_link = `<a href="/app/project-dashboard#TasksTree?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a>`;
-                    const statusOptions = statusOptionsList.map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
-                    // Company priority is likely an integer field, not a select, or maybe a select 1-30. Assuming text/int for now based on description "ranking 1-30".
-                    // If it's editable, we need an input or select. Let's assume simple display for now or simple input if needed.
-                    // Given "organized by the field... ranking 1-30", I'll display it.
-                    const companyPriorityValue = project.custom_company_priority || '';
-                    let companyPriorityOptions = '<option value="">Not Assigned</option>';
-                    for (let i = 1; i <= 30; i++) {
-                        companyPriorityOptions += `<option value="${i}" ${companyPriorityValue == i ? 'selected' : ''}>${i}</option>`;
-                    }
-                    const companyPriorityInput = `<select class="form-control form-control-sm" data-field="custom_company_priority" style="width: 120px;">${companyPriorityOptions}</select>`;
-
-
-                    const row = $(`
-                        <tr data-project-name="${project.name}">
-                            <td>${companyPriorityInput}</td>
-                            <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
-                            <td>${project.name}</td>
-                            <td><select class="form-control form-control-sm" data-field="status">${statusOptions}</select></td>
-                            <td>${tasks_link}</td>
-                            <td class="assignee-cell"><a href="#" class="project-assignee-link">${project.project_user || 'Unassigned'}</a></td>
-                        </tr>
-                    `);
-                    tableBody.append(row);
-                });
             });
         }
 
