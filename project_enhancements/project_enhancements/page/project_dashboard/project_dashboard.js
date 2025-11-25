@@ -367,7 +367,12 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     // Company priority is likely an integer field, not a select, or maybe a select 1-30. Assuming text/int for now based on description "ranking 1-30".
                     // If it's editable, we need an input or select. Let's assume simple display for now or simple input if needed.
                     // Given "organized by the field... ranking 1-30", I'll display it.
-                    const companyPriorityInput = `<input type="number" class="form-control form-control-sm" data-field="custom_company_priority" value="${project.custom_company_priority || ''}" style="width: 80px;">`;
+                    const companyPriorityValue = project.custom_company_priority || '';
+                    let companyPriorityOptions = '<option value="">Not Assigned</option>';
+                    for (let i = 1; i <= 30; i++) {
+                        companyPriorityOptions += `<option value="${i}" ${companyPriorityValue == i ? 'selected' : ''}>${i}</option>`;
+                    }
+                    const companyPriorityInput = `<select class="form-control form-control-sm" data-field="custom_company_priority" style="width: 120px;">${companyPriorityOptions}</select>`;
 
 
                     const row = $(`
