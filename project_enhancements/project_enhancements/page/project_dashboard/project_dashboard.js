@@ -458,10 +458,10 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
             sortedGroupKeys.forEach(type => {
                 const projectsInGroup = groupedProjects[type];
-                const groupHeaderHTML = `< div class= "collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data - group - id="${type}" ><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div > `;
+                const groupHeaderHTML = `<div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data-group-id="${type}"><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
                 const groupHeader = $(groupHeaderHTML).appendTo(content);
                 const groupBody = $('<div class="collapsible-body" style="display: none;"></div>').appendTo(content);
-                const table = $(`< table class= "table table-bordered table-hover" style = "font-size: 12px;" ><thead class="thead-light"><tr><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="custom_project_priority">Priority</th><th data-sort="tasks">Tasks</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table > `).appendTo(groupBody);
+                const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="custom_project_priority">Priority</th><th data-sort="tasks">Tasks</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(groupBody);
                 const tableBody = table.find('tbody');
 
                 projectsInGroup.sort((a, b) => {
@@ -489,7 +489,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     const priorityOptions = priorityOptionsList.map(p => `< option value = "${p}" ${project.custom_project_priority === p ? 'selected' : ''} > ${p}</option > `).join('');
 
                     const rowHTML = `
-                    < tr data - project - name="${project.name}" >
+                    <tr data-project-name="${project.name}">
                             <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
                             <td>${project.name}</td>
                             <td>
@@ -603,7 +603,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
             sortedGroupKeys.forEach(type => {
                 const projectsInGroup = groupedProjects[type];
-                const groupHeaderHTML = `< div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data - group - id="${type}" ><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div > `;
+                const groupHeaderHTML = `<div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data-group-id="${type}"><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
                 const groupHeader = $(groupHeaderHTML).appendTo(taskContent);
                 const groupBody = $('<div class="collapsible-body" style="display: none;"></div>').appendTo(taskContent);
                 const listGroup = $('<ul class="list-group list-group-flush"></ul>').appendTo(groupBody);
@@ -777,7 +777,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     : '';
 
                 const node = $(`
-                        < div class="task-node" data - task - id="${task.name}" >
+                        <div class="task-node" data-task-id="${task.name}">
                         <div class="task-grid-row">
                             <div class="task-grid-cell" style="padding-left: ${level * 20}px;">
                                 <i class="fa fa-bars task-drag-handle mr-2 text-muted"></i>
@@ -816,7 +816,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
          */
         function updateSortIcons() {
             content.find('thead th').removeClass('sorted-asc sorted-desc');
-            const currentTh = content.find(`thead th[data - sort= "${currentSort.field}"]`);
+            const currentTh = content.find(`thead th[data-sort="${currentSort.field}"]`);
             currentTh.addClass(currentSort.order === 'asc' ? 'sorted-asc' : 'sorted-desc');
         }
 
@@ -859,7 +859,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
             const listElement = dialog.get_field('sort_info').$wrapper.find('#sortable-list')[0];
             groupKeys.forEach(key => {
-                $(listElement).append(`< li class="list-group-item" data - id="${key}" > <i class="fa fa-bars mr-2 text-muted"></i> ${key}</li > `);
+                $(listElement).append(`<li class="list-group-item" data-id="${key}"><i class="fa fa-bars mr-2 text-muted"></i> ${key}</li>`);
             });
 
             const sortable = new Sortable(listElement, { animation: 150, ghostClass: 'bg-light' });
