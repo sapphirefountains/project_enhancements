@@ -367,11 +367,12 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     // Company priority is likely an integer field, not a select, or maybe a select 1-30. Assuming text/int for now based on description "ranking 1-30".
                     // If it's editable, we need an input or select. Let's assume simple display for now or simple input if needed.
                     // Given "organized by the field... ranking 1-30", I'll display it.
-                    const companyPriorityDisplay = project.custom_company_priority || '-';
+                    const companyPriorityInput = `<input type="number" class="form-control form-control-sm" data-field="custom_company_priority" value="${project.custom_company_priority || ''}" style="width: 80px;">`;
+
 
                     const row = $(`
                         <tr data-project-name="${project.name}">
-                            <td>${companyPriorityDisplay}</td>
+                            <td>${companyPriorityInput}</td>
                             <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
                             <td>${project.name}</td>
                             <td><select class="form-control form-control-sm" data-field="status">${statusOptions}</select></td>
@@ -1506,11 +1507,11 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             });
         });
         content.on('click', 'thead th', function () { const field = $(this).data('sort'); if (!field) return; if (currentSort.field === field) { currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc'; } else { currentSort.field = field; currentSort.order = 'asc'; } applyFiltersAndRender(); });
-        content.on('change', 'select', function () {
-            const select = $(this);
-            const projectName = select.closest('tr').data('project-name');
-            const field = select.data('field');
-            const value = select.val();
+        content.on('change', 'select, input[type="number"]', function () {
+            const element = $(this);
+            const projectName = element.closest('tr').data('project-name');
+            const field = element.data('field');
+            const value = element.val();
 
             if (!pendingProjectChanges[projectName]) {
                 pendingProjectChanges[projectName] = {};
