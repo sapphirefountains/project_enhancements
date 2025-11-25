@@ -118,6 +118,7 @@ def get_project_data():
                 "project_type",
                 "project_user",
                 "custom_project_priority",
+                "custom_company_priority",
                 "is_active",
                 "percent_complete",
             ],

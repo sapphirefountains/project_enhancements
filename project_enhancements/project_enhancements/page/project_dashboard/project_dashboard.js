@@ -17,7 +17,7 @@
  * @param {HTMLElement} wrapper - The parent DOM element for the page content,
  * provided by the Frappe framework.
  */
-frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
+frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
     const page = frappe.ui.make_app_page({
         parent: wrapper,
         title: 'Projects Dashboard',
@@ -27,7 +27,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
     // Check permissions before rendering the main dashboard.
     frappe.call({
         method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.check_permission",
-        callback: function(r) {
+        callback: function (r) {
             if (r.message) {
                 // User has permission, initialize the main dashboard logic.
                 initialize_dashboard(page);
@@ -63,7 +63,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
         // Dynamically load SortableJS library for drag-and-drop functionality.
         const script_url = "https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js";
-        frappe.require(script_url, () => {});
+        frappe.require(script_url, () => { });
 
         // Dynamically load Frappe Gantt library assets.
         const gantt_css_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css";
@@ -78,7 +78,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             }).appendTo('head');
         }
         // Load the JS file; frappe.require ensures it's loaded before being used.
-        frappe.require(gantt_js_url, () => {});
+        frappe.require(gantt_js_url, () => { });
 
 
         // --- State Variables ---
@@ -135,8 +135,9 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                             </div>
                             <div id="priority-view-toggle" class="mr-2" style="display: none;">
                                  <div class="btn-group btn-group-sm">
-                                    <button type="button" class="btn btn-secondary" data-view="grouped">By Type</button>
-                                    <button type="button" class="btn btn-secondary active" data-view="ranked">By Priority</button>
+                                    <button type="button" class="btn btn-secondary active" data-view="value_stream">By Value Stream</button>
+                                    <button type="button" class="btn btn-secondary" data-view="internal">By Internal</button>
+                                    <button type="button" class="btn btn-secondary" data-view="company">By Company</button>
                                 </div>
                             </div>
                             <div class="input-group input-group-sm">
@@ -226,7 +227,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 searchInput.val(pageState.search || '');
                 groupSortSelect.val(pageState.sort || 'custom');
                 if (activeTab === 'PriorityOverview') {
-                    priorityView = pageState.view || 'ranked';
+                    priorityView = pageState.view || 'value_stream';
                     priorityViewToggle.find('button').removeClass('active');
                     priorityViewToggle.find(`button[data-view="${priorityView}"]`).addClass('active');
                     priorityViewToggle.show();
@@ -256,15 +257,19 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 return;
             }
 
-            if (activeTab === 'PriorityOverview' && priorityView === 'ranked') {
-                renderRankedPriorityView(projects);
+            if (activeTab === 'PriorityOverview') {
+                if (priorityView === 'company') {
+                    renderCompanyPriorityView(projects);
+                } else {
+                    renderRankedPriorityView(projects);
+                }
             } else {
                 renderGroupedView(projects);
             }
         }
 
         /**
-         * Renders the 'Ranked Priority' view.
+         * Renders the 'Ranked Priority' view (used for Value Stream and Internal).
          *
          * Displays projects in a simple table, sorted numerically by their
          * priority, for a quick overview of the most important projects.
@@ -303,7 +308,90 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             updateSortIcons();
         }
 
-		/**
+        /**
+         * Renders the 'By Company' view.
+         *
+         * Groups projects into Ranked (1-30), Maintenance, Repair Visit, and Not Assigned.
+         *
+         * @param {Array<object>} projects - The array of project objects to render.
+         */
+        function renderCompanyPriorityView(projects) {
+            const groups = {
+                'Ranked': [],
+                'Maintenance': [],
+                'Repair Visit': [],
+                'Not Assigned': []
+            };
+
+            projects.forEach(p => {
+                const companyPriority = parseInt(p.custom_company_priority, 10);
+                if (!isNaN(companyPriority) && companyPriority >= 1 && companyPriority <= 30) {
+                    groups['Ranked'].push(p);
+                } else if (p.project_type === 'Maintenance') {
+                    groups['Maintenance'].push(p);
+                } else if (p.project_type === 'Repair Visit') {
+                    groups['Repair Visit'].push(p);
+                } else {
+                    groups['Not Assigned'].push(p);
+                }
+            });
+
+            // Sort Ranked group by custom_company_priority
+            groups['Ranked'].sort((a, b) => {
+                return parseInt(a.custom_company_priority, 10) - parseInt(b.custom_company_priority, 10);
+            });
+
+            const groupOrder = ['Ranked', 'Maintenance', 'Repair Visit', 'Not Assigned'];
+
+            groupOrder.forEach(groupName => {
+                const groupProjects = groups[groupName];
+                if (groupProjects.length === 0) return;
+
+                const groupHeaderHTML = `<div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data-group-id="${groupName}"><div class="font-bold text-sm text-gray-700">${groupName} (${groupProjects.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
+                const groupHeader = $(groupHeaderHTML).appendTo(content);
+                const groupBody = $('<div class="collapsible-body" style="display: none;"></div>').appendTo(content); // Default collapsed? Or expanded? Let's keep default collapsed logic or expand all? User didn't specify, sticking to default.
+
+                // Expand 'Ranked' by default as it's the main view
+                if (groupName === 'Ranked') {
+                    groupBody.show();
+                    groupHeader.find('svg').addClass('rotate-180');
+                }
+
+                const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="custom_company_priority">Company Priority</th><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="tasks">Tasks</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(groupBody);
+                const tableBody = table.find('tbody');
+
+                groupProjects.forEach(project => {
+                    const tasks_link = `<a href="/app/project-dashboard#TasksTree?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a>`;
+                    const statusOptions = statusOptionsList.map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
+                    // Company priority is likely an integer field, not a select, or maybe a select 1-30. Assuming text/int for now based on description "ranking 1-30".
+                    // If it's editable, we need an input or select. Let's assume simple display for now or simple input if needed.
+                    // Given "organized by the field... ranking 1-30", I'll display it.
+                    const companyPriorityDisplay = project.custom_company_priority || '-';
+
+                    const row = $(`
+                        <tr data-project-name="${project.name}">
+                            <td>${companyPriorityDisplay}</td>
+                            <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
+                            <td>${project.name}</td>
+                            <td><select class="form-control form-control-sm" data-field="status">${statusOptions}</select></td>
+                            <td>${tasks_link}</td>
+                            <td class="assignee-cell"><a href="#" class="project-assignee-link">${project.project_user || 'Unassigned'}</a></td>
+                        </tr>
+                    `);
+                    tableBody.append(row);
+                });
+
+                // Add click handler for this specific group header
+                groupHeader.on('click', function () {
+                    const body = $(this).next('.collapsible-body');
+                    const icon = $(this).find('svg');
+                    body.slideToggle();
+                    icon.toggleClass('rotate-180');
+                });
+            });
+        }
+
+        /**
          * Renders the 'Portfolio Gantt' view.
          *
          * Fetches all active projects and displays them in a single Gantt chart.
@@ -314,22 +402,22 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
             frappe.call({
                 method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_all_projects_for_gantt",
-                callback: function(r) {
+                callback: function (r) {
                     if (r.message && !r.message.error && r.message.length > 0) {
                         content.empty();
                         const gantt_container = $('<div class="gantt-container"></div>').appendTo(content);
 
                         new Gantt(gantt_container[0], r.message, {
                             view_mode: 'Month', // Default view mode
-							on_click: (project) => {
-							    // Redirect to the standard Gantt chart view for Tasks, filtered by the clicked project.
-							    frappe.set_route('List', 'Task', 'Gantt', { project: project.id });
-							},
+                            on_click: (project) => {
+                                // Redirect to the standard Gantt chart view for Tasks, filtered by the clicked project.
+                                frappe.set_route('List', 'Task', 'Gantt', { project: project.id });
+                            },
                         });
                     } else if (r.message && r.message.length === 0) {
                         content.html('<p class="text-muted text-center p-4">No active projects with start dates were found to display in the Gantt chart.</p>');
                     } else {
-                         content.html(`<p class="text-danger text-center p-4">Error: ${r.message ? r.message.error : 'Could not load Gantt chart data.'}</p>`);
+                        content.html(`<p class="text-danger text-center p-4">Error: ${r.message ? r.message.error : 'Could not load Gantt chart data.'}</p>`);
                     }
                 }
             });
@@ -456,7 +544,18 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
             let filteredProjects;
             if (activeTab === 'PriorityOverview') {
-                filteredProjects = allProjects.filter(p => p.is_active === 'Yes' && p.status !== 'Completed' && p.status !== 'Cancelled');
+                if (priorityView === 'value_stream') {
+                    const allowedTypes = ["External", "Design", "Build", "Service", "Rent"];
+                    filteredProjects = allProjects.filter(p => p.is_active === 'Yes' && allowedTypes.includes(p.project_type));
+                } else if (priorityView === 'internal') {
+                    const allowedTypes = ["Internal", "Group Projects", "Organizational Projects", "Other"];
+                    filteredProjects = allProjects.filter(p => p.is_active === 'Yes' && allowedTypes.includes(p.project_type));
+                } else if (priorityView === 'company') {
+                    filteredProjects = allProjects.filter(p => p.is_active === 'Yes');
+                } else {
+                    // Fallback
+                    filteredProjects = allProjects.filter(p => p.is_active === 'Yes');
+                }
             } else if (activeTab === 'ActiveExternalProjects') {
                 const allowedTypes = ["External", "Design", "Build", "Service", "Rent"];
                 filteredProjects = allProjects.filter(p => p.is_active === 'Yes' && allowedTypes.includes(p.project_type));
@@ -546,7 +645,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
 
             const sortableContainers = taskContent.find('.task-grid-body, .child-tasks-container');
 
-            sortableContainers.each(function() {
+            sortableContainers.each(function () {
                 const instance = new Sortable(this, {
                     group: 'nested-tasks',
                     animation: 150,
@@ -793,7 +892,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             frappe.call({
                 method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_tasks',
                 args: { project: project_name },
-                callback: function(r) {
+                callback: function (r) {
                     if (r.message && !r.message.error) {
                         currentProjectTasks = r.message;
                         renderTaskTreeView(project, r.message);
@@ -883,7 +982,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 frappe.call({
                     method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.add_project_assignee',
                     args: { project_name: projectName, user_id: userId },
-                    callback: function(r) {
+                    callback: function (r) {
                         if (r.message && r.message.status === 'success') {
                             project.assignees = r.message.assignees;
                             renderAssignees();
@@ -896,12 +995,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 });
             };
 
-            assigneeListWrapper.on('click', '.remove-assignee', function() {
+            assigneeListWrapper.on('click', '.remove-assignee', function () {
                 const userId = $(this).data('user-id');
                 frappe.call({
                     method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.remove_project_assignee',
                     args: { project_name: projectName, user_id: userId },
-                    callback: function(r) {
+                    callback: function (r) {
                         if (r.message && r.message.status === 'success') {
                             project.assignees = r.message.assignees;
                             renderAssignees();
@@ -999,7 +1098,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 frappe.call({
                     method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.add_task_assignee',
                     args: { task_name: taskName, user_id: userId },
-                    callback: function(r) {
+                    callback: function (r) {
                         if (r.message && r.message.status === 'success') {
                             task.assignees = r.message.assignees; // Update local task object
                             renderAssignees();
@@ -1012,12 +1111,12 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 });
             };
 
-            assigneeListWrapper.on('click', '.remove-assignee', function() {
+            assigneeListWrapper.on('click', '.remove-assignee', function () {
                 const userId = $(this).data('user-id');
                 frappe.call({
                     method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.remove_task_assignee',
                     args: { task_name: taskName, user_id: userId },
-                    callback: function(r) {
+                    callback: function (r) {
                         if (r.message && r.message.status === 'success') {
                             task.assignees = r.message.assignees; // Update local task object
                             renderAssignees();
@@ -1040,7 +1139,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
          * @returns {string} The corresponding Bootstrap badge class.
          */
         function getStatusClass(status) {
-            switch(status) {
+            switch (status) {
                 case 'Open': return 'badge-primary';
                 case 'Completed': return 'badge-success';
                 case 'Overdue': return 'badge-danger';
@@ -1098,7 +1197,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         searchInput.on('keyup', frappe.utils.debounce(() => { applyFiltersAndRender(); updateURL(); }, 300));
         groupSortSelect.on('change', () => { applyFiltersAndRender(); updateURL(); });
         configureSortBtn.on('click', openSortConfiguration);
-        tabContainer.on('click', '.nav-link', function(e) {
+        tabContainer.on('click', '.nav-link', function (e) {
             e.preventDefault();
             const clickedTab = $(this);
             if (clickedTab.hasClass('active')) return;
@@ -1133,11 +1232,11 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             updateURL(true);
             applyFiltersAndRender();
         }
-        priorityViewToggle.on('click', 'button', function() { const $btn = $(this); if ($btn.hasClass('active')) return; priorityViewToggle.find('button').removeClass('active'); $btn.addClass('active'); priorityView = $btn.data('view'); updateURL(); applyFiltersAndRender(); });
-        $(page.body).on('click', '.collapsible-header', function() { const groupId = $(this).data('group-id'); const body = $(this).next('.collapsible-body'); body.slideToggle(200); $(this).find('svg').toggleClass('rotate-180'); if (body.is(':visible')) { expandedGroups.add(groupId); } else { expandedGroups.delete(groupId); } });
+        priorityViewToggle.on('click', 'button', function () { const $btn = $(this); if ($btn.hasClass('active')) return; priorityViewToggle.find('button').removeClass('active'); $btn.addClass('active'); priorityView = $btn.data('view'); updateURL(); applyFiltersAndRender(); });
+        $(page.body).on('click', '.collapsible-header', function () { const groupId = $(this).data('group-id'); const body = $(this).next('.collapsible-body'); body.slideToggle(200); $(this).find('svg').toggleClass('rotate-180'); if (body.is(':visible')) { expandedGroups.add(groupId); } else { expandedGroups.delete(groupId); } });
 
         // Handle clicks on task links within the project tables to navigate to the task tree view.
-        content.on('click', 'a[href*="#TasksTree"]', function(e) {
+        content.on('click', 'a[href*="#TasksTree"]', function (e) {
             e.preventDefault();
 
             // Extract the project name from the link's href attribute.
@@ -1167,9 +1266,9 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             applyFiltersAndRender();
         });
 
-        taskContent.on('click', '.view-tasks-btn', function() { pageState.project = $(this).data('project'); updateURL(true); loadAndRenderTasks(pageState.project); });
-        taskContent.on('click', '#back-to-projects', function() { pageState.project = null; activeTab = 'TasksTree'; updateURL(true); applyFiltersAndRender(); });
-        taskContent.on('click', '#save-task-order', function() {
+        taskContent.on('click', '.view-tasks-btn', function () { pageState.project = $(this).data('project'); updateURL(true); loadAndRenderTasks(pageState.project); });
+        taskContent.on('click', '#back-to-projects', function () { pageState.project = null; activeTab = 'TasksTree'; updateURL(true); applyFiltersAndRender(); });
+        taskContent.on('click', '#save-task-order', function () {
             const saveButton = $(this);
             const indicator = $('#task-saving-indicator');
             const projectName = pageState.project;
@@ -1188,7 +1287,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 function recurse(container, parentOrderString) {
                     const children = $(container).children('.task-node');
 
-                    children.each(function(index) {
+                    children.each(function (index) {
                         const taskNode = $(this);
                         const taskId = taskNode.data('task-id');
                         const parentNode = taskNode.parent().closest('.task-node');
@@ -1227,7 +1326,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             frappe.call({
                 method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_structure',
                 args: { project_name: projectName, tasks: updates },
-                callback: function(r) {
+                callback: function (r) {
                     if (r.message && r.message.status === 'success') {
                         saveButton.hide();
                         // Refresh the tasks to show the new saved order.
@@ -1238,13 +1337,13 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                         loadAndRenderTasks(projectName); // Revert on failure
                     }
                 },
-                always: function() {
+                always: function () {
                     indicator.hide();
                     saveButton.prop('disabled', false);
                 }
             });
         });
-        taskContent.on('click', '.toggle-child-tasks', function() {
+        taskContent.on('click', '.toggle-child-tasks', function () {
             const $icon = $(this);
             const $taskNode = $icon.closest('.task-node');
             const taskId = $taskNode.data('task-id');
@@ -1267,7 +1366,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 localStorage.setItem(`collapsedTasks_${projectName}`, JSON.stringify(Array.from(collapsedTasks)));
             }
         });
-        taskContent.on('click', '.editable-date a', function(e) {
+        taskContent.on('click', '.editable-date a', function (e) {
             e.preventDefault();
             const link = $(this);
             const cell = link.closest('td');
@@ -1343,7 +1442,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 }, 200); // 200ms delay
             });
         });
-        taskContent.on('click', '.editable-time a', function(e) {
+        taskContent.on('click', '.editable-time a', function (e) {
             e.preventDefault();
             const link = $(this);
             const cell = link.closest('td');
@@ -1406,8 +1505,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 }
             });
         });
-        content.on('click', 'thead th', function() { const field = $(this).data('sort'); if (!field) return; if (currentSort.field === field) { currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc'; } else { currentSort.field = field; currentSort.order = 'asc'; } applyFiltersAndRender(); });
-        content.on('change', 'select', function() {
+        content.on('click', 'thead th', function () { const field = $(this).data('sort'); if (!field) return; if (currentSort.field === field) { currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc'; } else { currentSort.field = field; currentSort.order = 'asc'; } applyFiltersAndRender(); });
+        content.on('change', 'select', function () {
             const select = $(this);
             const projectName = select.closest('tr').data('project-name');
             const field = select.data('field');
@@ -1426,8 +1525,8 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                 project[field] = value;
             }
         });
-        taskContent.on('click', '.assignee-link', function(e) { e.preventDefault(); showTaskAssigneeDialog($(this)); });
-        taskContent.on('change', '.task-status-select', function() {
+        taskContent.on('click', '.assignee-link', function (e) { e.preventDefault(); showTaskAssigneeDialog($(this)); });
+        taskContent.on('change', '.task-status-select', function () {
             const select = $(this);
             const taskName = select.closest('.task-node').data('task-id');
             const value = select.val();
@@ -1452,7 +1551,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             }
             findAndUpdateTask(currentProjectTasks, taskName, value);
         });
-        content.on('click', '.project-assignee-link', function(e) { e.preventDefault(); showProjectAssigneeDialog($(this)); });
+        content.on('click', '.project-assignee-link', function (e) { e.preventDefault(); showProjectAssigneeDialog($(this)); });
 
         function saveAllPendingChanges() {
             frappe.call({
@@ -1461,7 +1560,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
                     project_updates: JSON.stringify(pendingProjectChanges),
                     task_updates: JSON.stringify(pendingTaskChanges)
                 },
-                callback: function(r) {
+                callback: function (r) {
                     if (r.message && r.message.status === 'success') {
                         frappe.show_alert({ message: 'Changes saved!', indicator: 'green' });
                         pendingProjectChanges = {};
