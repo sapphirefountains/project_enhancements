@@ -13,7 +13,7 @@
  "roles": [],
  "script": null,
  "standard": "Yes",
- "style": null,
+ "style": "project_dashboard.css",
  "system_page": 0
 }
 
