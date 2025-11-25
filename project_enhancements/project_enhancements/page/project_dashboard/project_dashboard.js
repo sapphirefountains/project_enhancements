@@ -1597,55 +1597,53 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         loadInitialData();
 
         // --- Custom Styles ---
-        $(`< style >
-            .table thead th { cursor: pointer; user - select: none; }
-            .table thead th.sorted - asc::after { content: ' ▲'; font - size: 10px; }
-            .table thead th.sorted - desc::after { content: ' ▼'; font - size: 10px; }
-                    #sortable - list li { cursor: grab; }
-            .nav - tabs.nav - link.active { color: #495057; background - color: #fff; border - color: #d1d8dd #d1d8dd #fff; }
-            .task - row td { vertical - align: middle; }
-            .task - row:hover { background - color: #f8f9fa; }
-            .toggle - child - tasks { cursor: pointer; }
-            .task - drag - handle { cursor: grab; }
-            .sortable - ghost { background - color: #e8f7ff; border: 1px dashed #a1d1ff; }
-            .sortable - chosen { background - color: #d1ecf1; }
-            .sortable - chosen a { color: #0c5460; }
-
+        $(`<style>
+            .table thead th { cursor: pointer; user-select: none; }
+            .table thead th.sorted-asc::after { content: ' ▲'; font-size: 10px; }
+            .table thead th.sorted-desc::after { content: ' ▼'; font-size: 10px; }
+            #sortable-list li { cursor: grab; }
+            .nav-tabs .nav-link.active { color: #495057; background-color: #fff; border-color: #d1d8dd #d1d8dd #fff; }
+            .task-row td { vertical-align: middle; }
+            .task-row:hover { background-color: #f8f9fa; }
+            .toggle-child-tasks { cursor: pointer; }
+            .task-drag-handle { cursor: grab; }
+            .sortable-ghost { background-color: #e8f7ff; border: 1px dashed #a1d1ff; }
+            .sortable-chosen { background-color: #d1ecf1; }
+            .sortable-chosen a { color: #0c5460; }
             /* New Task Grid Styles */
-            .task - grid - header, .task - grid - row { display: flex; border - bottom: 1px solid #dee2e6; padding: 0.5rem 0; align - items: center; }
-            .task - grid - header { font - weight: bold; background - color: #f8f9fa; }
-            .task - grid - cell { padding: 0 0.5rem; flex - shrink: 0; display: flex; align - items: center; }
-            .task - grid - cell: nth - child(1) { flex: 0 0 40 %; }
-            .task - grid - cell: nth - child(2) { flex: 0 0 15 %; }
-            .task - grid - cell: nth - child(3) { flex: 0 0 12 %; }
-            .task - grid - cell: nth - child(4), .task - grid - cell: nth - child(5) { flex: 0 0 10 %; }
-            .task - grid - cell: nth - child(6) { flex: 0 0 8 %; }
-            .task - grid - cell: nth - child(7) { flex: 0 0 5 %; }
-            .task - node.task - grid - row:hover { background - color: #f1f3f5; }
-            .child - tasks - container { }
-
+            .task-grid-header, .task-grid-row { display: flex; border-bottom: 1px solid #dee2e6; padding: 0.5rem 0; align-items: center; }
+            .task-grid-header { font-weight: bold; background-color: #f8f9fa; }
+            .task-grid-cell { padding: 0 0.5rem; flex-shrink: 0; display: flex; align-items: center; }
+            .task-grid-cell:nth-child(1) { flex: 0 0 40%; }
+            .task-grid-cell:nth-child(2) { flex: 0 0 15%; }
+            .task-grid-cell:nth-child(3) { flex: 0 0 12%; }
+            .task-grid-cell:nth-child(4), .task-grid-cell:nth-child(5) { flex: 0 0 10%; }
+            .task-grid-cell:nth-child(6) { flex: 0 0 8%; }
+            .task-grid-cell:nth-child(7) { flex: 0 0 5%; }
+            .task-node .task-grid-row:hover { background-color: #f1f3f5; }
+            .child-tasks-container { }
             /* Sticky Header Styles */
-            .project - dashboard - controls {
-                        position: -webkit - sticky;
-                        position: sticky;
-                        top: 0;
-                        z - index: 102; /* Needs to be above other sticky elements */
-                    }
-            .table > thead, .task - grid.task - grid - header {
-                        position: -webkit - sticky;
-                        position: sticky;
-                        /* The top value should be the height of the controls bar above it. */
-                        /* The control bar has p-2 (0.5rem * 2) + line-height of a sm form control (approx 1.8rem) + border (1px) ~ 57px */
-                        top: 57px;
-                        z - index: 101; /* Below controls, above content */
-                    }
+            .project-dashboard-controls {
+                position: -webkit-sticky;
+                position: sticky;
+                top: 0;
+                z-index: 102; /* Needs to be above other sticky elements */
+            }
+            .table > thead, .task-grid .task-grid-header {
+                position: -webkit-sticky;
+                position: sticky;
+                /* The top value should be the height of the controls bar above it. */
+                /* The control bar has p-2 (0.5rem * 2) + line-height of a sm form control (approx 1.8rem) + border (1px) ~ 57px */
+                top: 57px;
+                z-index: 101; /* Below controls, above content */
+            }
             /* Ensure the sticky table headers have a solid background */
-            .table > thead.thead - light > tr > th {
-                        background - color: #f8f9fa; /* Matches .thead-light */
-                    }
-            .task - grid.task - grid - header {
-                        background - color: #f8f9fa; /* Matches original style */
-                    }
-        </style > `).appendTo(page.body);
+            .table > thead.thead-light > tr > th {
+                background-color: #f8f9fa; /* Matches .thead-light */
+            }
+            .task-grid .task-grid-header {
+                background-color: #f8f9fa; /* Matches original style */
+            }
+        </style>`).appendTo(page.body);
     }
 }
