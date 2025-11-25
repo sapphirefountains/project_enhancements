@@ -87,7 +87,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         let statusOptionsList = [];
         let taskStatusOptionsList = [];
         let currentSort = { field: 'project_name', order: 'asc' };
-        let activeTab = 'ActiveProjects';
+        let activeTab = 'ActiveExternalProjects';
         let priorityView = 'ranked'; // 'grouped' or 'ranked'
         let expandedGroups = new Set();
         let currentTaskSort = { field: 'subject', order: 'asc' };
@@ -102,10 +102,10 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         const tabContainer = $(`
             <ul class="nav nav-tabs px-3">
                 <li class="nav-item">
-                    <a class="nav-link" href="javascript:void(0);" data-status="ActiveProjects">Active Projects</a>
+                    <a class="nav-link" href="javascript:void(0);" data-status="ActiveExternalProjects">Active External Projects</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="javascript:void(0);" data-status="InactiveProjects">Inactive Projects</a>
+                    <a class="nav-link" href="javascript:void(0);" data-status="ActiveInternalProjects">Active Internal Projects</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="javascript:void(0);" data-status="PriorityOverview">Priority Overview</a>
@@ -207,7 +207,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
         function parseURLAndSetState() {
             const hash = window.location.hash.substring(1);
             if (!hash) {
-                activeTab = 'ActiveProjects';
+                activeTab = 'ActiveExternalProjects';
                 tabContainer.find(`.nav-link[data-status="${activeTab}"]`).addClass('active');
                 updateURL();
                 return;
@@ -216,7 +216,7 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             const [tab, paramsString] = hash.split('?');
             const params = new URLSearchParams(paramsString);
 
-            activeTab = tab || 'ActiveProjects';
+            activeTab = tab || 'ActiveExternalProjects';
             pageState = Object.fromEntries(params.entries());
 
             tabContainer.find('.nav-link').removeClass('active');
@@ -457,9 +457,15 @@ frappe.pages['project-dashboard'].on_page_load = function(wrapper) {
             let filteredProjects;
             if (activeTab === 'PriorityOverview') {
                 filteredProjects = allProjects.filter(p => p.is_active === 'Yes' && p.status !== 'Completed' && p.status !== 'Cancelled');
+            } else if (activeTab === 'ActiveExternalProjects') {
+                const allowedTypes = ["External", "Design", "Build", "Service", "Rent"];
+                filteredProjects = allProjects.filter(p => p.is_active === 'Yes' && allowedTypes.includes(p.project_type));
+            } else if (activeTab === 'ActiveInternalProjects') {
+                const allowedTypes = ["Group Projects", "Internal", "Organizational Projects", "Other"];
+                filteredProjects = allProjects.filter(p => p.is_active === 'Yes' && allowedTypes.includes(p.project_type));
             } else {
-                const isActiveFilter = activeTab === 'ActiveProjects' ? 'Yes' : 'No';
-                filteredProjects = allProjects.filter(p => p.is_active === isActiveFilter);
+                // Fallback (shouldn't happen with current tabs)
+                filteredProjects = allProjects.filter(p => p.is_active === 'Yes');
             }
 
             const searchTerm = searchInput.val().toLowerCase();
