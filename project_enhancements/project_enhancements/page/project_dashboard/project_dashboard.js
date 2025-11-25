@@ -261,7 +261,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 if (priorityView === 'company') {
                     renderCompanyPriorityView(projects);
                 } else {
-                    renderRankedPriorityView(projects);
+                    // Use grouped view for Value Stream and Internal, but with specific sorting
+                    renderGroupedView(projects);
                 }
             } else {
                 renderGroupedView(projects);
@@ -472,6 +473,13 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 const tableBody = table.find('tbody');
 
                 projectsInGroup.sort((a, b) => {
+                    // Special sorting for Priority Overview tabs
+                    if (activeTab === 'PriorityOverview' && (priorityView === 'value_stream' || priorityView === 'internal')) {
+                        const priorityA = parseInt(a.custom_project_priority, 10) || Infinity;
+                        const priorityB = parseInt(b.custom_project_priority, 10) || Infinity;
+                        return priorityA - priorityB;
+                    }
+
                     let valA = a[currentSort.field] || '', valB = b[currentSort.field] || '';
                     if (currentSort.field === 'tasks') {
                         valA = a.completed_tasks / (a.total_tasks || 1);
