@@ -381,14 +381,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     `);
                     tableBody.append(row);
                 });
-
-                // Add click handler for this specific group header
-                groupHeader.on('click', function () {
-                    const body = $(this).next('.collapsible-body');
-                    const icon = $(this).find('svg');
-                    body.slideToggle();
-                    icon.toggleClass('rotate-180');
-                });
             });
         }
 
@@ -418,7 +410,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     } else if (r.message && r.message.length === 0) {
                         content.html('<p class="text-muted text-center p-4">No active projects with start dates were found to display in the Gantt chart.</p>');
                     } else {
-                        content.html(`<p class="text-danger text-center p-4">Error: ${r.message ? r.message.error : 'Could not load Gantt chart data.'}</p>`);
+                        content.html(`< p class= "text-danger text-center p-4" > Error: ${r.message ? r.message.error : 'Could not load Gantt chart data.'}</p > `);
                     }
                 }
             });
@@ -466,10 +458,10 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
             sortedGroupKeys.forEach(type => {
                 const projectsInGroup = groupedProjects[type];
-                const groupHeaderHTML = `<div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data-group-id="${type}"><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
+                const groupHeaderHTML = `< div class= "collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data - group - id="${type}" ><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div > `;
                 const groupHeader = $(groupHeaderHTML).appendTo(content);
                 const groupBody = $('<div class="collapsible-body" style="display: none;"></div>').appendTo(content);
-                const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="custom_project_priority">Priority</th><th data-sort="tasks">Tasks</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(groupBody);
+                const table = $(`< table class= "table table-bordered table-hover" style = "font-size: 12px;" ><thead class="thead-light"><tr><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="custom_project_priority">Priority</th><th data-sort="tasks">Tasks</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table > `).appendTo(groupBody);
                 const tableBody = table.find('tbody');
 
                 projectsInGroup.sort((a, b) => {
@@ -493,11 +485,11 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 });
 
                 projectsInGroup.forEach(project => {
-                    const statusOptions = statusOptionsList.map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
-                    const priorityOptions = priorityOptionsList.map(p => `<option value="${p}" ${project.custom_project_priority === p ? 'selected' : ''}>${p}</option>`).join('');
+                    const statusOptions = statusOptionsList.map(s => `< option value = "${s}" ${project.status === s ? 'selected' : ''} > ${s}</option > `).join('');
+                    const priorityOptions = priorityOptionsList.map(p => `< option value = "${p}" ${project.custom_project_priority === p ? 'selected' : ''} > ${p}</option > `).join('');
 
                     const rowHTML = `
-                        <tr data-project-name="${project.name}">
+                    < tr data - project - name="${project.name}" >
                             <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
                             <td>${project.name}</td>
                             <td>
@@ -512,7 +504,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             </td>
                             <td><a href="/app/project-dashboard#TasksTree?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a></td>
                             <td>${project.project_user || ''}</td>
-                        </tr>`;
+                        </tr > `;
                     tableBody.append(rowHTML);
                 });
 
@@ -611,7 +603,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
             sortedGroupKeys.forEach(type => {
                 const projectsInGroup = groupedProjects[type];
-                const groupHeaderHTML = `<div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data-group-id="${type}"><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
+                const groupHeaderHTML = `< div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data - group - id="${type}" ><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div > `;
                 const groupHeader = $(groupHeaderHTML).appendTo(taskContent);
                 const groupBody = $('<div class="collapsible-body" style="display: none;"></div>').appendTo(taskContent);
                 const listGroup = $('<ul class="list-group list-group-flush"></ul>').appendTo(groupBody);
@@ -620,11 +612,11 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
                 projectsInGroup.forEach(project => {
                     $(`
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                        < li class="list-group-item d-flex justify-content-between align-items-center" >
                             <a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a>
                             <button class="btn btn-primary btn-sm view-tasks-btn" data-project="${project.name}">View Tasks</button>
-                        </li>
-                    `).appendTo(listGroup);
+                        </li >
+                        `).appendTo(listGroup);
                 });
 
                 if (expandedGroups.has(type)) {
@@ -673,7 +665,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             taskContent.empty();
 
             const header = $(`
-                <div class="task-view-header mb-3">
+                        < div class="task-view-header mb-3" >
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div>
                             <button class="btn btn-sm btn-secondary" id="back-to-projects"><i class="fa fa-arrow-left mr-1"></i> Back to Projects</button>
@@ -699,12 +691,12 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             <div class="col-md-2"><button class="btn btn-sm btn-secondary btn-block" id="clear-task-filters">Clear Filters</button></div>
                         </div>
                     </div>
-                </div>
-            `).appendTo(taskContent);
+                </div >
+                        `).appendTo(taskContent);
 
             const status_filter = header.find('#task-status-filter');
             const unique_statuses = [...new Set(tasks.flatMap(t => [t.status, ...t.children.map(c => c.status)]))].filter(Boolean);
-            unique_statuses.forEach(s => status_filter.append(`<option value="${s}">${s}</option>`));
+            unique_statuses.forEach(s => status_filter.append(`< option value = "${s}" > ${s}</option > `));
 
             if (!tasks || tasks.length === 0) {
                 taskContent.append('<p class="text-muted text-center p-4">This project has no tasks.</p>');
@@ -712,7 +704,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             }
 
             const grid = $(`
-                <div class="task-grid">
+                        < div class="task-grid" >
                     <div class="task-grid-header">
                         <div class="task-grid-cell">Task</div>
                         <div class="task-grid-cell">Owner</div>
@@ -723,8 +715,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                         <div class="task-grid-cell">Duration (hrs)</div>
                     </div>
                     <div class="task-grid-body"></div>
-                </div>
-            `).appendTo(taskContent);
+                </div >
+                        `).appendTo(taskContent);
 
             redrawTaskTableBody(tasks);
             initializeTaskSorting(project);
@@ -785,7 +777,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     : '';
 
                 const node = $(`
-                    <div class="task-node" data-task-id="${task.name}">
+                        < div class="task-node" data - task - id="${task.name}" >
                         <div class="task-grid-row">
                             <div class="task-grid-cell" style="padding-left: ${level * 20}px;">
                                 <i class="fa fa-bars task-drag-handle mr-2 text-muted"></i>
@@ -800,8 +792,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             <div class="task-grid-cell editable-time" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}"><a href="#">${task.expected_time || 0}</a></div>
                         </div>
                         <div class="child-tasks-container" style="${isCollapsed ? 'display: none;' : ''}"></div>
-                    </div>
-                `).appendTo(container);
+                    </div >
+                        `).appendTo(container);
 
                 if (task.children && task.children.length > 0) {
                     const childContainer = node.find('.child-tasks-container');
@@ -824,7 +816,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
          */
         function updateSortIcons() {
             content.find('thead th').removeClass('sorted-asc sorted-desc');
-            const currentTh = content.find(`thead th[data-sort="${currentSort.field}"]`);
+            const currentTh = content.find(`thead th[data - sort= "${currentSort.field}"]`);
             currentTh.addClass(currentSort.order === 'asc' ? 'sorted-asc' : 'sorted-desc');
         }
 
@@ -853,7 +845,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
             const dialog = new frappe.ui.Dialog({
                 title: 'Configure Custom Group Order',
-                fields: [{ fieldname: 'sort_info', fieldtype: 'HTML', options: `<p class="text-muted">Drag and drop the project types to set your preferred order.</p><ul id="sortable-list" class="list-group"></ul>` }],
+                fields: [{ fieldname: 'sort_info', fieldtype: 'HTML', options: `< p class="text-muted" > Drag and drop the project types to set your preferred order.</p > <ul id="sortable-list" class="list-group"></ul>` }],
                 primary_action_label: 'Save Order',
                 primary_action: () => {
                     const newOrder = sortable.toArray();
@@ -867,7 +859,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
             const listElement = dialog.get_field('sort_info').$wrapper.find('#sortable-list')[0];
             groupKeys.forEach(key => {
-                $(listElement).append(`<li class="list-group-item" data-id="${key}"><i class="fa fa-bars mr-2 text-muted"></i> ${key}</li>`);
+                $(listElement).append(`< li class="list-group-item" data - id="${key}" > <i class="fa fa-bars mr-2 text-muted"></i> ${key}</li > `);
             });
 
             const sortable = new Sortable(listElement, { animation: 150, ghostClass: 'bg-light' });
@@ -880,17 +872,17 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         function loadAndRenderTasks(project_name) {
             const project = allProjects.find(p => p.name === project_name);
             if (!project) {
-                taskContent.html(`<div class="alert alert-danger">Project not found: ${project_name}</div>`);
+                taskContent.html(`< div class="alert alert-danger" > Project not found: ${project_name}</div > `);
                 pageState.project = null;
                 updateURL();
                 renderProjectSelectionForTasks();
                 return;
             }
 
-            taskContent.html(`<div class="text-center p-5"><div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div></div>`);
+            taskContent.html(`< div class="text-center p-5" > <div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div></div > `);
 
             // Load the collapsed state for this specific project from local storage.
-            const savedState = localStorage.getItem(`collapsedTasks_${project_name}`);
+            const savedState = localStorage.getItem(`collapsedTasks_${project_name} `);
             if (savedState) {
                 collapsedTasks = new Set(JSON.parse(savedState));
             } else {
@@ -911,7 +903,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             applyTaskFiltersAndSort();
                         }
                     } else {
-                        taskContent.html(`<div class="alert alert-danger">Error fetching tasks: ${r.message ? r.message.error : 'Unknown error'}</div>`);
+                        taskContent.html(`< div class="alert alert-danger" > Error fetching tasks: ${r.message ? r.message.error : 'Unknown error'}</div > `);
                     }
                 }
             });
@@ -934,7 +926,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             }
 
             const dialog = new frappe.ui.Dialog({
-                title: `Assignments for: ${projectTitle}`,
+                title: `Assignments for: ${projectTitle} `,
                 fields: [
                     {
                         fieldname: 'assign_to',
@@ -958,12 +950,12 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 assigneeListWrapper.empty();
                 if (project.assignees && project.assignees.length > 0) {
                     const assigneeItems = project.assignees.map(assignee => `
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                        < li class="list-group-item d-flex justify-content-between align-items-center" >
                             ${assignee.full_name}
-                            <button class="btn btn-xs btn-danger remove-assignee" data-user-id="${assignee.email}">Remove</button>
-                        </li>
-                    `).join('');
-                    assigneeListWrapper.html(`<ul class="list-group">${assigneeItems}</ul>`);
+                    <button class="btn btn-xs btn-danger remove-assignee" data-user-id="${assignee.email}">Remove</button>
+                        </li >
+                        `).join('');
+                    assigneeListWrapper.html(`< ul class="list-group" > ${assigneeItems}</ul > `);
                 } else {
                     assigneeListWrapper.html('<p class="text-muted">No users are assigned to this project.</p>');
                 }
@@ -1049,7 +1041,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             }
 
             const dialog = new frappe.ui.Dialog({
-                title: `Assignments for: ${taskSubject}`,
+                title: `Assignments for: ${taskSubject} `,
                 fields: [
                     {
                         fieldname: 'assign_to',
@@ -1073,12 +1065,12 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 assigneeListWrapper.empty();
                 if (task.assignees && task.assignees.length > 0) {
                     const assigneeItems = task.assignees.map(assignee => `
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                        < li class="list-group-item d-flex justify-content-between align-items-center" >
                             ${assignee.full_name}
-                            <button class="btn btn-xs btn-danger remove-assignee" data-user-id="${assignee.email}">Remove</button>
-                        </li>
-                    `).join('');
-                    assigneeListWrapper.html(`<ul class="list-group">${assigneeItems}</ul>`);
+                    <button class="btn btn-xs btn-danger remove-assignee" data-user-id="${assignee.email}">Remove</button>
+                        </li >
+                        `).join('');
+                    assigneeListWrapper.html(`< ul class="list-group" > ${assigneeItems}</ul > `);
                 } else {
                     assigneeListWrapper.html('<p class="text-muted">No users are assigned to this task.</p>');
                 }
@@ -1193,11 +1185,11 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     allProjects = r_proj.message;
                     applyFiltersAndRender();
                 } else {
-                    content.html(`<p class="text-danger">Error: ${r_proj.message ? r_proj.message.error : 'An unexpected error occurred.'}</p>`);
+                    content.html(`< p class="text-danger" > Error: ${r_proj.message ? r_proj.message.error : 'An unexpected error occurred.'}</p > `);
                 }
             }).catch(err => {
                 console.error("Error loading initial data", err);
-                content.html(`<p class="text-danger">A critical error occurred. Please check the console.</p>`);
+                content.html(`< p class="text-danger" > A critical error occurred.Please check the console.</p > `);
             });
         }
 
@@ -1371,7 +1363,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             // Save the updated state to local storage for the current project
             const projectName = pageState.project;
             if (projectName) {
-                localStorage.setItem(`collapsedTasks_${projectName}`, JSON.stringify(Array.from(collapsedTasks)));
+                localStorage.setItem(`collapsedTasks_${projectName} `, JSON.stringify(Array.from(collapsedTasks)));
             }
         });
         taskContent.on('click', '.editable-date a', function (e) {
@@ -1460,7 +1452,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             const originalValue = cell.data('original-value');
             link.hide();
 
-            const input = $(`<input type="number" class="form-control form-control-sm time-input" style="width: 80px;" min="0" step="0.5">`)
+            const input = $(`< input type = "number" class="form-control form-control-sm time-input" style = "width: 80px;" min = "0" step = "0.5" > `)
                 .val(originalValue)
                 .appendTo(cell)
                 .focus();
@@ -1605,55 +1597,55 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         loadInitialData();
 
         // --- Custom Styles ---
-        $(`<style>
-            .table thead th { cursor: pointer; user-select: none; }
-            .table thead th.sorted-asc::after { content: ' ▲'; font-size: 10px; }
-            .table thead th.sorted-desc::after { content: ' ▼'; font-size: 10px; }
-            #sortable-list li { cursor: grab; }
-            .nav-tabs .nav-link.active { color: #495057; background-color: #fff; border-color: #d1d8dd #d1d8dd #fff; }
-            .task-row td { vertical-align: middle; }
-            .task-row:hover { background-color: #f8f9fa; }
-            .toggle-child-tasks { cursor: pointer; }
-            .task-drag-handle { cursor: grab; }
-            .sortable-ghost { background-color: #e8f7ff; border: 1px dashed #a1d1ff; }
-            .sortable-chosen { background-color: #d1ecf1; }
-            .sortable-chosen a { color: #0c5460; }
+        $(`< style >
+            .table thead th { cursor: pointer; user - select: none; }
+            .table thead th.sorted - asc::after { content: ' ▲'; font - size: 10px; }
+            .table thead th.sorted - desc::after { content: ' ▼'; font - size: 10px; }
+                    #sortable - list li { cursor: grab; }
+            .nav - tabs.nav - link.active { color: #495057; background - color: #fff; border - color: #d1d8dd #d1d8dd #fff; }
+            .task - row td { vertical - align: middle; }
+            .task - row:hover { background - color: #f8f9fa; }
+            .toggle - child - tasks { cursor: pointer; }
+            .task - drag - handle { cursor: grab; }
+            .sortable - ghost { background - color: #e8f7ff; border: 1px dashed #a1d1ff; }
+            .sortable - chosen { background - color: #d1ecf1; }
+            .sortable - chosen a { color: #0c5460; }
 
             /* New Task Grid Styles */
-            .task-grid-header, .task-grid-row { display: flex; border-bottom: 1px solid #dee2e6; padding: 0.5rem 0; align-items: center; }
-            .task-grid-header { font-weight: bold; background-color: #f8f9fa; }
-            .task-grid-cell { padding: 0 0.5rem; flex-shrink: 0; display: flex; align-items: center; }
-            .task-grid-cell:nth-child(1) { flex: 0 0 40%; }
-            .task-grid-cell:nth-child(2) { flex: 0 0 15%; }
-            .task-grid-cell:nth-child(3) { flex: 0 0 12%; }
-            .task-grid-cell:nth-child(4), .task-grid-cell:nth-child(5) { flex: 0 0 10%; }
-            .task-grid-cell:nth-child(6) { flex: 0 0 8%; }
-            .task-grid-cell:nth-child(7) { flex: 0 0 5%; }
-            .task-node .task-grid-row:hover { background-color: #f1f3f5; }
-            .child-tasks-container {  }
+            .task - grid - header, .task - grid - row { display: flex; border - bottom: 1px solid #dee2e6; padding: 0.5rem 0; align - items: center; }
+            .task - grid - header { font - weight: bold; background - color: #f8f9fa; }
+            .task - grid - cell { padding: 0 0.5rem; flex - shrink: 0; display: flex; align - items: center; }
+            .task - grid - cell: nth - child(1) { flex: 0 0 40 %; }
+            .task - grid - cell: nth - child(2) { flex: 0 0 15 %; }
+            .task - grid - cell: nth - child(3) { flex: 0 0 12 %; }
+            .task - grid - cell: nth - child(4), .task - grid - cell: nth - child(5) { flex: 0 0 10 %; }
+            .task - grid - cell: nth - child(6) { flex: 0 0 8 %; }
+            .task - grid - cell: nth - child(7) { flex: 0 0 5 %; }
+            .task - node.task - grid - row:hover { background - color: #f1f3f5; }
+            .child - tasks - container { }
 
             /* Sticky Header Styles */
-            .project-dashboard-controls {
-                position: -webkit-sticky;
-                position: sticky;
-                top: 0;
-                z-index: 102; /* Needs to be above other sticky elements */
-            }
-            .table > thead, .task-grid .task-grid-header {
-                position: -webkit-sticky;
-                position: sticky;
-                /* The top value should be the height of the controls bar above it. */
-                /* The control bar has p-2 (0.5rem * 2) + line-height of a sm form control (approx 1.8rem) + border (1px) ~ 57px */
-                top: 57px;
-                z-index: 101; /* Below controls, above content */
-            }
+            .project - dashboard - controls {
+                        position: -webkit - sticky;
+                        position: sticky;
+                        top: 0;
+                        z - index: 102; /* Needs to be above other sticky elements */
+                    }
+            .table > thead, .task - grid.task - grid - header {
+                        position: -webkit - sticky;
+                        position: sticky;
+                        /* The top value should be the height of the controls bar above it. */
+                        /* The control bar has p-2 (0.5rem * 2) + line-height of a sm form control (approx 1.8rem) + border (1px) ~ 57px */
+                        top: 57px;
+                        z - index: 101; /* Below controls, above content */
+                    }
             /* Ensure the sticky table headers have a solid background */
-            .table > thead.thead-light > tr > th {
-                 background-color: #f8f9fa; /* Matches .thead-light */
-            }
-            .task-grid .task-grid-header {
-                background-color: #f8f9fa; /* Matches original style */
-            }
-        </style>`).appendTo(page.body);
+            .table > thead.thead - light > tr > th {
+                        background - color: #f8f9fa; /* Matches .thead-light */
+                    }
+            .task - grid.task - grid - header {
+                        background - color: #f8f9fa; /* Matches original style */
+                    }
+        </style > `).appendTo(page.body);
     }
 }
