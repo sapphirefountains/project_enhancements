@@ -499,11 +499,11 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 });
 
                 projectsInGroup.forEach(project => {
-                    const statusOptions = statusOptionsList.map(s => `< option value = "${s}" ${project.status === s ? 'selected' : ''} > ${s}</option > `).join('');
-                    const priorityOptions = priorityOptionsList.map(p => `< option value = "${p}" ${project.custom_project_priority === p ? 'selected' : ''} > ${p}</option > `).join('');
+                    const statusOptions = statusOptionsList.map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
+                    const priorityOptions = priorityOptionsList.map(p => `<option value="${p}" ${project.custom_project_priority === p ? 'selected' : ''}>${p}</option>`).join('');
 
                     const rowHTML = `
-                    <tr data-project-name="${project.name}">
+                        <tr data-project-name="${project.name}">
                             <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
                             <td>${project.name}</td>
                             <td>
@@ -518,7 +518,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             </td>
                             <td><a href="/app/project-dashboard#TasksTree?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a></td>
                             <td>${project.project_user || ''}</td>
-                        </tr > `;
+                        </tr>`;
                     tableBody.append(rowHTML);
                 });
 
@@ -626,10 +626,10 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
                 projectsInGroup.forEach(project => {
                     $(`
-                        < li class="list-group-item d-flex justify-content-between align-items-center" >
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
                             <a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a>
                             <button class="btn btn-primary btn-sm view-tasks-btn" data-project="${project.name}">View Tasks</button>
-                        </li >
+                        </li>
                         `).appendTo(listGroup);
                 });
 
@@ -679,7 +679,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             taskContent.empty();
 
             const header = $(`
-                        < div class="task-view-header mb-3" >
+                        <div class="task-view-header mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div>
                             <button class="btn btn-sm btn-secondary" id="back-to-projects"><i class="fa fa-arrow-left mr-1"></i> Back to Projects</button>
@@ -705,12 +705,12 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             <div class="col-md-2"><button class="btn btn-sm btn-secondary btn-block" id="clear-task-filters">Clear Filters</button></div>
                         </div>
                     </div>
-                </div >
+                </div>
                         `).appendTo(taskContent);
 
             const status_filter = header.find('#task-status-filter');
             const unique_statuses = [...new Set(tasks.flatMap(t => [t.status, ...t.children.map(c => c.status)]))].filter(Boolean);
-            unique_statuses.forEach(s => status_filter.append(`< option value = "${s}" > ${s}</option > `));
+            unique_statuses.forEach(s => status_filter.append(`<option value="${s}">${s}</option>`));
 
             if (!tasks || tasks.length === 0) {
                 taskContent.append('<p class="text-muted text-center p-4">This project has no tasks.</p>');
@@ -718,7 +718,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             }
 
             const grid = $(`
-                        < div class="task-grid" >
+                        <div class="task-grid">
                     <div class="task-grid-header">
                         <div class="task-grid-cell">Task</div>
                         <div class="task-grid-cell">Owner</div>
@@ -729,7 +729,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                         <div class="task-grid-cell">Duration (hrs)</div>
                     </div>
                     <div class="task-grid-body"></div>
-                </div >
+                </div>
                         `).appendTo(taskContent);
 
             redrawTaskTableBody(tasks);
@@ -806,7 +806,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             <div class="task-grid-cell editable-time" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}"><a href="#">${task.expected_time || 0}</a></div>
                         </div>
                         <div class="child-tasks-container" style="${isCollapsed ? 'display: none;' : ''}"></div>
-                    </div >
+                    </div>
                         `).appendTo(container);
 
                 if (task.children && task.children.length > 0) {
@@ -859,7 +859,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
             const dialog = new frappe.ui.Dialog({
                 title: 'Configure Custom Group Order',
-                fields: [{ fieldname: 'sort_info', fieldtype: 'HTML', options: `< p class="text-muted" > Drag and drop the project types to set your preferred order.</p > <ul id="sortable-list" class="list-group"></ul>` }],
+                fields: [{ fieldname: 'sort_info', fieldtype: 'HTML', options: `<p class="text-muted">Drag and drop the project types to set your preferred order.</p><ul id="sortable-list" class="list-group"></ul>` }],
                 primary_action_label: 'Save Order',
                 primary_action: () => {
                     const newOrder = sortable.toArray();
@@ -886,17 +886,17 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         function loadAndRenderTasks(project_name) {
             const project = allProjects.find(p => p.name === project_name);
             if (!project) {
-                taskContent.html(`< div class="alert alert-danger" > Project not found: ${project_name}</div > `);
+                taskContent.html(`<div class="alert alert-danger">Project not found: ${project_name}</div>`);
                 pageState.project = null;
                 updateURL();
                 renderProjectSelectionForTasks();
                 return;
             }
 
-            taskContent.html(`< div class="text-center p-5" > <div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div></div > `);
+            taskContent.html(`<div class="text-center p-5"><div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div></div>`);
 
             // Load the collapsed state for this specific project from local storage.
-            const savedState = localStorage.getItem(`collapsedTasks_${project_name} `);
+            const savedState = localStorage.getItem(`collapsedTasks_${project_name}`);
             if (savedState) {
                 collapsedTasks = new Set(JSON.parse(savedState));
             } else {
@@ -917,7 +917,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             applyTaskFiltersAndSort();
                         }
                     } else {
-                        taskContent.html(`< div class="alert alert-danger" > Error fetching tasks: ${r.message ? r.message.error : 'Unknown error'}</div > `);
+                        taskContent.html(`<div class="alert alert-danger">Error fetching tasks: ${r.message ? r.message.error : 'Unknown error'}</div>`);
                     }
                 }
             });
@@ -940,7 +940,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             }
 
             const dialog = new frappe.ui.Dialog({
-                title: `Assignments for: ${projectTitle} `,
+                title: `Assignments for: ${projectTitle}`,
                 fields: [
                     {
                         fieldname: 'assign_to',
@@ -964,12 +964,12 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 assigneeListWrapper.empty();
                 if (project.assignees && project.assignees.length > 0) {
                     const assigneeItems = project.assignees.map(assignee => `
-                        < li class="list-group-item d-flex justify-content-between align-items-center" >
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
                             ${assignee.full_name}
                     <button class="btn btn-xs btn-danger remove-assignee" data-user-id="${assignee.email}">Remove</button>
-                        </li >
+                        </li>
                         `).join('');
-                    assigneeListWrapper.html(`< ul class="list-group" > ${assigneeItems}</ul > `);
+                    assigneeListWrapper.html(`<ul class="list-group">${assigneeItems}</ul>`);
                 } else {
                     assigneeListWrapper.html('<p class="text-muted">No users are assigned to this project.</p>');
                 }
@@ -1055,7 +1055,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             }
 
             const dialog = new frappe.ui.Dialog({
-                title: `Assignments for: ${taskSubject} `,
+                title: `Assignments for: ${taskSubject}`,
                 fields: [
                     {
                         fieldname: 'assign_to',
@@ -1079,12 +1079,12 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 assigneeListWrapper.empty();
                 if (task.assignees && task.assignees.length > 0) {
                     const assigneeItems = task.assignees.map(assignee => `
-                        < li class="list-group-item d-flex justify-content-between align-items-center" >
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
                             ${assignee.full_name}
                     <button class="btn btn-xs btn-danger remove-assignee" data-user-id="${assignee.email}">Remove</button>
-                        </li >
+                        </li>
                         `).join('');
-                    assigneeListWrapper.html(`< ul class="list-group" > ${assigneeItems}</ul > `);
+                    assigneeListWrapper.html(`<ul class="list-group">${assigneeItems}</ul>`);
                 } else {
                     assigneeListWrapper.html('<p class="text-muted">No users are assigned to this task.</p>');
                 }
@@ -1199,11 +1199,11 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     allProjects = r_proj.message;
                     applyFiltersAndRender();
                 } else {
-                    content.html(`< p class="text-danger" > Error: ${r_proj.message ? r_proj.message.error : 'An unexpected error occurred.'}</p > `);
+                    content.html(`<p class="text-danger">Error: ${r_proj.message ? r_proj.message.error : 'An unexpected error occurred.'}</p>`);
                 }
             }).catch(err => {
                 console.error("Error loading initial data", err);
-                content.html(`< p class="text-danger" > A critical error occurred.Please check the console.</p > `);
+                content.html(`<p class="text-danger">A critical error occurred. Please check the console.</p>`);
             });
         }
 
@@ -1627,7 +1627,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             /* New Task Grid Styles */
             .task-grid-header, .task-grid-row { display: flex; border-bottom: 1px solid #dee2e6; padding: 0.5rem 0; align-items: center; }
             .task-grid-header { font-weight: bold; background-color: #f8f9fa; }
-            .task-grid-cell { padding: 0 0.5rem; flex-shrink: 0; display: flex; align-items: center; }
+            .task-grid-cell { padding: 0 0.5rem; flex-shrink: 0; display: flex; align-items-center; }
             .task-grid-cell:nth-child(1) { flex: 0 0 40%; }
             .task-grid-cell:nth-child(2) { flex: 0 0 15%; }
             .task-grid-cell:nth-child(3) { flex: 0 0 12%; }
