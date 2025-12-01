@@ -1591,7 +1591,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             });
         }
 
-        $('#save-pending-changes, #save-task-pending-changes').on('click', saveAllPendingChanges);
+        $(page.body).on('click', '#save-pending-changes, #save-task-pending-changes', saveAllPendingChanges);
 
         function discardAllPendingChanges() {
             pendingProjectChanges = {};
@@ -1603,7 +1603,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             frappe.show_alert({ message: 'Changes discarded.', indicator: 'info' });
         }
 
-        $('#discard-pending-changes, #discard-task-pending-changes').on('click', discardAllPendingChanges);
+        $(page.body).on('click', '#discard-pending-changes, #discard-task-pending-changes', discardAllPendingChanges);
 
         window.addEventListener('popstate', () => { if (allProjects.length > 0) { parseURLAndSetState(); applyFiltersAndRender(); } else { window.location.reload(); } });
 
