@@ -135,26 +135,6 @@
     /* Matches original style */
 }
 
-.gantt-scroll-wrapper {
+.gantt-container {
     overflow-x: auto;
-    padding-bottom: 15px; /* Space for the scrollbar */
-}
-
-/* Style the scrollbar for Webkit browsers (Chrome, Safari) */
-.gantt-scroll-wrapper::-webkit-scrollbar {
-    height: 12px; /* Height of the horizontal scrollbar */
-}
-
-.gantt-scroll-wrapper::-webkit-scrollbar-track {
-    background: #f1f1f1; /* Track color */
-    border-radius: 10px;
-}
-
-.gantt-scroll-wrapper::-webkit-scrollbar-thumb {
-    background: #888; /* Handle color */
-    border-radius: 10px;
-}
-
-.gantt-scroll-wrapper::-webkit-scrollbar-thumb:hover {
-    background: #555; /* Handle color on hover */
 }
