@@ -412,7 +412,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 callback: function (r) {
                     if (r.message && !r.message.error && r.message.length > 0) {
                         content.empty();
-                        const gantt_container = $('<div class="gantt-container"></div>').appendTo(content);
+                        const gantt_scroll_wrapper = $('<div class="gantt-scroll-wrapper"></div>').appendTo(content);
+                        const gantt_container = $('<div class="gantt-container"></div>').appendTo(gantt_scroll_wrapper);
 
                         new Gantt(gantt_container[0], r.message, {
                             view_mode: 'Month', // Default view mode
