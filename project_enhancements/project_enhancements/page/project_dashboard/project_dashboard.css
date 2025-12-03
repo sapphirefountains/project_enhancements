@@ -134,3 +134,7 @@
     background-color: #f8f9fa;
     /* Matches original style */
 }
+
+.gantt-container {
+    overflow-x: auto;
+}
