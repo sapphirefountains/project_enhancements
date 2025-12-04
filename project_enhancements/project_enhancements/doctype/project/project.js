@@ -84,7 +84,7 @@ frappe.ui.form.on('Project', {
 
                         // Adjust scroll to align "Today" to the left
                         setTimeout(() => {
-                            const today_highlight = gantt_wrapper.find('.today-highlight');
+                            const today_highlight = gantt_wrapper.find('.current-date-highlight');
                             if (today_highlight.length > 0) {
                                 // If the element exists, scroll to it directly
                                 // position().left is relative to the scrollable container content
