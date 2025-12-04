@@ -417,6 +417,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
                         new Gantt(gantt_container[0], r.message, {
                             view_mode: 'Month', // Default view mode
+                            scroll_to: 'today',
                             on_click: (project) => {
                                 // Redirect to the standard Gantt chart view for Tasks, filtered by the clicked project.
                                 frappe.set_route('List', 'Task', 'Gantt', { project: project.id });
