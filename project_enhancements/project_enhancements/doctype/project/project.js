@@ -32,18 +32,7 @@ frappe.ui.form.on('Project', {
             'overflow': 'hidden'
         });
 
-        // Add scroll buttons
-        const button_html = `
-            <div class="gantt-controls" style="margin-bottom: 10px;">
-                <button class="btn btn-default btn-sm" data-action="scroll-left">
-                    <i class="fa fa-chevron-left"></i>
-                </button>
-                <button class="btn btn-default btn-sm" data-action="scroll-right">
-                    <i class="fa fa-chevron-right"></i>
-                </button>
-            </div>
-        `;
-        gantt_wrapper.empty().html(button_html + '<div class="gantt-chart-container" style="height: calc(100% - 50px);"></div>');
+        gantt_wrapper.empty().html('<div class="gantt-chart-container" style="height: 100%;"></div>');
 
 
         load_cdn_assets().then(() => {
@@ -93,14 +82,21 @@ frappe.ui.form.on('Project', {
                             'max-height': '100%'
                         });
 
-                        // Add event listeners for scroll buttons
-                        gantt_wrapper.find('[data-action="scroll-left"]').on('click', () => {
-                            gantt_container.scrollLeft(gantt_container.scrollLeft() - gantt.options.column_width);
-                        });
-
-                        gantt_wrapper.find('[data-action="scroll-right"]').on('click', () => {
-                            gantt_container.scrollLeft(gantt_container.scrollLeft() + gantt.options.column_width);
-                        });
+                        // Adjust scroll to align "Today" to the left
+                        setTimeout(() => {
+                            const today_highlight = gantt_wrapper.find('.today-highlight');
+                            if (today_highlight.length > 0) {
+                                // If the element exists, scroll to it directly
+                                // position().left is relative to the scrollable container content
+                                const scroll_pos = today_highlight.position().left;
+                                gantt_container.scrollLeft(scroll_pos - 20); // 20px padding
+                            } else {
+                                // Fallback: assumes scroll_to: 'today' centered the view
+                                const gantt_width = gantt_container.width();
+                                const current_scroll = gantt_container.scrollLeft();
+                                gantt_container.scrollLeft(current_scroll + (gantt_width / 2) - 50);
+                            }
+                        }, 500);
 
                     } else {
                         gantt_wrapper.html('<p class="text-muted">No tasks found for this project.</p>');
