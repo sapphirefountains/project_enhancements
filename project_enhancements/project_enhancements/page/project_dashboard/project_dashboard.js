@@ -711,8 +711,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                         `).appendTo(taskContent);
 
             const status_filter = header.find('#task-status-filter');
-            const unique_statuses = [...new Set(tasks.flatMap(t => [t.status, ...t.children.map(c => c.status)]))].filter(Boolean);
-            unique_statuses.forEach(s => status_filter.append(`<option value="${s}">${s}</option>`));
+            taskStatusOptionsList.forEach(s => status_filter.append(`<option value="${s}">${s}</option>`));
 
             if (!tasks || tasks.length === 0) {
                 taskContent.append('<p class="text-muted text-center p-4">This project has no tasks.</p>');
@@ -1284,6 +1283,18 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         taskContent.on('click', '.view-tasks-btn', function () { pageState.project = $(this).data('project'); updateURL(true); loadAndRenderTasks(pageState.project); });
         taskContent.on('click', '#back-to-projects', function () { pageState.project = null; activeTab = 'TasksTree'; updateURL(true); applyFiltersAndRender(); });
+
+        // Add event listeners for task filters
+        taskContent.on('keyup', '#task-name-filter, #task-owner-filter', frappe.utils.debounce(() => { applyTaskFiltersAndSort(); updateURL(); }, 300));
+        taskContent.on('change', '#task-status-filter', () => { applyTaskFiltersAndSort(); updateURL(); });
+        taskContent.on('click', '#clear-task-filters', function () {
+            taskContent.find('#task-name-filter').val('');
+            taskContent.find('#task-owner-filter').val('');
+            taskContent.find('#task-status-filter').val('');
+            applyTaskFiltersAndSort();
+            updateURL();
+        });
+
         taskContent.on('click', '#save-task-order', function () {
             const saveButton = $(this);
             const indicator = $('#task-saving-indicator');
