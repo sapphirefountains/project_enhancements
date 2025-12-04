@@ -84,7 +84,14 @@ frappe.ui.form.on('Project', {
 
                         // Adjust scroll to align "Today" to the left
                         setTimeout(() => {
-                            const today_highlight = gantt_wrapper.find('.current-date-highlight');
+                            // Calculate dynamic class for today, e.g., .date_2023-10-27
+                            const today_date_class = '.date_' + moment().format('YYYY-MM-DD');
+                            let today_highlight = gantt_wrapper.find(today_date_class);
+
+                            if (today_highlight.length === 0) {
+                                today_highlight = gantt_wrapper.find('.current-date-highlight');
+                            }
+
                             if (today_highlight.length > 0) {
                                 // If the element exists, scroll to it directly
                                 // position().left is relative to the scrollable container content
@@ -96,7 +103,7 @@ frappe.ui.form.on('Project', {
                                 const current_scroll = gantt_container.scrollLeft();
                                 gantt_container.scrollLeft(current_scroll + (gantt_width / 2) - 50);
                             }
-                        }, 500);
+                        }, 1000);
 
                     } else {
                         gantt_wrapper.html('<p class="text-muted">No tasks found for this project.</p>');
