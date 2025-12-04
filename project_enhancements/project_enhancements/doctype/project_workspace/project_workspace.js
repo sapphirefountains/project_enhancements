@@ -99,6 +99,7 @@ function render_project_workspace(frm) {
                     gantt_container.empty();
                     new Gantt(gantt_container[0], r.message, {
                         view_mode: 'Day',
+                        scroll_to: 'today',
                         on_click: (task) => frappe.set_route('Form', 'Task', task.id),
                     });
                     console.log("Project Workspace: Gantt chart rendered.");

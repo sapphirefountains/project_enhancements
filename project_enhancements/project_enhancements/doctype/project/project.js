@@ -59,6 +59,7 @@ frappe.ui.form.on('Project', {
 
                         const options = {
                             view_mode: 'Day',
+                            scroll_to: 'today',
                             on_click: (task) => frappe.set_route('Form', 'Task', task.id),
                             on_date_change: (task, start, end) => {
                                 frappe.call({
@@ -100,68 +101,6 @@ frappe.ui.form.on('Project', {
                         gantt_wrapper.find('[data-action="scroll-right"]').on('click', () => {
                             gantt_container.scrollLeft(gantt_container.scrollLeft() + gantt.options.column_width);
                         });
-
-                        // Function to scroll to today
-                        function scroll_to_today() {
-                            const gantt_start = gantt.gantt_start || gantt.start;
-                            const column_width = gantt.options.column_width || 38;
-                            const container_width = gantt_container.width();
-
-                            // Method 1: Try to find the today-highlight element
-                            const today_el = gantt_wrapper.find('.today-highlight');
-                            if (today_el.length > 0) {
-                                const container_offset = gantt_container.offset().left;
-                                const element_offset = today_el.offset().left;
-                                const element_width = today_el.attr('width') ? parseFloat(today_el.attr('width')) : column_width;
-                                const current_scroll = gantt_container.scrollLeft();
-
-                                const element_center = element_offset + (element_width / 2);
-                                // Position at 1/3 of the screen width (more context for future)
-                                const offset_from_target = element_center - container_offset - (container_width / 3);
-
-                                if (Math.abs(offset_from_target) > 2) {
-                                    gantt_container.scrollLeft(current_scroll + offset_from_target);
-                                    console.log("Scrolled to .today-highlight (offset)");
-                                    return true;
-                                }
-                            }
-                            // Method 2: Fallback to date calculation
-                            else if (gantt_start) {
-                                const today = new Date();
-                                const start_date = moment(gantt_start).startOf('day');
-                                const diff_days = moment(today).diff(start_date, 'days');
-
-                                if (diff_days >= 0) {
-                                    // Position at 1/3 of the screen width
-                                    const scroll_left = (diff_days * column_width) - (container_width / 3) + (column_width / 2);
-                                    if (scroll_left > 0) {
-                                        gantt_container.scrollLeft(scroll_left);
-                                        console.log("Scrolled using date calculation (offset)");
-                                        return true;
-                                    }
-                                }
-                            }
-                            return false;
-                        }
-
-                        // The chart may take a moment to render.
-                        // We will try to scroll a few times to make sure it happens.
-                        setTimeout(() => {
-                            scroll_to_today();
-                        }, 500);
-
-                        let scroll_attempts = 0;
-                        const scroll_interval = setInterval(() => {
-                            // We keep trying until we successfully scroll or run out of attempts
-                            if (scroll_to_today() && scroll_attempts > 5) {
-                                clearInterval(scroll_interval);
-                            }
-
-                            scroll_attempts++;
-                            if (scroll_attempts > 30) {
-                                clearInterval(scroll_interval);
-                            }
-                        }, 500);
 
                     } else {
                         gantt_wrapper.html('<p class="text-muted">No tasks found for this project.</p>');
