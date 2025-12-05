@@ -415,17 +415,42 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                         const gantt_scroll_wrapper = $('<div class="gantt-scroll-wrapper"></div>').appendTo(content);
                         const gantt_container = $('<div class="gantt-container"></div>').appendTo(gantt_scroll_wrapper);
 
-                        new Gantt(gantt_container[0], r.message, {
-                            view_mode: 'Month', // Default view mode
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+
+                        const projects = r.message.map(project => {
+                            const startDate = new Date(project.start);
+                            const helperStartDate = startDate < today ? today : startDate;
+
+                            return {
+                                ...project,
+                                start: frappe.datetime.date_to_str(helperStartDate),
+                                custom_start_date: project.start,
+                            };
+                        });
+
+                        new Gantt(gantt_container[0], projects, {
+                            view_mode: 'Month',
                             on_click: (project) => {
-                                // Redirect to the standard Gantt chart view for Tasks, filtered by the clicked project.
                                 frappe.set_route('List', 'Task', 'Gantt', { project: project.id });
                             },
+                             custom_popup_html: function(project) {
+                                const startDate = frappe.datetime.str_to_user(project.custom_start_date);
+                                const endDate = frappe.datetime.str_to_user(project.end);
+                                return `
+                                    <div class="gantt-popup">
+                                        <h4>${project.name}</h4>
+                                        <p><strong>Start:</strong> ${startDate}</p>
+                                        <p><strong>End:</strong> ${endDate}</p>
+                                        <p><strong>Progress:</strong> ${project.progress}%</p>
+                                    </div>
+                                `;
+                            }
                         });
                     } else if (r.message && r.message.length === 0) {
                         content.html('<p class="text-muted text-center p-4">No active projects with start dates were found to display in the Gantt chart.</p>');
                     } else {
-                        content.html(`< p class= "text-danger text-center p-4" > Error: ${r.message ? r.message.error : 'Could not load Gantt chart data.'}</p > `);
+                        content.html(`<p class="text-danger text-center p-4">Error: ${r.message ? r.message.error : 'Could not load Gantt chart data.'}</p>`);
                     }
                 }
             });
