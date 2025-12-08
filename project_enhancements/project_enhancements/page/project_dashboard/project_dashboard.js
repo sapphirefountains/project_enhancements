@@ -709,7 +709,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div>
                             <button class="btn btn-sm btn-secondary" id="back-to-projects"><i class="fa fa-arrow-left mr-1"></i> Back to Projects</button>
-                            <h4 class="d-inline-block ml-3 mb-0">${project.project_name}</h4>
+                            <h4 class="d-inline-block ml-3 mb-0"><a href="/app/project/${project.name}">${project.project_name}</a></h4>
                         </div>
                         <div class="d-flex align-items-center">
                             <span id="task-saving-indicator" class="text-muted mr-3" style="display: none;"><i class="fa fa-spinner fa-spin"></i> Saving...</span>
