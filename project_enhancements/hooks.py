@@ -35,7 +35,8 @@ app_license = "mit"
 
 doctype_js = {
 	"Project": "project_enhancements/doctype/project/project.js",
-	"Opportunity": "project_enhancements/doctype/opportunity/opportunity.js"
+	"Opportunity": "project_enhancements/doctype/opportunity/opportunity.js",
+	"Address": "project_enhancements/doctype/address/address.js"
 }
 
 # ------------------
