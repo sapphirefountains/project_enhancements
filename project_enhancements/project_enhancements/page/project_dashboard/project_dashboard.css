@@ -2,13 +2,10 @@
    1. Glassmorphism & Page Layout
    ========================================= */
 
-/* Apply background image to the main page wrapper provided by Frappe */
+/* Apply background gradient to the main page wrapper provided by Frappe */
 [data-page-route="project-dashboard"] .page-content {
-    background-image: url('https://erp.sapphirefountains.com/files/22-02-Sapphire-Logo-Blue.png');
-    background-size: cover;
-    background-position: center;
+    background: linear-gradient(135deg, #dbeafe 0%, #0F52BA 100%);
     background-attachment: fixed;
-    background-repeat: no-repeat;
     min-height: 100vh; /* Ensure full height */
     padding: 20px;
 }
