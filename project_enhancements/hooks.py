@@ -190,11 +190,13 @@ doctype_list_js = {
 # ---------------
 # Hook on document methods and events
 
-doc_events = {
-    "Material Request": {
-        "before_save": "project_enhancements.project_enhancements.custom.material_request.link_project_to_material_request"
-    }
-}
+# doc_events = {
+# 	"*": {
+# 		"on_update": "method",
+# 		"on_cancel": "method",
+# 		"on_trash": "method"
+# 	}
+# }
 
 # Scheduled Tasks
 # ---------------
