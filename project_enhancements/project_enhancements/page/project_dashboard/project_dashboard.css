@@ -1,3 +1,163 @@
+/* =========================================
+   1. Glassmorphism & Page Layout
+   ========================================= */
+
+/* Apply background image to the main page wrapper provided by Frappe */
+[data-page-route="project-dashboard"] .page-content {
+    background-image: url('https://erp.sapphirefountains.com/files/22-02-Sapphire-Logo-Blue.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    min-height: 100vh; /* Ensure full height */
+    padding: 20px;
+}
+
+/* The main Glass Container */
+.glass-dashboard {
+    background: rgba(255, 255, 255, 0.65); /* Semi-transparent white */
+    backdrop-filter: blur(12px); /* Frost effect */
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15); /* Soft, diffused shadow */
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+/* Typography override for readability on glass */
+.glass-dashboard, .glass-dashboard h1, .glass-dashboard h2, .glass-dashboard h3, .glass-dashboard h4, .glass-dashboard p, .glass-dashboard table {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #333;
+}
+
+/* Transparent backgrounds for internal components to let glass show through */
+.glass-dashboard .nav-tabs .nav-link {
+    background-color: rgba(255, 255, 255, 0.3);
+    border: none;
+    margin-right: 5px;
+    border-radius: 8px 8px 0 0;
+    color: #555;
+    font-weight: 600;
+}
+
+.glass-dashboard .nav-tabs .nav-link.active {
+    background-color: rgba(255, 255, 255, 0.8);
+    color: #000;
+    box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
+}
+
+.glass-dashboard .nav-tabs {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.glass-dashboard .project-dashboard-controls {
+    background-color: rgba(255, 255, 255, 0.5) !important; /* Override bg-light */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.5) !important;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+/* Table overrides for glass effect */
+.glass-dashboard .table {
+    background-color: transparent;
+}
+
+.glass-dashboard .table thead th {
+    background-color: rgba(255, 255, 255, 0.7) !important; /* Semi-transparent header */
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+    color: #444;
+}
+
+.glass-dashboard .table td, .glass-dashboard .table th {
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.glass-dashboard .table-hover tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.5);
+}
+
+/* =========================================
+   2. UI Elements: Buttons & Pills
+   ========================================= */
+
+/* Base Pill Select Style */
+select.pill-select {
+    border-radius: 50px !important;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid rgba(0,0,0,0.1);
+    color: white; /* Text is white by default for colored backgrounds */
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    appearance: none; /* Remove default arrow in some browsers for cleaner look */
+    -webkit-appearance: none;
+    text-align: center;
+    text-align-last: center;
+    transition: all 0.2s ease;
+}
+
+/* Restore arrow for usability but style it if possible, or just keep it simple.
+   For now, we keep appearance:none to make it look like a badge,
+   but this removes the arrow. Let's add a background arrow if needed,
+   or revert to normal appearance if functionality is key.
+   The user said "keep functionality", so standard appearance might be safer,
+   but "pill-shaped badge" implies a specific look.
+   I will use standard appearance but heavy rounding and colors.
+*/
+select.pill-select {
+    appearance: auto; /* Restore arrow */
+    -webkit-appearance: auto;
+    color: white; /* Force white text */
+}
+/* Force options to have normal colors because styling options is limited */
+select.pill-select option {
+    background-color: white;
+    color: black;
+}
+
+/* Buttons */
+.btn-vibrant-blue {
+    background-color: #2563EB !important; /* Vibrant Blue */
+    border-color: #2563EB !important;
+    color: white !important;
+    border-radius: 50px !important; /* Rounded */
+    font-weight: 600;
+    padding: 0.375rem 1.2rem;
+    box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);
+    transition: transform 0.1s ease;
+}
+
+.btn-vibrant-blue:hover {
+    background-color: #1d4ed8 !important;
+    transform: translateY(-1px);
+}
+
+.btn-glass-success {
+    background-color: #10B981 !important; /* Emerald Green */
+    border-color: #10B981 !important;
+    color: white !important;
+    border-radius: 50px !important;
+    font-weight: 600;
+    box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
+}
+
+.btn-glass-danger {
+    background-color: #EF4444 !important; /* Red */
+    border-color: #EF4444 !important;
+    color: white !important;
+    border-radius: 50px !important;
+    font-weight: 600;
+    box-shadow: 0 4px 6px rgba(239, 68, 68, 0.3);
+}
+
+/* =========================================
+   3. Existing Functionality Styles (Preserved)
+   ========================================= */
+
 .table thead th {
     cursor: pointer;
     user-select: none;
@@ -17,18 +177,8 @@
     cursor: grab;
 }
 
-.nav-tabs .nav-link.active {
-    color: #495057;
-    background-color: #fff;
-    border-color: #d1d8dd #d1d8dd #fff;
-}
-
 .task-row td {
     vertical-align: middle;
-}
-
-.task-row:hover {
-    background-color: #f8f9fa;
 }
 
 .toggle-child-tasks {
@@ -40,30 +190,27 @@
 }
 
 .sortable-ghost {
-    background-color: #e8f7ff;
-    border: 1px dashed #a1d1ff;
+    background-color: rgba(37, 99, 235, 0.1) !important;
+    border: 1px dashed #2563EB !important;
 }
 
 .sortable-chosen {
-    background-color: #d1ecf1;
+    background-color: rgba(37, 99, 235, 0.2) !important;
 }
 
-.sortable-chosen a {
-    color: #0c5460;
-}
-
-/* New Task Grid Styles */
+/* Task Grid Styles - Adapted for Glass */
 .task-grid-header,
 .task-grid-row {
     display: flex;
-    border-bottom: 1px solid #dee2e6;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
     padding: 0.5rem 0;
     align-items: center;
 }
 
 .task-grid-header {
     font-weight: bold;
-    background-color: #f8f9fa;
+    background-color: rgba(255, 255, 255, 0.7) !important;
+    border-radius: 8px 8px 0 0;
 }
 
 .task-grid-cell {
@@ -73,36 +220,16 @@
     align-items: center;
 }
 
-.task-grid-cell:nth-child(1) {
-    flex: 0 0 40%;
-}
-
-.task-grid-cell:nth-child(2) {
-    flex: 0 0 15%;
-}
-
-.task-grid-cell:nth-child(3) {
-    flex: 0 0 12%;
-}
-
-.task-grid-cell:nth-child(4),
-.task-grid-cell:nth-child(5) {
-    flex: 0 0 10%;
-}
-
-.task-grid-cell:nth-child(6) {
-    flex: 0 0 8%;
-}
-
-.task-grid-cell:nth-child(7) {
-    flex: 0 0 5%;
-}
+.task-grid-cell:nth-child(1) { flex: 0 0 40%; }
+.task-grid-cell:nth-child(2) { flex: 0 0 15%; }
+.task-grid-cell:nth-child(3) { flex: 0 0 12%; }
+.task-grid-cell:nth-child(4), .task-grid-cell:nth-child(5) { flex: 0 0 10%; }
+.task-grid-cell:nth-child(6) { flex: 0 0 8%; }
+.task-grid-cell:nth-child(7) { flex: 0 0 5%; }
 
 .task-node .task-grid-row:hover {
-    background-color: #f1f3f5;
+    background-color: rgba(255, 255, 255, 0.5);
 }
-
-
 
 /* Sticky Header Styles */
 .project-dashboard-controls {
@@ -110,29 +237,13 @@
     position: sticky;
     top: 0;
     z-index: 102;
-    /* Needs to be above other sticky elements */
 }
 
-.table>thead,
-.task-grid .task-grid-header {
+.table > thead, .task-grid .task-grid-header {
     position: -webkit-sticky;
     position: sticky;
-    /* The top value should be the height of the controls bar above it. */
-    /* The control bar has p-2 (0.5rem * 2) + line-height of a sm form control (approx 1.8rem) + border (1px) ~ 57px */
     top: 57px;
     z-index: 101;
-    /* Below controls, above content */
-}
-
-/* Ensure the sticky table headers have a solid background */
-.table>thead.thead-light>tr>th {
-    background-color: #f8f9fa;
-    /* Matches .thead-light */
-}
-
-.task-grid .task-grid-header {
-    background-color: #f8f9fa;
-    /* Matches original style */
 }
 
 .gantt-container {

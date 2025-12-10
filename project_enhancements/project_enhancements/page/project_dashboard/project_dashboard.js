@@ -59,7 +59,10 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
      * @param {object} page - The Frappe page object.
      */
     function initialize_dashboard(page) {
-        console.log("Loading Project Dashboard JS - Version 5.3 (Priority View and Collapse Fix)");
+        console.log("Loading Project Dashboard JS - Version 5.4 (Glassmorphism & Heatmap)");
+
+        // Explicitly load the CSS to ensure it's present
+        frappe.require("project_enhancements/project_enhancements/page/project_dashboard/project_dashboard.css");
 
         // Dynamically load SortableJS library for drag-and-drop functionality.
         const script_url = "https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js";
@@ -69,7 +72,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         const gantt_css_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css";
         const gantt_js_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js";
 
-        // Inject the CSS file into the document's head
+        // Inject the Gantt CSS file into the document's head
         if (!$(`link[href="${gantt_css_url}"]`).length) {
             $('<link>', {
                 rel: 'stylesheet',
@@ -98,7 +101,72 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         let pendingProjectChanges = {};
         let pendingTaskChanges = {};
 
+        // --- Color Helper Functions ---
+
+        /**
+         * Returns the background color and text color style string for a given status.
+         * @param {string} status - The status (Open, Completed, etc.)
+         * @returns {string} inline style string "background-color: ...; color: white;"
+         */
+        function getStatusStyle(status) {
+            let color = '#6c757d'; // Default grey
+            switch (status) {
+                case 'Open': color = '#007bff'; break; // Blue
+                case 'Completed': color = '#28a745'; break; // Green
+                case 'Overdue': color = '#dc3545'; break; // Red
+                case 'Cancelled': color = '#dc3545'; break; // Red
+                case 'Working': color = '#ff9800'; break; // Orange (visible with white text)
+                default: color = '#6c757d';
+            }
+            return `background-color: ${color}; color: white;`;
+        }
+
+        /**
+         * Returns the background color style for a priority value (Heatmap logic).
+         * 1 = Urgent (Red), 30 = Low (Green). Interpolates HSL.
+         * @param {number|string} value - The priority value (1-30)
+         * @returns {string} inline style string
+         */
+        function getPriorityStyle(value) {
+            let val = parseInt(value, 10);
+            if (isNaN(val)) return `background-color: white; color: black; border: 1px solid #ddd;`; // No color for non-integers
+
+            // Clamp between 1 and 30
+            let normalized = val;
+            if (normalized < 1) normalized = 1;
+            if (normalized > 30) normalized = 30;
+
+            // Interpolate Hue: 0 (Red) to 120 (Green)
+            // 1 -> 0
+            // 30 -> 120
+            const hue = ((normalized - 1) / (29)) * 120;
+            const color = `hsl(${hue}, 70%, 45%)`; // 70% Saturation, 45% Lightness for good text contrast
+
+            return `background-color: ${color}; color: white;`;
+        }
+
+        /**
+         * Applies the correct color style to a select element based on its value and type.
+         * @param {jQuery} $select - The jQuery select object.
+         * @param {string} type - 'status' or 'priority'
+         */
+        function applyColorToSelect($select, type) {
+            const val = $select.val();
+            let style = '';
+            if (type === 'status') {
+                style = getStatusStyle(val);
+            } else if (type === 'priority') {
+                style = getPriorityStyle(val);
+            }
+            $select.attr('style', style); // Overwrite inline styles to update color
+        }
+
+
         // --- UI Element Creation ---
+
+        // Wrap everything in a glass container
+        const glassContainer = $('<div class="glass-dashboard"></div>').appendTo(page.body);
+
         const tabContainer = $(`
             <ul class="nav nav-tabs px-3">
                 <li class="nav-item">
@@ -117,7 +185,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     <a class="nav-link" href="javascript:void(0);" data-status="TasksTree">Tasks Tree</a>
                 </li>
             </ul>
-        `).prependTo(page.body);
+        `).appendTo(glassContainer); // Append to glass container
 
         const controlsContainer = $(`
             <div class="project-dashboard-controls p-2 border-bottom bg-light">
@@ -129,8 +197,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                         <div class="d-flex justify-content-end">
                             <div id="pending-changes-controls" class="mr-2" style="display: none;">
                                 <div class="btn-group btn-group-sm">
-                                    <button type="button" class="btn btn-success" id="save-pending-changes">Save Changes</button>
-                                    <button type="button" class="btn btn-danger" id="discard-pending-changes">Discard Changes</button>
+                                    <button type="button" class="btn btn-glass-success" id="save-pending-changes">Save Changes</button>
+                                    <button type="button" class="btn btn-glass-danger" id="discard-pending-changes">Discard Changes</button>
                                 </div>
                             </div>
                             <div id="priority-view-toggle" class="mr-2" style="display: none;">
@@ -155,15 +223,15 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     </div>
                 </div>
             </div>
-        `).appendTo(page.body);
+        `).appendTo(glassContainer);
 
         const searchInput = controlsContainer.find('#project-search');
         const groupSortSelect = controlsContainer.find('#group-sort-order');
         const configureSortBtn = controlsContainer.find('#configure-sort');
         const priorityViewToggle = controlsContainer.find('#priority-view-toggle');
 
-        let content = $(`<div class="project-dashboard-content p-3"></div>`).appendTo(page.body);
-        let taskContent = $(`<div class="project-tasks-content p-3" style="display: none;"></div>`).appendTo(page.body);
+        let content = $(`<div class="project-dashboard-content p-3"></div>`).appendTo(glassContainer);
+        let taskContent = $(`<div class="project-tasks-content p-3" style="display: none;"></div>`).appendTo(glassContainer);
 
         /**
          * Updates the URL hash to reflect the current state of the dashboard.
@@ -293,12 +361,16 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 const statusOptions = statusOptionsList.map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
                 const progress = project.percent_complete || 0;
 
+                // Color logic
+                const priorityStyle = getPriorityStyle(project.custom_project_priority);
+                const statusStyle = getStatusStyle(project.status);
+
                 const row = $(`
                     <tr data-project-name="${project.name}">
-                        <td><select class="form-control form-control-sm" data-field="custom_project_priority">${priorityOptions}</select></td>
+                        <td><select class="form-control form-control-sm pill-select" data-field="custom_project_priority" style="${priorityStyle}">${priorityOptions}</select></td>
                         <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
                         <td>${project.name}</td>
-                        <td><select class="form-control form-control-sm" data-field="status">${statusOptions}</select></td>
+                        <td><select class="form-control form-control-sm pill-select" data-field="status" style="${statusStyle}">${statusOptions}</select></td>
                         <td>${tasks_link}</td>
                         <td><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
                         <td class="assignee-cell"><a href="#" class="project-assignee-link">${project.project_user || 'Unassigned'}</a></td>
@@ -328,14 +400,19 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 for (let i = 1; i <= 30; i++) {
                     companyPriorityOptions += `<option value="${i}" ${companyPriorityValue == i ? 'selected' : ''}>${i}</option>`;
                 }
-                const companyPriorityInput = `<select class="form-control form-control-sm" data-field="custom_company_priority" style="width: 120px;">${companyPriorityOptions}</select>`;
+
+                // Color logic
+                const companyPriorityStyle = getPriorityStyle(companyPriorityValue);
+                const statusStyle = getStatusStyle(project.status);
+
+                const companyPriorityInput = `<select class="form-control form-control-sm pill-select" data-field="custom_company_priority" style="width: 120px; ${companyPriorityStyle}">${companyPriorityOptions}</select>`;
 
                 const row = $(`
                     <tr data-project-name="${project.name}">
                         <td>${companyPriorityInput}</td>
                         <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
                         <td>${project.name}</td>
-                        <td><select class="form-control form-control-sm" data-field="status">${statusOptions}</select></td>
+                        <td><select class="form-control form-control-sm pill-select" data-field="status" style="${statusStyle}">${statusOptions}</select></td>
                         <td>${tasks_link}</td>
                         <td class="assignee-cell"><a href="#" class="project-assignee-link">${project.project_user || 'Unassigned'}</a></td>
                     </tr>
@@ -528,17 +605,21 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     const statusOptions = statusOptionsList.map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
                     const priorityOptions = priorityOptionsList.map(p => `<option value="${p}" ${project.custom_project_priority === p ? 'selected' : ''}>${p}</option>`).join('');
 
+                    // Color logic
+                    const statusStyle = getStatusStyle(project.status);
+                    const priorityStyle = getPriorityStyle(project.custom_project_priority);
+
                     const rowHTML = `
                         <tr data-project-name="${project.name}">
                             <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
                             <td>${project.name}</td>
                             <td>
-                                <select class="form-control form-control-sm" data-field="status">
+                                <select class="form-control form-control-sm pill-select" data-field="status" style="${statusStyle}">
                                     ${statusOptions}
                                 </select>
                             </td>
                             <td>
-                                <select class="form-control form-control-sm" data-field="custom_project_priority">
+                                <select class="form-control form-control-sm pill-select" data-field="custom_project_priority" style="${priorityStyle}">
                                     ${priorityOptions}
                                 </select>
                             </td>
@@ -654,7 +735,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     $(`
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a>
-                            <button class="btn btn-primary btn-sm view-tasks-btn" data-project="${project.name}">View Tasks</button>
+                            <button class="btn btn-vibrant-blue btn-sm view-tasks-btn" data-project="${project.name}">View Tasks</button>
                         </li>
                         `).appendTo(listGroup);
                 });
@@ -715,12 +796,12 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             <span id="task-saving-indicator" class="text-muted mr-3" style="display: none;"><i class="fa fa-spinner fa-spin"></i> Saving...</span>
                             <div id="task-pending-changes-controls" class="mr-2" style="display: none;">
                                 <div class="btn-group btn-group-sm">
-                                    <button type="button" class="btn btn-success" id="save-task-pending-changes">Save Changes</button>
-                                    <button type="button" class="btn btn-danger" id="discard-task-pending-changes">Discard Changes</button>
+                                    <button type="button" class="btn btn-glass-success" id="save-task-pending-changes">Save Changes</button>
+                                    <button type="button" class="btn btn-glass-danger" id="discard-task-pending-changes">Discard Changes</button>
                                 </div>
                             </div>
-                            <button class="btn btn-sm btn-success mr-2" id="save-task-order" style="display: none;">Save Order</button>
-                            <a href="/app/task/new-task?project=${project.name}" class="btn btn-primary btn-sm">Add Task</a>
+                            <button class="btn btn-sm btn-glass-success mr-2" id="save-task-order" style="display: none;">Save Order</button>
+                            <a href="/app/task/new-task?project=${project.name}" class="btn btn-vibrant-blue btn-sm">Add Task</a>
                         </div>
                     </div>
                     <div class="task-filters bg-light p-2 rounded-sm border">
@@ -815,6 +896,9 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     ? (isCollapsed ? 'fa-caret-right' : 'fa-caret-down') + ' toggle-child-tasks'
                     : '';
 
+                // Task Status Color Logic
+                const statusStyle = getStatusStyle(task.status);
+
                 const node = $(`
                         <div class="task-node" data-task-id="${task.name}">
                         <div class="task-grid-row">
@@ -824,7 +908,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                                 <a href="/app/task/${task.name}">${task.subject}</a>
                             </div>
                             <div class="task-grid-cell assignee-cell"><a href="#" class="assignee-link">${task.assigned_to || 'Unassigned'}</a></div>
-                            <div class="task-grid-cell"><select class="form-control form-control-sm task-status-select" style="width: 120px;">${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+                            <div class="task-grid-cell"><select class="form-control form-control-sm task-status-select pill-select" style="width: 120px; ${statusStyle}">${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
                             <div class="task-grid-cell editable-date" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${task.exp_start_date || ''}"><a href="#">${start_date}</a></div>
                             <div class="task-grid-cell editable-date" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${task.exp_end_date || ''}"><a href="#">${end_date}</a></div>
                             <div class="task-grid-cell"><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></div>
@@ -1557,11 +1641,22 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             });
         });
         content.on('click', 'thead th', function () { const field = $(this).data('sort'); if (!field) return; if (currentSort.field === field) { currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc'; } else { currentSort.field = field; currentSort.order = 'asc'; } applyFiltersAndRender(); });
+
+        // --- Updated Change Listener for Color Pills ---
         content.on('change', 'select, input[type="number"]', function () {
             const element = $(this);
             const projectName = element.closest('tr').data('project-name');
             const field = element.data('field');
             const value = element.val();
+
+            // Update Color if it's a pill-select
+            if (element.hasClass('pill-select')) {
+                if (field === 'status') {
+                    applyColorToSelect(element, 'status');
+                } else if (field === 'custom_project_priority' || field === 'custom_company_priority') {
+                    applyColorToSelect(element, 'priority');
+                }
+            }
 
             if (!pendingProjectChanges[projectName]) {
                 pendingProjectChanges[projectName] = {};
@@ -1576,11 +1671,15 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 project[field] = value;
             }
         });
+
         taskContent.on('click', '.assignee-link', function (e) { e.preventDefault(); showTaskAssigneeDialog($(this)); });
         taskContent.on('change', '.task-status-select', function () {
             const select = $(this);
             const taskName = select.closest('.task-node').data('task-id');
             const value = select.val();
+
+            // Update Color
+            applyColorToSelect(select, 'status');
 
             if (!pendingTaskChanges[taskName]) {
                 pendingTaskChanges[taskName] = {};
@@ -1646,55 +1745,5 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         // --- Initial Load ---
         loadInitialData();
-
-        // --- Custom Styles ---
-        $(`<style>
-            .table thead th { cursor: pointer; user-select: none; }
-            .table thead th.sorted-asc::after { content: ' ▲'; font-size: 10px; }
-            .table thead th.sorted-desc::after { content: ' ▼'; font-size: 10px; }
-            #sortable-list li { cursor: grab; }
-            .nav-tabs .nav-link.active { color: #495057; background-color: #fff; border-color: #d1d8dd #d1d8dd #fff; }
-            .task-row td { vertical-align: middle; }
-            .task-row:hover { background-color: #f8f9fa; }
-            .toggle-child-tasks { cursor: pointer; }
-            .task-drag-handle { cursor: grab; }
-            .sortable-ghost { background-color: #e8f7ff; border: 1px dashed #a1d1ff; }
-            .sortable-chosen { background-color: #d1ecf1; }
-            .sortable-chosen a { color: #0c5460; }
-            /* New Task Grid Styles */
-            .task-grid-header, .task-grid-row { display: flex; border-bottom: 1px solid #dee2e6; padding: 0.5rem 0; align-items: center; }
-            .task-grid-header { font-weight: bold; background-color: #f8f9fa; }
-            .task-grid-cell { padding: 0 0.5rem; flex-shrink: 0; display: flex; align-items-center; }
-            .task-grid-cell:nth-child(1) { flex: 0 0 40%; }
-            .task-grid-cell:nth-child(2) { flex: 0 0 15%; }
-            .task-grid-cell:nth-child(3) { flex: 0 0 12%; }
-            .task-grid-cell:nth-child(4), .task-grid-cell:nth-child(5) { flex: 0 0 10%; }
-            .task-grid-cell:nth-child(6) { flex: 0 0 8%; }
-            .task-grid-cell:nth-child(7) { flex: 0 0 5%; }
-            .task-node .task-grid-row:hover { background-color: #f1f3f5; }
-            .child-tasks-container { }
-            /* Sticky Header Styles */
-            .project-dashboard-controls {
-                position: -webkit-sticky;
-                position: sticky;
-                top: 0;
-                z-index: 102; /* Needs to be above other sticky elements */
-            }
-            .table > thead, .task-grid .task-grid-header {
-                position: -webkit-sticky;
-                position: sticky;
-                /* The top value should be the height of the controls bar above it. */
-                /* The control bar has p-2 (0.5rem * 2) + line-height of a sm form control (approx 1.8rem) + border (1px) ~ 57px */
-                top: 57px;
-                z-index: 101; /* Below controls, above content */
-            }
-            /* Ensure the sticky table headers have a solid background */
-            .table > thead.thead-light > tr > th {
-                background-color: #f8f9fa; /* Matches .thead-light */
-            }
-            .task-grid .task-grid-header {
-                background-color: #f8f9fa; /* Matches original style */
-            }
-        </style>`).appendTo(page.body);
     }
 }
