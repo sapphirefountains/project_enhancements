@@ -246,3 +246,59 @@ select.pill-select option {
 .gantt-container {
     overflow-x: auto;
 }
+
+/* =========================================
+   4. Additional Glassmorphism Utilities
+   ========================================= */
+
+/* Glass Header for Collapsible Sections (replaces bg-light) */
+.glass-header {
+    background-color: rgba(255, 255, 255, 0.4) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    color: #333;
+    transition: all 0.2s ease;
+}
+
+.glass-header:hover {
+    background-color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Glass Panel for Filter Bars (replaces bg-light) */
+.glass-panel {
+    background-color: rgba(255, 255, 255, 0.3) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    border-radius: 8px;
+}
+
+/* Neutral Glass Button (replaces btn-secondary) */
+.btn-glass-neutral {
+    background-color: rgba(255, 255, 255, 0.4) !important;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    color: #444 !important;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    border-radius: 50px !important;
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    transition: all 0.2s ease;
+}
+
+.btn-glass-neutral:hover, .btn-glass-neutral.active {
+    background-color: rgba(255, 255, 255, 0.8) !important;
+    color: #000 !important;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+    transform: translateY(-1px);
+}
+
+/* Glass Input Group Text (Sort Groups Label) */
+.glass-dashboard .input-group-text {
+    background-color: rgba(255, 255, 255, 0.4) !important;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    color: #444;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
