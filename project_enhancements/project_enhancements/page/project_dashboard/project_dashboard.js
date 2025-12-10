@@ -188,7 +188,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         `).appendTo(glassContainer); // Append to glass container
 
         const controlsContainer = $(`
-            <div class="project-dashboard-controls p-2 border-bottom bg-light">
+            <div class="project-dashboard-controls p-2 border-bottom">
                 <div class="row align-items-center">
                     <div class="col-md-6 mb-2 mb-md-0">
                         <input type="text" class="form-control form-control-sm" id="project-search" placeholder="Search projects in this tab...">
@@ -203,9 +203,9 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             </div>
                             <div id="priority-view-toggle" class="mr-2" style="display: none;">
                                  <div class="btn-group btn-group-sm">
-                                    <button type="button" class="btn btn-secondary active" data-view="value_stream">By Value Stream</button>
-                                    <button type="button" class="btn btn-secondary" data-view="internal">By Internal</button>
-                                    <button type="button" class="btn btn-secondary" data-view="company">By Company</button>
+                                    <button type="button" class="btn btn-glass-neutral active" data-view="value_stream">By Value Stream</button>
+                                    <button type="button" class="btn btn-glass-neutral" data-view="internal">By Internal</button>
+                                    <button type="button" class="btn btn-glass-neutral" data-view="company">By Company</button>
                                 </div>
                             </div>
                             <div class="input-group input-group-sm">
@@ -218,7 +218,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                                     <option value="count_asc">By Count (Low-High)</option>
                                 </select>
                             </div>
-                            <button class="btn btn-sm btn-secondary ml-2" id="configure-sort" title="Configure Custom Order"><i class="fa fa-cog"></i></button>
+                            <button class="btn btn-sm btn-glass-neutral ml-2" id="configure-sort" title="Configure Custom Order"><i class="fa fa-cog"></i></button>
                         </div>
                     </div>
                 </div>
@@ -467,7 +467,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 if (groupName === 'Company Priority Ranking') {
                     _renderCompanyPriorityTable(content, groupProjects);
                 } else {
-                    const groupHeaderHTML = `<div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data-group-id="${groupName}"><div class="font-bold text-sm text-gray-700">${groupName} (${groupProjects.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
+                    const groupHeaderHTML = `<div class="collapsible-header glass-header p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center" data-group-id="${groupName}"><div class="font-bold text-sm text-gray-700">${groupName} (${groupProjects.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
                     const groupHeader = $(groupHeaderHTML).appendTo(content);
                     const groupBody = $('<div class="collapsible-body" style="display: none;"></div>').appendTo(content);
                     _renderCompanyPriorityTable(groupBody, groupProjects);
@@ -575,7 +575,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
             sortedGroupKeys.forEach(type => {
                 const projectsInGroup = groupedProjects[type];
-                const groupHeaderHTML = `<div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data-group-id="${type}"><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
+                const groupHeaderHTML = `<div class="collapsible-header glass-header p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center" data-group-id="${type}"><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
                 const groupHeader = $(groupHeaderHTML).appendTo(content);
                 const groupBody = $('<div class="collapsible-body" style="display: none;"></div>').appendTo(content);
                 const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="custom_project_priority">Priority</th><th data-sort="tasks">Tasks</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(groupBody);
@@ -724,7 +724,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
             sortedGroupKeys.forEach(type => {
                 const projectsInGroup = groupedProjects[type];
-                const groupHeaderHTML = `<div class="collapsible-header bg-light p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center border" data-group-id="${type}"><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
+                const groupHeaderHTML = `<div class="collapsible-header glass-header p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center" data-group-id="${type}"><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
                 const groupHeader = $(groupHeaderHTML).appendTo(taskContent);
                 const groupBody = $('<div class="collapsible-body" style="display: none;"></div>').appendTo(taskContent);
                 const listGroup = $('<ul class="list-group list-group-flush"></ul>').appendTo(groupBody);
@@ -789,7 +789,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                         <div class="task-view-header mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div>
-                            <button class="btn btn-sm btn-secondary" id="back-to-projects"><i class="fa fa-arrow-left mr-1"></i> Back to Projects</button>
+                            <button class="btn btn-sm btn-glass-neutral" id="back-to-projects"><i class="fa fa-arrow-left mr-1"></i> Back to Projects</button>
                             <h4 class="d-inline-block ml-3 mb-0"><a href="/app/project/${project.name}">${project.project_name}</a></h4>
                         </div>
                         <div class="d-flex align-items-center">
@@ -804,12 +804,12 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             <a href="/app/task/new-task?project=${project.name}" class="btn btn-vibrant-blue btn-sm">Add Task</a>
                         </div>
                     </div>
-                    <div class="task-filters bg-light p-2 rounded-sm border">
+                    <div class="task-filters glass-panel p-2 rounded-sm">
                         <div class="row">
                             <div class="col-md-4"><input type="text" class="form-control form-control-sm" id="task-name-filter" placeholder="Filter by task name..."></div>
                             <div class="col-md-3"><input type="text" class="form-control form-control-sm" id="task-owner-filter" placeholder="Filter by owner..."></div>
                             <div class="col-md-3"><select class="form-control form-control-sm" id="task-status-filter"><option value="">All Statuses</option></select></div>
-                            <div class="col-md-2"><button class="btn btn-sm btn-secondary btn-block" id="clear-task-filters">Clear Filters</button></div>
+                            <div class="col-md-2"><button class="btn btn-sm btn-glass-neutral btn-block" id="clear-task-filters">Clear Filters</button></div>
                         </div>
                     </div>
                 </div>
