@@ -62,7 +62,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         console.log("Loading Project Dashboard JS - Version 5.4 (Glassmorphism & Heatmap)");
 
         // Explicitly load the CSS to ensure it's present
-        frappe.require("project_enhancements/project_enhancements/page/project_dashboard/project_dashboard.css");
+        frappe.require("/assets/project_enhancements/css/project_dashboard.css");
 
         // Dynamically load SortableJS library for drag-and-drop functionality.
         const script_url = "https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js";
