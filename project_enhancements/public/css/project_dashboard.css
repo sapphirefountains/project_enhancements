@@ -50,6 +50,39 @@
     color: #1e293b; /* Slightly darker slate for sharper text */
 }
 
+/* Main Page Title Styling */
+[data-page-route="project-dashboard"] .page-head .title-text,
+[data-page-route="project-dashboard"] .page-title h6 {
+    color: #84B6F4 !important; /* Light Sapphire Blue */
+    font-weight: 700 !important;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3); /* Add shadow for better readability */
+}
+
+/* Project Name Visibility */
+.project-title-link {
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #1e293b !important; /* Dark slate */
+    text-decoration: none;
+}
+
+.project-title-link:hover {
+    text-decoration: underline;
+    color: #2563EB !important; /* Blue on hover */
+}
+
+/* Subdued Metadata (Series, Assignee) */
+.project-series-text {
+    font-size: 11px;
+    color: #64748b; /* Lighter slate */
+    font-family: 'Roboto Mono', monospace; /* Monospace for series looks good */
+}
+
+.assignee-cell, .project-assignee-link {
+    font-size: 11px !important;
+    color: #64748b !important;
+}
+
 /* Transparent backgrounds for internal components to let glass show through */
 .glass-dashboard .nav-tabs .nav-link {
     background-color: rgba(241, 245, 249, 0.5); /* Slate-100 semi-transparent */
@@ -62,8 +95,9 @@
 }
 
 .glass-dashboard .nav-tabs .nav-link.active {
-    background-color: rgba(255, 255, 255, 1);
-    color: #0f172a;
+    background-color: rgba(255, 255, 255, 1) !important;
+    color: #0f172a !important;
+    font-weight: 700 !important; /* Make it bold */
     box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
 }
 
