@@ -4,20 +4,42 @@
 
 /* Apply background gradient to the main page wrapper provided by Frappe */
 [data-page-route="project-dashboard"] .page-content {
-    background: linear-gradient(135deg, #dbeafe 0%, #0F52BA 100%);
+    /* Base Color: Deep Sapphire Blue */
+    background-color: #0f172a; 
+    
+    /* Interactive & Reactive Background 
+       - Layer 1: Mouse Spotlight (controlled by JS)
+       - Layer 2: Ambient Top-Left Light
+       - Layer 3: Ambient Bottom-Right Light 
+    */
+    background-image: 
+        radial-gradient(
+            800px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), 
+            rgba(56, 189, 248, 0.15) 0%, 
+            transparent 40%
+        ),
+        radial-gradient(at 0% 0%, rgba(30, 64, 175, 0.4) 0%, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(15, 82, 186, 0.4) 0%, transparent 50%);
+        
     background-attachment: fixed;
     min-height: 100vh; /* Ensure full height */
     padding: 20px;
+    position: relative;
+    transition: background-color 0.3s ease;
 }
 
 /* The main Glass Container */
 .glass-dashboard {
-    background: rgba(255, 255, 255, 0.65); /* Semi-transparent white */
-    backdrop-filter: blur(12px); /* Frost effect */
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.6);
+    /* Increased opacity for better contrast against the deeper background */
+    background: rgba(255, 255, 255, 0.90); 
+    backdrop-filter: blur(16px); /* Stronger Frost effect */
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.8);
     border-radius: 16px;
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15); /* Soft, diffused shadow */
+    box-shadow: 
+        0 4px 6px -1px rgba(0, 0, 0, 0.1), 
+        0 2px 4px -1px rgba(0, 0, 0, 0.06),
+        inset 0 0 20px rgba(255, 255, 255, 0.5); /* Inner glow */
     padding: 20px;
     margin-bottom: 20px;
 }
@@ -25,32 +47,33 @@
 /* Typography override for readability on glass */
 .glass-dashboard, .glass-dashboard h1, .glass-dashboard h2, .glass-dashboard h3, .glass-dashboard h4, .glass-dashboard p, .glass-dashboard table {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    color: #333;
+    color: #1e293b; /* Slightly darker slate for sharper text */
 }
 
 /* Transparent backgrounds for internal components to let glass show through */
 .glass-dashboard .nav-tabs .nav-link {
-    background-color: rgba(255, 255, 255, 0.3);
+    background-color: rgba(241, 245, 249, 0.5); /* Slate-100 semi-transparent */
     border: none;
     margin-right: 5px;
     border-radius: 8px 8px 0 0;
-    color: #555;
+    color: #64748b;
     font-weight: 600;
+    transition: all 0.2s ease;
 }
 
 .glass-dashboard .nav-tabs .nav-link.active {
-    background-color: rgba(255, 255, 255, 0.8);
-    color: #000;
-    box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
+    background-color: rgba(255, 255, 255, 1);
+    color: #0f172a;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
 }
 
 .glass-dashboard .nav-tabs {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+    border-bottom: 1px solid rgba(203, 213, 225, 0.6);
 }
 
 .glass-dashboard .project-dashboard-controls {
-    background-color: rgba(255, 255, 255, 0.5) !important; /* Override bg-light */
-    border-bottom: 1px solid rgba(255, 255, 255, 0.5) !important;
+    background-color: rgba(248, 250, 252, 0.8) !important; /* Slate-50 */
+    border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
     border-radius: 8px;
     margin-bottom: 15px;
 }
@@ -61,19 +84,19 @@
 }
 
 .glass-dashboard .table thead th {
-    background-color: rgba(255, 255, 255, 0.7) !important; /* Semi-transparent header */
+    background-color: rgba(241, 245, 249, 0.9) !important; /* Slate-100 */
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
-    border-bottom: 2px solid rgba(0, 0, 0, 0.1);
-    color: #444;
+    border-bottom: 2px solid rgba(203, 213, 225, 0.6);
+    color: #475569;
 }
 
 .glass-dashboard .table td, .glass-dashboard .table th {
-    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    border-top: 1px solid rgba(226, 232, 240, 0.6);
 }
 
 .glass-dashboard .table-hover tbody tr:hover {
-    background-color: rgba(255, 255, 255, 0.5);
+    background-color: rgba(241, 245, 249, 0.8); /* Slate-100 hover */
 }
 
 /* =========================================
@@ -206,8 +229,9 @@ select.pill-select option {
 
 .task-grid-header {
     font-weight: bold;
-    background-color: rgba(255, 255, 255, 0.7) !important;
+    background-color: rgba(241, 245, 249, 0.9) !important;
     border-radius: 8px 8px 0 0;
+    color: #475569;
 }
 
 .task-grid-cell {
@@ -225,7 +249,7 @@ select.pill-select option {
 .task-grid-cell:nth-child(7) { flex: 0 0 5%; }
 
 .task-node .task-grid-row:hover {
-    background-color: rgba(255, 255, 255, 0.5);
+    background-color: rgba(241, 245, 249, 0.7);
 }
 
 /* Sticky Header Styles */
@@ -253,7 +277,7 @@ select.pill-select option {
 
 /* Glass Header for Collapsible Sections (replaces bg-light) */
 .glass-header {
-    background-color: rgba(255, 255, 255, 0.4) !important;
+    background-color: rgba(255, 255, 255, 0.6) !important;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.5) !important;
@@ -262,23 +286,23 @@ select.pill-select option {
 }
 
 .glass-header:hover {
-    background-color: rgba(255, 255, 255, 0.6) !important;
+    background-color: rgba(255, 255, 255, 0.8) !important;
 }
 
 /* Glass Panel for Filter Bars (replaces bg-light) */
 .glass-panel {
-    background-color: rgba(255, 255, 255, 0.3) !important;
+    background-color: rgba(255, 255, 255, 0.5) !important;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
     border-radius: 8px;
 }
 
 /* Neutral Glass Button (replaces btn-secondary) */
 .btn-glass-neutral {
-    background-color: rgba(255, 255, 255, 0.4) !important;
-    border: 1px solid rgba(255, 255, 255, 0.5) !important;
-    color: #444 !important;
+    background-color: rgba(255, 255, 255, 0.6) !important;
+    border: 1px solid rgba(255, 255, 255, 0.6) !important;
+    color: #334155 !important;
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
     border-radius: 8px !important;
@@ -288,17 +312,17 @@ select.pill-select option {
 }
 
 .btn-glass-neutral:hover, .btn-glass-neutral.active {
-    background-color: rgba(255, 255, 255, 0.8) !important;
-    color: #000 !important;
+    background-color: rgba(255, 255, 255, 1) !important;
+    color: #0f172a !important;
     box-shadow: 0 4px 6px rgba(0,0,0,0.08);
     transform: translateY(-1px);
 }
 
 /* Glass Input Group Text (Sort Groups Label) */
 .glass-dashboard .input-group-text {
-    background-color: rgba(255, 255, 255, 0.4) !important;
-    border: 1px solid rgba(255, 255, 255, 0.5) !important;
-    color: #444;
+    background-color: rgba(241, 245, 249, 0.7) !important;
+    border: 1px solid rgba(203, 213, 225, 0.7) !important;
+    color: #475569;
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
 }
