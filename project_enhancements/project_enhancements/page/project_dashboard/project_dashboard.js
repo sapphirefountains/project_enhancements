@@ -59,7 +59,21 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
      * @param {object} page - The Frappe page object.
      */
     function initialize_dashboard(page) {
-        console.log("Loading Project Dashboard JS - Version 5.4 (Glassmorphism & Heatmap)");
+        console.log("Loading Project Dashboard JS - Version 5.5 (Interactive Background)");
+
+        // --- Interactive Background Logic ---
+        // Tracks mouse movement to update CSS variables for the reactive background effect.
+        $(document).on('mousemove', function (e) {
+            const pageContent = $('[data-page-route="project-dashboard"] .page-content');
+            if (pageContent.length) {
+                // Calculate percentage or raw pixels. Raw pixels work best for radial-gradient(at x y).
+                // We use requestAnimationFrame if we want higher performance, but for CSS vars simple setProperty is usually fine.
+                const x = e.clientX;
+                const y = e.clientY;
+                pageContent[0].style.setProperty('--mouse-x', `${x}px`);
+                pageContent[0].style.setProperty('--mouse-y', `${y}px`);
+            }
+        });
 
         // Explicitly load the CSS to ensure it's present
         frappe.require("/assets/project_enhancements/css/project_dashboard.css");
