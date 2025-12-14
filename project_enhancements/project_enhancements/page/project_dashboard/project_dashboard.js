@@ -382,8 +382,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 const row = $(`
                     <tr data-project-name="${project.name}">
                         <td><select class="form-control form-control-sm pill-select" data-field="custom_project_priority" style="${priorityStyle}">${priorityOptions}</select></td>
-                        <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
-                        <td>${project.name}</td>
+                        <td><a href="/app/project/${project.name}" class="font-weight-bold project-title-link">${project.project_name}</a></td>
+                        <td><span class="project-series-text">${project.name}</span></td>
                         <td><select class="form-control form-control-sm pill-select" data-field="status" style="${statusStyle}">${statusOptions}</select></td>
                         <td>${tasks_link}</td>
                         <td><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
@@ -425,8 +425,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 const row = $(`
                     <tr data-project-name="${project.name}">
                         <td>${companyPriorityInput}</td>
-                        <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
-                        <td>${project.name}</td>
+                        <td><a href="/app/project/${project.name}" class="font-weight-bold project-title-link">${project.project_name}</a></td>
+                        <td><span class="project-series-text">${project.name}</span></td>
                         <td><select class="form-control form-control-sm pill-select" data-field="status" style="${statusStyle}">${statusOptions}</select></td>
                         <td>${tasks_link}</td>
                         <td><div class="progress" style="height: 15px;"><div class="progress-bar progress-bar-sapphire-gradient" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
@@ -628,8 +628,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
                     const rowHTML = `
                         <tr data-project-name="${project.name}">
-                            <td><a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a></td>
-                            <td>${project.name}</td>
+                            <td><a href="/app/project/${project.name}" class="font-weight-bold project-title-link">${project.project_name}</a></td>
+                            <td><span class="project-series-text">${project.name}</span></td>
                             <td>
                                 <select class="form-control form-control-sm pill-select" data-field="status" style="${statusStyle}">
                                     ${statusOptions}
@@ -643,6 +643,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             <td><a href="/app/project-dashboard#TasksTree?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a></td>
                             <td><div class="progress" style="height: 15px;"><div class="progress-bar progress-bar-sapphire-gradient" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
                             <td>${project.project_user || ''}</td>
+                            <td class="assignee-cell">${project.project_user || ''}</td>
                         </tr>`;
                     tableBody.append(rowHTML);
                 });
@@ -752,7 +753,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 projectsInGroup.forEach(project => {
                     $(`
                         <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <a href="/app/project/${project.name}" class="font-weight-bold">${project.project_name}</a>
+                            <a href="/app/project/${project.name}" class="font-weight-bold project-title-link">${project.project_name}</a>
                             <button class="btn btn-vibrant-blue btn-sm view-tasks-btn" data-project="${project.name}">View Tasks</button>
                         </li>
                         `).appendTo(listGroup);
