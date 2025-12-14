@@ -360,3 +360,9 @@ select.pill-select option {
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
 }
+
+/* Gradient Progress Bar (Sapphire Blue) */
+.progress-bar-sapphire-gradient {
+    background: linear-gradient(90deg, #60a5fa 0%, #0F52BA 100%) !important;
+    box-shadow: 0 2px 4px rgba(15, 82, 186, 0.3);
+}
