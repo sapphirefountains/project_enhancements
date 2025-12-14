@@ -918,6 +918,9 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 // Task Status Color Logic
                 const statusStyle = getStatusStyle(task.status);
 
+                // Helper to check for pending changes
+                const hasPendingChange = (field) => pendingTaskChanges[task.name] && pendingTaskChanges[task.name][field] !== undefined;
+
                 const node = $(`
                         <div class="task-node" data-task-id="${task.name}">
                         <div class="task-grid-row">
@@ -928,10 +931,10 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             </div>
                             <div class="task-grid-cell assignee-cell"><a href="#" class="assignee-link">${task.assigned_to || 'Unassigned'}</a></div>
                             <div class="task-grid-cell"><select class="form-control form-control-sm task-status-select pill-select" style="width: 120px; ${statusStyle}">${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
-                            <div class="task-grid-cell editable-date" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${task.exp_start_date || ''}"><a href="#">${start_date}</a></div>
-                            <div class="task-grid-cell editable-date" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${task.exp_end_date || ''}"><a href="#">${end_date}</a></div>
+                            <div class="task-grid-cell editable-date ${hasPendingChange('exp_start_date') ? 'unsaved-change' : ''}" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${task.exp_start_date || ''}"><a href="#">${start_date}</a></div>
+                            <div class="task-grid-cell editable-date ${hasPendingChange('exp_end_date') ? 'unsaved-change' : ''}" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${task.exp_end_date || ''}"><a href="#">${end_date}</a></div>
                             <div class="task-grid-cell"><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></div>
-                            <div class="task-grid-cell editable-time" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}"><a href="#">${task.expected_time || 0}</a></div>
+                            <div class="task-grid-cell editable-time ${hasPendingChange('expected_time') ? 'unsaved-change' : ''}" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}"><a href="#">${task.expected_time || 0}</a></div>
                         </div>
                         <div class="child-tasks-container" style="${isCollapsed ? 'display: none;' : ''}"></div>
                     </div>
@@ -1004,7 +1007,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 $(listElement).append(`<li class="list-group-item" data-id="${key}"><i class="fa fa-bars mr-2 text-muted"></i> ${key}</li>`);
             });
 
-            const sortable = new Sortable(listElement, { animation: 150, ghostClass: 'bg-light' });
+            const sortable = new Sortable(listElement, { animation: 150, ghostClass: 'sortable-chosen' });
         }
 
         /**
@@ -1554,6 +1557,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
                 // Optimistically update the UI
                 link.text(displayValue);
+                cell.addClass('unsaved-change');
 
                 // Store change locally instead of calling the server
                 if (!pendingTaskChanges[taskName]) {
@@ -1624,6 +1628,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 }
                 const newFloatValue = parseFloat(newValue);
                 link.text(newFloatValue);
+                cell.addClass('unsaved-change');
 
                 // Store change locally
                 if (!pendingTaskChanges[taskName]) {
