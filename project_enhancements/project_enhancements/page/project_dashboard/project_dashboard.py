@@ -744,7 +744,8 @@ def get_gantt_tasks_for_project(project_name):
         for dep in dependencies:
             if dep.parent not in dependency_map:
                 dependency_map[dep.parent] = []
-            dependency_map[dep.parent].append(dep.task)
+            if dep.task:
+                dependency_map[dep.parent].append(dep.task)
 
         gantt_tasks = []
         today = getdate(nowdate())
@@ -764,7 +765,7 @@ def get_gantt_tasks_for_project(project_name):
                 "start": start_date.strftime('%Y-%m-%d'),
                 "end": end_date.strftime('%Y-%m-%d'),
                 "progress": task.progress or 0,
-                "dependencies": ",".join(task_dependencies),
+                "dependencies": ",".join([d for d in task_dependencies if d]),
             })
 
         return gantt_tasks
