@@ -121,6 +121,8 @@ def get_project_data():
                 "custom_company_priority",
                 "is_active",
                 "percent_complete",
+                "expected_start_date",
+                "expected_end_date",
             ],
             filters={"status": ["!=", "Cancelled"]},
             order_by="creation desc",
