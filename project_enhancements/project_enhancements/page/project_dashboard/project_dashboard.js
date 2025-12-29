@@ -366,7 +366,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 return priorityA - priorityB;
             });
 
-            const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="custom_project_priority">Priority</th><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="tasks">Tasks</th><th data-sort="percent_complete">% Complete</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(content);
+            const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="custom_project_priority">Priority</th><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="tasks">Tasks</th><th data-sort="percent_complete">% Complete</th><th data-sort="expected_start_date">Expected Start Date</th><th data-sort="expected_end_date">Expected End Date</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(content);
             const tableBody = table.find('tbody');
 
             projects.forEach(project => {
@@ -387,6 +387,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                         <td><select class="form-control form-control-sm pill-select" data-field="status" style="${statusStyle}">${statusOptions}</select></td>
                         <td>${tasks_link}</td>
                         <td><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
+                        <td>${project.expected_start_date || ''}</td>
+                        <td>${project.expected_end_date || ''}</td>
                         <td class="assignee-cell"><a href="#" class="project-assignee-link">${project.project_user || 'Unassigned'}</a></td>
                     </tr>
                 `);
@@ -403,7 +405,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
          * @param {Array<object>} projects - The list of project objects to render in the table.
          */
         function _renderCompanyPriorityTable(container, projects) {
-            const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="custom_company_priority">Company Priority</th><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="tasks">Tasks</th><th data-sort="percent_complete">% Complete</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(container);
+            const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="custom_company_priority">Company Priority</th><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="tasks">Tasks</th><th data-sort="percent_complete">% Complete</th><th data-sort="expected_start_date">Expected Start Date</th><th data-sort="expected_end_date">Expected End Date</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(container);
             const tableBody = table.find('tbody');
 
             projects.forEach(project => {
@@ -430,6 +432,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                         <td><select class="form-control form-control-sm pill-select" data-field="status" style="${statusStyle}">${statusOptions}</select></td>
                         <td>${tasks_link}</td>
                         <td><div class="progress" style="height: 15px;"><div class="progress-bar progress-bar-sapphire-gradient" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
+                        <td>${project.expected_start_date || ''}</td>
+                        <td>${project.expected_end_date || ''}</td>
                         <td class="assignee-cell"><a href="#" class="project-assignee-link">${project.project_user || 'Unassigned'}</a></td>
                     </tr>
                 `);
@@ -594,7 +598,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 const groupHeaderHTML = `<div class="collapsible-header glass-header p-2 my-1 rounded-sm cursor-pointer flex justify-between items-center" data-group-id="${type}"><div class="font-bold text-sm text-gray-700">${type} (${projectsInGroup.length})</div><svg style="height: 1rem; width: 1rem;" class="text-gray-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
                 const groupHeader = $(groupHeaderHTML).appendTo(content);
                 const groupBody = $('<div class="collapsible-body" style="display: none;"></div>').appendTo(content);
-                const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="custom_project_priority">Priority</th><th data-sort="tasks">Tasks</th><th data-sort="percent_complete">% Complete</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(groupBody);
+                const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="custom_project_priority">Priority</th><th data-sort="tasks">Tasks</th><th data-sort="percent_complete">% Complete</th><th data-sort="expected_start_date">Expected Start Date</th><th data-sort="expected_end_date">Expected End Date</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(groupBody);
                 const tableBody = table.find('tbody');
 
                 projectsInGroup.sort((a, b) => {
@@ -642,6 +646,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             </td>
                             <td><a href="/app/project-dashboard#TasksTree?project=${project.name}">${project.completed_tasks} / ${project.total_tasks}</a></td>
                             <td><div class="progress" style="height: 15px;"><div class="progress-bar progress-bar-sapphire-gradient" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></td>
+                            <td>${project.expected_start_date || ''}</td>
+                            <td>${project.expected_end_date || ''}</td>
                             <td>${project.project_user || ''}</td>
                             <td class="assignee-cell">${project.project_user || ''}</td>
                         </tr>`;
