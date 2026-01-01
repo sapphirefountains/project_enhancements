@@ -53,6 +53,12 @@ fixtures = [
         "filters": [
             ["dt", "=", "Project"]
         ]
+    },
+    {
+        "doctype": "Property Setter",
+        "filters": [
+            ["doc_type", "=", "Project"]
+        ]
     }
 ]
 

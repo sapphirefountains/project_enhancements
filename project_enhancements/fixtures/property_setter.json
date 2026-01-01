@@ -1,0 +1,20 @@
+[
+ {
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "doc_type": "Project",
+  "field_name": "status",
+  "property": "options",
+  "property_type": "Text",
+  "value": "Active\nOpen\nCompleted\nCancelled"
+ },
+ {
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "doc_type": "Project",
+  "field_name": "status",
+  "property": "default",
+  "property_type": "Data",
+  "value": "Active"
+ }
+]

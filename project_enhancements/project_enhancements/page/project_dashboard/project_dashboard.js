@@ -125,6 +125,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         function getStatusStyle(status) {
             let color = '#6c757d'; // Default grey
             switch (status) {
+                case 'Active': color = '#007bff'; break; // Blue
                 case 'Open': color = '#007bff'; break; // Blue
                 case 'Completed': color = '#28a745'; break; // Green
                 case 'Overdue': color = '#dc3545'; break; // Red
@@ -1291,6 +1292,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
          */
         function getStatusClass(status) {
             switch (status) {
+                case 'Active': return 'badge-primary';
                 case 'Open': return 'badge-primary';
                 case 'Completed': return 'badge-success';
                 case 'Overdue': return 'badge-danger';
@@ -1323,7 +1325,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 priorityOptionsList = (r.message && !r.message.error) ? r.message : ['High', 'Medium', 'Low'];
             });
             const fetchStatuses = frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_status_options" }).then(r => {
-                statusOptionsList = (r.message && !r.message.error) ? r.message : ['Open', 'Completed', 'Overdue', 'Cancelled'];
+                statusOptionsList = (r.message && !r.message.error) ? r.message : ['Active', 'Open', 'Completed', 'Overdue', 'Cancelled'];
             });
             const fetchProjects = frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_data" });
             const fetchTaskStatuses = frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_task_status_options" }).then(r => {
