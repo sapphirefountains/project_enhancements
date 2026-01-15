@@ -42,5 +42,5 @@ def validate_project_status(doc, method):
         doc (frappe.model.document.Document): The project document being saved.
         method (str): The method that triggered the hook (e.g., 'on_update').
     """
-    if doc.status == "Open":
+    if doc.is_new() and doc.status == "Open":
         doc.status = "Active"
