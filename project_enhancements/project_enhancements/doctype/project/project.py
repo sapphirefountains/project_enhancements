@@ -28,3 +28,19 @@ def get_project_grouping_option():
 
     # This sends the `settings` dictionary back to the browser as the response.
     return settings
+
+
+def validate_project_status(doc, method):
+    """Validate and update the project status before saving.
+
+    This function is triggered by a `before_save` hook. It checks if the
+    project status is 'Open' and, if so, changes it to 'Active'. This is
+    a workaround for a validation error that prevents projects from being
+    created or saved with the status 'Open'.
+
+    Args:
+        doc (frappe.model.document.Document): The project document being saved.
+        method (str): The method that triggered the hook (e.g., 'on_update').
+    """
+    if doc.status == "Open":
+        doc.status = "Active"

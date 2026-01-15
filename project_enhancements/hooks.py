@@ -190,13 +190,11 @@ doctype_list_js = {
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+    "Project": {
+        "before_save": "project_enhancements.project_enhancements.doctype.project.project.validate_project_status"
+    }
+}
 
 # Scheduled Tasks
 # ---------------
@@ -279,7 +277,7 @@ doctype_list_js = {
 # 	{
 # 		"doctype": "{doctype_4}"
 # 	}
-# ]
+#]
 
 # Authentication and authorization
 # --------------------------------
