@@ -34,6 +34,8 @@ app_license = "mit"
 # on the Project doctype's form view. The path is relative to the app's root.
 
 doctype_js = {
+	"Project": "project_enhancements/doctype/project/project.js",
+	"Opportunity": "project_enhancements/doctype/opportunity/opportunity.js",
 	"Address": "project_enhancements/doctype/address/address.js"
 }
 
