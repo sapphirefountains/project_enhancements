@@ -1,0 +1,206 @@
+frappe.ui.form.on('Project', {
+    refresh: function (frm) {
+        // This function will load CSS and JS from the specified CDN URLs
+        function load_cdn_assets() {
+            return new Promise((resolve, reject) => {
+                const css_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css";
+                const js_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js";
+
+                // Load CSS
+                if (!$(`link[href="${css_url}"]`).length) {
+                    $('<link>', {
+                        rel: 'stylesheet',
+                        type: 'text/css',
+                        href: css_url
+                    }).appendTo('head');
+                }
+
+                // Load JS using jQuery's getScript, which handles execution
+                $.getScript(js_url)
+                    .done(function (script, textStatus) {
+                        resolve();
+                    })
+                    .fail(function (jqxhr, settings, exception) {
+                        reject(exception);
+                    });
+            });
+        }
+
+        const gantt_wrapper = frm.get_field('custom_gantt_chart_html').$wrapper;
+        gantt_wrapper.css({
+            'height': '500px',
+            'overflow': 'hidden'
+        });
+
+        gantt_wrapper.empty().html('<div class="gantt-chart-container" style="height: 100%;"></div>');
+
+
+        load_cdn_assets().then(() => {
+            const chart_container = gantt_wrapper.find('.gantt-chart-container');
+            chart_container.html('<p class="text-muted">Loading chart data...</p>');
+
+            frappe.call({
+                method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_gantt_tasks_for_project",
+                args: { project_name: frm.doc.name },
+                callback: function (r) {
+                    if (r.message && !r.message.error && r.message.length > 0) {
+                        const tasks = r.message;
+
+                        const options = {
+                            view_mode: 'Day',
+                            scroll_to: 'today',
+                            on_click: (task) => frappe.set_route('Form', 'Task', task.id),
+                            on_date_change: (task, start, end) => {
+                                frappe.call({
+                                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_dates_from_gantt',
+                                    args: {
+                                        task_name: task.id,
+                                        start_date: moment(start).format('YYYY-MM-DD'),
+                                        end_date: moment(end).format('YYYY-MM-DD')
+                                    }
+                                });
+                            },
+                            on_progress_change: (task, progress) => {
+                                frappe.call({
+                                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_progress_from_gantt',
+                                    args: {
+                                        task_name: task.id,
+                                        progress: parseInt(progress)
+                                    }
+                                });
+                            }
+                        };
+
+                        // It is now safe to instantiate the Gantt chart
+                        gantt_wrapper.find('.gantt-chart-container').empty();
+                        const gantt = new Gantt(gantt_wrapper.find('.gantt-chart-container')[0], tasks, options);
+
+                        const gantt_container = gantt_wrapper.find(".gantt-container");
+                        gantt_container.css({
+                            'overflow-x': 'scroll',
+                            'overflow-y': 'auto',
+                            'max-height': '100%'
+                        });
+
+                        // Adjust scroll to align "Today" to the left
+                        setTimeout(() => {
+                            // Calculate dynamic class for today, e.g., .date_2023-10-27
+                            const today_date_class = '.date_' + moment().format('YYYY-MM-DD');
+                            let today_highlight = gantt_wrapper.find(today_date_class);
+
+                            if (today_highlight.length === 0) {
+                                today_highlight = gantt_wrapper.find('.current-date-highlight');
+                            }
+
+                            if (today_highlight.length > 0) {
+                                // If the element exists, scroll to it directly
+                                // position().left is relative to the scrollable container content
+                                const scroll_pos = today_highlight.position().left;
+                                gantt_container.scrollLeft(scroll_pos - 20); // 20px padding
+                            } else {
+                                // Fallback: assumes scroll_to: 'today' centered the view
+                                const gantt_width = gantt_container.width();
+                                const current_scroll = gantt_container.scrollLeft();
+                                gantt_container.scrollLeft(current_scroll + (gantt_width / 2) - 50);
+                            }
+                        }, 1000);
+
+                    } else {
+                        gantt_wrapper.html('<p class="text-muted">No tasks found for this project.</p>');
+                    }
+                }
+            });
+        }).catch((error) => {
+            console.error("Failed to load Gantt chart from CDN:", error);
+            gantt_wrapper.empty().html('<p class="text-danger">Error: Could not load Gantt chart library from CDN. Check browser console for details.</p>');
+        });
+    }
+});
+
+frappe.ui.form.on('Project', {
+    refresh: function (frm) {
+        if (!frm.is_new()) {
+
+            var field = frm.get_field('custom_reminder_action');
+
+            if (field) {
+                var $btn = $('<button class="btn btn-default btn-sm icon-btn"><span class="icon icon-sm"><svg class="es-icon es-line  icon-sm" aria-hidden="true"><use href="#es-line-bell"></use></svg></span> Set Reminder</button>');
+
+                $btn.on('click', function () {
+
+                    var d = new frappe.ui.Dialog({
+                        title: __('Create a Reminder'),
+                        fields: [
+                            {
+                                label: 'Remind Me In',
+                                fieldname: 'remind_in',
+                                fieldtype: 'Select',
+                                options: [
+                                    { label: '30 Minutes', value: 30 },
+                                    { label: '1 Hour', value: 60 },
+                                    { label: '2 Hours', value: 120 },
+                                    { label: '4 Hours', value: 240 },
+                                    { label: 'Tomorrow Morning', value: 'tomorrow' }
+                                ],
+                                onchange: function () {
+                                    var choice = this.get_value();
+                                    if (!choice) return;
+
+                                    var new_time;
+                                    if (choice === 'tomorrow') {
+                                        new_time = moment().add(1, 'days').set({ hour: 9, minute: 0, second: 0 }).format('YYYY-MM-DD HH:mm:ss');
+                                    } else {
+                                        new_time = moment().add(choice, 'minutes').format('YYYY-MM-DD HH:mm:ss');
+                                    }
+                                    d.set_value('remind_at', new_time);
+                                }
+                            },
+                            {
+                                fieldtype: 'Column Break'
+                            },
+                            {
+                                label: 'Remind At',
+                                fieldname: 'remind_at',
+                                fieldtype: 'Datetime',
+                                reqd: 1,
+                                default: frappe.datetime.now_datetime()
+                            },
+                            {
+                                fieldtype: 'Section Break'
+                            },
+                            {
+                                label: 'Description',
+                                fieldname: 'description',
+                                fieldtype: 'Small Text',
+                                reqd: 1,
+                                default: 'Reminder for Project: ' + frm.doc.project_name
+                            }
+                        ],
+                        primary_action_label: __('Create'),
+                        primary_action: function (values) {
+                            frappe.db.insert({
+                                doctype: 'ToDo',
+                                reference_type: frm.doc.doctype,
+                                reference_name: frm.doc.name,
+                                description: values.description,
+                                date: values.remind_at,
+                                allocated_to: frappe.session.user,
+                                status: 'Open'
+                            }).then(doc => {
+                                d.hide();
+                                frappe.show_alert({
+                                    message: __('Reminder created successfully'),
+                                    indicator: 'green'
+                                });
+                            });
+                        }
+                    });
+
+                    d.show();
+                });
+
+                field.$wrapper.empty().append($btn);
+            }
+        }
+    }
+});
