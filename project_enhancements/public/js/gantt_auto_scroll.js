@@ -76,6 +76,21 @@ document.addEventListener('DOMContentLoaded', () => {
      * The main observer that watches for Gantt charts being added to the document body.
      */
     const bodyObserver = new MutationObserver((mutations) => {
+        // Optimization: Only run on pages that might have a Gantt chart.
+        // This prevents unnecessary processing on heavy pages like "Purchase Order".
+        if (window.frappe && window.frappe.get_route) {
+            const route = frappe.get_route();
+            if (Array.isArray(route)) {
+                const isRelevantPage = route.some(part => {
+                    if (typeof part !== 'string') return false;
+                    const p = part.toLowerCase();
+                    return p === 'project' || p === 'task' || p === 'project_dashboard';
+                });
+
+                if (!isRelevantPage) return;
+            }
+        }
+
         mutations.forEach((mutation) => {
             mutation.addedNodes.forEach((node) => {
                 if (node.nodeType === 1) { // Ensure it's an element node.
