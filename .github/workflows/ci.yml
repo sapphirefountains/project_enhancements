@@ -47,7 +47,6 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '24.12.0'
-          cache: 'npm'
 
       - name: Update Pip
         run: |
