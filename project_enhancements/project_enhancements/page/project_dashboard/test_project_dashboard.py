@@ -60,16 +60,18 @@ class TestProjectDashboardPermissions(unittest.TestCase):
 class TestProjectDashboard(unittest.TestCase):
     """Tests for data handling functions of the Project Dashboard."""
 
+    @patch("project_enhancements.project_enhancements.page.project_dashboard.project_dashboard._get_assignee_names")
     @patch("project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.check_permission")
     @patch("project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.db.count")
     @patch("project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.get_list")
-    def test_get_project_data_success(self, mock_get_list, mock_db_count, mock_check_permission):
+    def test_get_project_data_success(self, mock_get_list, mock_db_count, mock_check_permission, mock_get_assignee_names):
         """Test successful retrieval and enrichment of project data."""
         mock_check_permission.return_value = True
         mock_projects = [{"name": "PROJ-001", "project_name": "Test Project 1"}]
         mock_get_list.return_value = mock_projects
         # Mocking the return values for total_tasks and completed_tasks counts
         mock_db_count.side_effect = [5, 2]
+        mock_get_assignee_names.return_value = []
 
         result = get_project_data()
 
@@ -86,7 +88,11 @@ class TestProjectDashboard(unittest.TestCase):
                 "project_type",
                 "project_user",
                 "custom_project_priority",
+                "custom_company_priority",
                 "is_active",
+                "percent_complete",
+                "expected_start_date",
+                "expected_end_date",
             ],
             filters={"status": ["!=", "Cancelled"]},
             order_by="creation desc",
