@@ -135,7 +135,7 @@ class TestProjectDashboard(unittest.TestCase):
         mock_fetch_tasks.return_value = mock_tasks
         with patch(
             "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard._get_assignee_names",
-            return_value="test user",
+            return_value=[{"full_name": "Test User", "email": "test@example.com"}],
         ):
             result = get_project_tasks("PROJ-001")
 
