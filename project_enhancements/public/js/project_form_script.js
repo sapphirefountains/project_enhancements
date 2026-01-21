@@ -4,7 +4,7 @@ frappe.ui.form.on('Project', {
     // The 'refresh' trigger ensures our script runs every time the form is loaded or refreshed.
     refresh: function(frm) {
         // We select the '.form-tabs' container which holds all the main tabs like "Details", "Scope", etc.
-        const formTabs = frm.jquery.find('.form-tabs');
+        const formTabs = frm.$wrapper.find('.form-tabs');
 
         // From within the form tabs, we are looking for a tab with the data-label "Details".
         // This is the main "Details" tab on the Project page.
@@ -12,7 +12,7 @@ frappe.ui.form.on('Project', {
 
         // We are searching for a section with the label "Activity".
         // Frappe typically renders sections with a 'data-label' attribute.
-        const activitySection = frm.jquery.find('[data-label="Activity"]');
+        const activitySection = frm.$wrapper.find('[data-label="Activity"]');
 
         // We also need to find the parent container of the "Activity" section.
         // In Frappe forms, sections are often contained within a '.frappe-control' div.
@@ -20,7 +20,7 @@ frappe.ui.form.on('Project', {
 
         // To correctly move the "Activity" section, we also need to find the section that comes right after it.
         // This is often a "Section Break" that visually separates different parts of the form.
-        const connectionsSection = frm.jquery.find('[data-label="Connections"]');
+        const connectionsSection = frm.$wrapper.find('[data-label="Connections"]');
 
         // Now, we will check if both the "Details" tab and the "Activity" section are present on the page.
         if (detailsTab.length && activitySection.length) {
