@@ -126,11 +126,14 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             let color = '#6c757d'; // Default grey
             switch (status) {
                 case 'Active': color = '#007bff'; break; // Blue
-                case 'Open': color = '#007bff'; break; // Blue
+                case 'Open': color = '#007bff'; break; // Blue (Tasks)
                 case 'Completed': color = '#28a745'; break; // Green
                 case 'Overdue': color = '#dc3545'; break; // Red
                 case 'Cancelled': color = '#dc3545'; break; // Red
+                case 'Canceled': color = '#dc3545'; break; // Red
                 case 'Working': color = '#ff9800'; break; // Orange (visible with white text)
+                case 'On Hold': color = '#ff9800'; break; // Orange
+                case 'Invoiced': color = '#6f42c1'; break; // Purple
                 default: color = '#6c757d';
             }
             return `background-color: ${color}; color: white;`;
@@ -1296,6 +1299,10 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 case 'Open': return 'badge-primary';
                 case 'Completed': return 'badge-success';
                 case 'Overdue': return 'badge-danger';
+                case 'Canceled': return 'badge-danger';
+                case 'Cancelled': return 'badge-danger';
+                case 'On Hold': return 'badge-warning';
+                case 'Invoiced': return 'badge-info';
                 default: return 'badge-secondary';
             }
         }
@@ -1325,7 +1332,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 priorityOptionsList = (r.message && !r.message.error) ? r.message : ['High', 'Medium', 'Low'];
             });
             const fetchStatuses = frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_status_options" }).then(r => {
-                statusOptionsList = (r.message && !r.message.error) ? r.message : ['Active', 'Open', 'Completed', 'Overdue', 'Cancelled'];
+                statusOptionsList = (r.message && !r.message.error) ? r.message : ['Active', 'On Hold', 'Canceled', 'Completed', 'Invoiced'];
             });
             const fetchProjects = frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_data" });
             const fetchTaskStatuses = frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_task_status_options" }).then(r => {
