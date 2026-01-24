@@ -59,15 +59,12 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
      * @param {object} page - The Frappe page object.
      */
     function initialize_dashboard(page) {
-        console.log("Loading Project Dashboard JS - Version 5.5 (Interactive Background)");
+        console.log("Loading Project Dashboard JS - Version 5.6 (Refactored)");
 
         // --- Interactive Background Logic ---
-        // Tracks mouse movement to update CSS variables for the reactive background effect.
         $(document).on('mousemove', function (e) {
             const pageContent = $('[data-page-route="project-dashboard"] .page-content');
             if (pageContent.length) {
-                // Calculate percentage or raw pixels. Raw pixels work best for radial-gradient(at x y).
-                // We use requestAnimationFrame if we want higher performance, but for CSS vars simple setProperty is usually fine.
                 const x = e.clientX;
                 const y = e.clientY;
                 pageContent[0].style.setProperty('--mouse-x', `${x}px`);
@@ -77,10 +74,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         // Explicitly load the CSS to ensure it's present
         frappe.require("/assets/project_enhancements/css/project_dashboard.css");
-
-        // Dynamically load SortableJS library for drag-and-drop functionality.
-        const script_url = "https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js";
-        frappe.require(script_url, () => { });
 
         // Dynamically load Frappe Gantt library assets.
         const gantt_css_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css";
@@ -102,25 +95,17 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         let allProjects = [];
         let priorityOptionsList = [];
         let statusOptionsList = [];
-        let taskStatusOptionsList = [];
         let currentSort = { field: 'project_name', order: 'asc' };
         let activeTab = 'ActiveExternalProjects';
         let priorityView = 'ranked'; // 'grouped' or 'ranked'
         let expandedGroups = new Set();
-        let currentTaskSort = { field: 'subject', order: 'asc' };
-        let currentProjectTasks = []; // Holds the original, unfiltered task tree for a project.
-        let collapsedTasks = new Set(); // Holds the set of collapsed task IDs for the current project.
         let pageState = {}; // Holds the state parsed from the URL hash.
-        let taskSortableInstance = null;
         let pendingProjectChanges = {};
-        let pendingTaskChanges = {};
 
         // --- Color Helper Functions ---
 
         /**
          * Returns the background color and text color style string for a given status.
-         * @param {string} status - The status (Open, Completed, etc.)
-         * @returns {string} inline style string "background-color: ...; color: white;"
          */
         function getStatusStyle(status) {
             let color = '#6c757d'; // Default grey
@@ -141,9 +126,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         /**
          * Returns the background color style for a priority value (Heatmap logic).
-         * 1 = Urgent (Red), 30 = Low (Green). Interpolates HSL.
-         * @param {number|string} value - The priority value (1-30)
-         * @returns {string} inline style string
          */
         function getPriorityStyle(value) {
             let val = parseInt(value, 10);
@@ -154,9 +136,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             if (normalized < 1) normalized = 1;
             if (normalized > 30) normalized = 30;
 
-            // Interpolate Hue: 0 (Red) to 120 (Green)
-            // 1 -> 0
-            // 30 -> 120
             const hue = ((normalized - 1) / (29)) * 120;
             const color = `hsl(${hue}, 70%, 45%)`; // 70% Saturation, 45% Lightness for good text contrast
 
@@ -165,8 +144,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         /**
          * Applies the correct color style to a select element based on its value and type.
-         * @param {jQuery} $select - The jQuery select object.
-         * @param {string} type - 'status' or 'priority'
          */
         function applyColorToSelect($select, type) {
             const val = $select.val();
@@ -253,9 +230,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         /**
          * Updates the URL hash to reflect the current state of the dashboard.
-         * This allows for bookmarking and sharing specific views/filters.
-         * @param {boolean} [push=false] - If true, creates a new entry in the browser's
-         * history, allowing the user to use the back button.
          */
         function updateURL(push = false) {
             const tab = activeTab;
@@ -263,12 +237,9 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
             if (tab === 'TasksTree' && pageState.project) {
                 params.set('project', pageState.project);
-                const taskNameFilter = taskContent.find('#task-name-filter').val();
-                const taskOwnerFilter = taskContent.find('#task-owner-filter').val();
-                const taskStatusFilter = taskContent.find('#task-status-filter').val();
-                if (taskNameFilter) params.set('task_name', taskNameFilter);
-                if (taskOwnerFilter) params.set('task_owner', taskOwnerFilter);
-                if (taskStatusFilter) params.set('task_status', taskStatusFilter);
+                // Task filters are now managed by TaskTreeManager internally,
+                // but if we want to persist them in URL we would need to sync them.
+                // For simplicity in this refactor, we are focusing on project selection state.
             } else if (tab !== 'TasksTree') {
                 const searchTerm = searchInput.val();
                 const groupSort = groupSortSelect.val();
@@ -288,8 +259,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         /**
          * Parses the URL hash on page load to set the initial dashboard state.
-         * This function reads the tab, search terms, and other view parameters
-         * from the URL and applies them to the UI.
          */
         function parseURLAndSetState() {
             const hash = window.location.hash.substring(1);
@@ -325,11 +294,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         /**
          * Main render function for the project views.
-         *
-         * Clears the content area and calls the appropriate rendering function
-         * based on the currently active tab and view mode (e.g., grouped vs. ranked).
-         *
-         * @param {Array<object>} projects - The array of project objects to render.
          */
         function renderDashboard(projects) {
             content.empty();
@@ -347,7 +311,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 if (priorityView === 'company') {
                     renderCompanyPriorityView(projects);
                 } else {
-                    // Use grouped view for Value Stream and Internal, but with specific sorting
                     renderGroupedView(projects);
                 }
             } else {
@@ -356,12 +319,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         }
 
         /**
-         * Renders the 'Ranked Priority' view (used for Value Stream and Internal).
-         *
-         * Displays projects in a simple table, sorted numerically by their
-         * priority, for a quick overview of the most important projects.
-         *
-         * @param {Array<object>} projects - The array of project objects to render.
+         * Renders the 'Ranked Priority' view.
          */
         function renderRankedPriorityView(projects) {
             projects.sort((a, b) => {
@@ -379,7 +337,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 const statusOptions = statusOptionsList.map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
                 const progress = project.percent_complete || 0;
 
-                // Color logic
                 const priorityStyle = getPriorityStyle(project.custom_project_priority);
                 const statusStyle = getStatusStyle(project.status);
 
@@ -403,10 +360,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         /**
          * Renders a standardized table for the 'By Company' priority view.
-         * This helper function is used to avoid code duplication.
-         *
-         * @param {jQuery} container - The parent jQuery element to append the table to.
-         * @param {Array<object>} projects - The list of project objects to render in the table.
          */
         function _renderCompanyPriorityTable(container, projects) {
             const table = $(`<table class="table table-bordered table-hover" style="font-size: 12px;"><thead class="thead-light"><tr><th data-sort="custom_company_priority">Company Priority</th><th data-sort="project_name">Project Name</th><th data-sort="name">Series</th><th data-sort="status">Status</th><th data-sort="tasks">Tasks</th><th data-sort="percent_complete">% Complete</th><th data-sort="expected_start_date">Expected Start Date</th><th data-sort="expected_end_date">Expected End Date</th><th data-sort="project_user">Assigned To</th></tr></thead><tbody></tbody></table>`).appendTo(container);
@@ -422,7 +375,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 }
                 const progress = project.percent_complete || 0;
 
-                // Color logic
                 const companyPriorityStyle = getPriorityStyle(companyPriorityValue);
                 const statusStyle = getStatusStyle(project.status);
 
@@ -447,10 +399,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         /**
          * Renders the 'By Company' view.
-         *
-         * Groups projects into Ranked (1-30), Maintenance, Repair Visit, and Not Assigned.
-         *
-         * @param {Array<object>} projects - The array of project objects to render.
          */
         function renderCompanyPriorityView(projects) {
             const groups = {
@@ -501,9 +449,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         /**
          * Renders the 'Portfolio Gantt' view.
-         *
-         * Fetches all active projects and displays them in a single Gantt chart.
-         * Clicking on a project bar will navigate to the detailed project workspace.
          */
         function renderPortfolioGanttView() {
             content.html('<p class="text-muted text-center p-4">Loading Portfolio Gantt Chart...</p>');
@@ -559,12 +504,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         /**
          * Renders the default 'Grouped' view.
-         *
-         * Groups projects by their 'project_type', creating a collapsible section
-         * for each type. The order of these groups and the sorting of projects
-         * within each group are user-configurable.
-         *
-         * @param {Array<object>} projects - The array of project objects to render.
          */
         function renderGroupedView(projects) {
             const groupedProjects = projects.reduce((acc, project) => {
@@ -606,7 +545,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 const tableBody = table.find('tbody');
 
                 projectsInGroup.sort((a, b) => {
-                    // Special sorting for Priority Overview tabs
                     if (activeTab === 'PriorityOverview' && (priorityView === 'value_stream' || priorityView === 'internal')) {
                         const priorityA = parseInt(a.custom_project_priority, 10) || Infinity;
                         const priorityB = parseInt(b.custom_project_priority, 10) || Infinity;
@@ -630,7 +568,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     const priorityOptions = priorityOptionsList.map(p => `<option value="${p}" ${project.custom_project_priority === p ? 'selected' : ''}>${p}</option>`).join('');
                     const progress = project.percent_complete || 0;
 
-                    // Color logic
                     const statusStyle = getStatusStyle(project.status);
                     const priorityStyle = getPriorityStyle(project.custom_project_priority);
 
@@ -730,8 +667,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         /**
          * Renders the project selection interface for the 'Tasks Tree' tab.
-         * This view is shown when no specific project has been selected yet,
-         * allowing the user to choose a project to view its tasks.
          */
         function renderProjectSelectionForTasks() {
             taskContent.empty();
@@ -777,193 +712,44 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         }
 
         /**
-         * Renders the main task tree view for a selected project.
-         *
-         * @param {object} project - The project object whose tasks are being displayed.
-         * @param {Array<object>} tasks - The hierarchical list of task objects.
+         * Fetches and renders the task tree for a specific project using the new TaskTreeManager.
          */
-        /**
-         * Initializes SortableJS for drag-and-drop reordering of tasks using a nested div structure.
-         * @param {object} project - The project object containing the project name.
-         */
-        function initializeTaskSorting(project) {
-            // Destroy existing instances if any
-            if (taskSortableInstance && Array.isArray(taskSortableInstance)) {
-                taskSortableInstance.forEach(instance => instance.destroy());
+        function loadAndRenderTasks(project_name) {
+            const project = allProjects.find(p => p.name === project_name);
+            if (!project) {
+                taskContent.html(`<div class="alert alert-danger">Project not found: ${project_name}</div>`);
+                pageState.project = null;
+                updateURL();
+                renderProjectSelectionForTasks();
+                return;
             }
-            taskSortableInstance = [];
 
-            const sortableContainers = taskContent.find('.task-grid-body, .child-tasks-container');
-
-            sortableContainers.each(function () {
-                const instance = new Sortable(this, {
-                    group: 'nested-tasks',
-                    animation: 150,
-                    handle: '.task-drag-handle',
-                    ghostClass: 'sortable-ghost',
-                    chosenClass: 'sortable-chosen',
-                    onEnd: function (evt) {
-                        // When the user finishes dragging, show the save button.
-                        $('#save-task-order').show();
-                    }
-                });
-                taskSortableInstance.push(instance);
-            });
-        }
-
-        function renderTaskTreeView(project, tasks) {
             taskContent.empty();
 
+            // Header with Back Button
             const header = $(`
-                        <div class="task-view-header mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div>
-                            <button class="btn btn-sm btn-glass-neutral" id="back-to-projects"><i class="fa fa-arrow-left mr-1"></i> Back to Projects</button>
-                            <h4 class="d-inline-block ml-3 mb-0"><a href="/app/project/${project.name}">${project.project_name}</a></h4>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <span id="task-saving-indicator" class="text-muted mr-3" style="display: none;"><i class="fa fa-spinner fa-spin"></i> Saving...</span>
-                            <div id="task-pending-changes-controls" class="mr-2" style="display: none;">
-                                <div class="btn-group btn-group-sm">
-                                    <button type="button" class="btn btn-glass-success" id="save-task-pending-changes">Save Changes</button>
-                                    <button type="button" class="btn btn-glass-danger" id="discard-task-pending-changes">Discard Changes</button>
-                                </div>
-                            </div>
-                            <button class="btn btn-sm btn-glass-success mr-2" id="save-task-order" style="display: none;">Save Order</button>
-                            <a href="/app/task/new-task?project=${project.name}" class="btn btn-vibrant-blue btn-sm">Add Task</a>
-                        </div>
-                    </div>
-                    <div class="task-filters glass-panel p-2 rounded-sm">
-                        <div class="row">
-                            <div class="col-md-4"><input type="text" class="form-control form-control-sm" id="task-name-filter" placeholder="Filter by task name..."></div>
-                            <div class="col-md-3"><input type="text" class="form-control form-control-sm" id="task-owner-filter" placeholder="Filter by owner..."></div>
-                            <div class="col-md-3"><select class="form-control form-control-sm" id="task-status-filter"><option value="">All Statuses</option></select></div>
-                            <div class="col-md-2"><button class="btn btn-sm btn-glass-neutral btn-block" id="clear-task-filters">Clear Filters</button></div>
-                        </div>
-                    </div>
+                <div class="d-flex align-items-center mb-3">
+                    <button class="btn btn-sm btn-glass-neutral mr-3 back-to-projects-btn"><i class="fa fa-arrow-left mr-1"></i> Back to Projects</button>
+                    <h4 class="mb-0">${project.project_name}</h4>
                 </div>
-                        `).appendTo(taskContent);
+                <div class="task-tree-wrapper"></div>
+            `).appendTo(taskContent);
 
-            const status_filter = header.find('#task-status-filter');
-            taskStatusOptionsList.forEach(s => status_filter.append(`<option value="${s}">${s}</option>`));
+            const treeWrapper = header.filter('.task-tree-wrapper').add(header.find('.task-tree-wrapper')).first();
 
-            if (!tasks || tasks.length === 0) {
-                taskContent.append('<p class="text-muted text-center p-4">This project has no tasks.</p>');
-                return;
-            }
+            // Instantiate the Shared Manager
+            new project_enhancements.TaskTreeManager({
+                wrapper: treeWrapper,
+                projectName: project_name
+            });
 
-            const grid = $(`
-                        <div class="task-grid">
-                    <div class="task-grid-header">
-                        <div class="task-grid-cell">Task</div>
-                        <div class="task-grid-cell">Owner</div>
-                        <div class="task-grid-cell">Status</div>
-                        <div class="task-grid-cell">Start Date</div>
-                        <div class="task-grid-cell">Due Date</div>
-                        <div class="task-grid-cell">% Complete</div>
-                        <div class="task-grid-cell">Duration (hrs)</div>
-                    </div>
-                    <div class="task-grid-body"></div>
-                </div>
-                        `).appendTo(taskContent);
-
-            redrawTaskTableBody(tasks);
-            initializeTaskSorting(project);
-        }
-
-        /**
-         * Applies filters and redraws the task list. Sorting is now handled by the backend
-         * and manual drag-and-drop.
-         */
-        function applyTaskFiltersAndSort() {
-            const nameFilter = (taskContent.find('#task-name-filter').val() || '').toLowerCase();
-            const ownerFilter = (taskContent.find('#task-owner-filter').val() || '').toLowerCase();
-            const statusFilter = taskContent.find('#task-status-filter').val();
-
-            let tasks = JSON.parse(JSON.stringify(currentProjectTasks));
-
-            function filterNode(task) {
-                if (task.children && task.children.length > 0) {
-                    task.children = task.children.map(filterNode).filter(Boolean);
-                }
-                const hasVisibleChildren = task.children && task.children.length > 0;
-                const nameMatch = !nameFilter || task.subject.toLowerCase().includes(nameFilter);
-                const ownerMatch = !ownerFilter || (task.assigned_to || '').toLowerCase().includes(ownerFilter);
-                const statusMatch = !statusFilter || task.status === statusFilter;
-                if ((nameMatch && ownerMatch && statusMatch) || hasVisibleChildren) {
-                    return task;
-                }
-                return null;
-            }
-            tasks = tasks.map(filterNode).filter(Boolean);
-
-            redrawTaskTableBody(tasks);
-            initializeTaskSorting({ name: pageState.project }); // Re-initialize sorting on the filtered view
-        }
-
-        /**
-         * Clears and redraws the body of the task grid using nested divs.
-         * @param {Array<object>} tasks - The hierarchical list of tasks to render.
-         */
-        function redrawTaskTableBody(tasks) {
-            const gridBody = taskContent.find('.task-grid-body');
-            gridBody.empty();
-
-            if (!tasks || tasks.length === 0) {
-                gridBody.html('<div class="p-4 text-center text-muted">No tasks match filters.</div>');
-                return;
-            }
-
-            function renderTaskNode(task, container, level) {
-                const start_date = task.exp_start_date ? frappe.datetime.str_to_user(task.exp_start_date) : 'Set Date';
-                const end_date = task.exp_end_date ? frappe.datetime.str_to_user(task.exp_end_date) : 'Set Date';
-                const progress = task.progress || 0;
-                const isCollapsed = collapsedTasks.has(task.name);
-
-                // Determine the correct icon class based on whether the task has children and its collapsed state.
-                const iconClass = task.children.length > 0
-                    ? (isCollapsed ? 'fa-caret-right' : 'fa-caret-down') + ' toggle-child-tasks'
-                    : '';
-
-                // Task Status Color Logic
-                const statusStyle = getStatusStyle(task.status);
-
-                // Helper to check for pending changes
-                const hasPendingChange = (field) => pendingTaskChanges[task.name] && pendingTaskChanges[task.name][field] !== undefined;
-
-                const node = $(`
-                        <div class="task-node" data-task-id="${task.name}">
-                        <div class="task-grid-row">
-                            <div class="task-grid-cell" style="padding-left: ${level * 20}px;">
-                                <i class="fa fa-bars task-drag-handle mr-2 text-muted"></i>
-                                <i class="fa fa-fw ${iconClass} mr-1"></i>
-                                <a href="/app/task/${task.name}">${task.subject}</a>
-                            </div>
-                            <div class="task-grid-cell assignee-cell"><a href="#" class="assignee-link">${task.assigned_to || 'Unassigned'}</a></div>
-                            <div class="task-grid-cell"><select class="form-control form-control-sm task-status-select pill-select" style="width: 120px; ${statusStyle}">${taskStatusOptionsList.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
-                            <div class="task-grid-cell editable-date ${hasPendingChange('exp_start_date') ? 'unsaved-change' : ''}" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${task.exp_start_date || ''}"><a href="#">${start_date}</a></div>
-                            <div class="task-grid-cell editable-date ${hasPendingChange('exp_end_date') ? 'unsaved-change' : ''}" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${task.exp_end_date || ''}"><a href="#">${end_date}</a></div>
-                            <div class="task-grid-cell"><div class="progress" style="height: 15px;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></div>
-                            <div class="task-grid-cell editable-time ${hasPendingChange('expected_time') ? 'unsaved-change' : ''}" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}"><a href="#">${task.expected_time || 0}</a></div>
-                        </div>
-                        <div class="child-tasks-container" style="${isCollapsed ? 'display: none;' : ''}"></div>
-                    </div>
-                        `).appendTo(container);
-
-                if (task.children && task.children.length > 0) {
-                    const childContainer = node.find('.child-tasks-container');
-                    task.children.forEach(child => renderTaskNode(child, childContainer, level + 1));
-                }
-            }
-
-            tasks.forEach(task => renderTaskNode(task, gridBody, 0));
-        }
-
-        /**
-         * This function is no longer used as client-side sorting is disabled for the task tree.
-         */
-        function updateTaskSortIcons() {
-            // No longer applicable
+            // Handle Back Navigation
+            taskContent.on('click', '.back-to-projects-btn', function() {
+                pageState.project = null;
+                activeTab = 'TasksTree';
+                updateURL(true);
+                applyFiltersAndRender();
+            });
         }
 
         /**
@@ -977,8 +763,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
         /**
          * Opens a dialog for configuring the custom sort order of project groups.
-         * The dialog displays a draggable list of project types, allowing the user
-         * to save a preferred order to localStorage.
          */
         function openSortConfiguration() {
             const groupedProjects = allProjects.reduce((acc, p) => {
@@ -1021,52 +805,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         }
 
         /**
-         * Fetches and renders the task tree for a specific project.
-         * @param {string} project_name - The name (ID) of the project.
-         */
-        function loadAndRenderTasks(project_name) {
-            const project = allProjects.find(p => p.name === project_name);
-            if (!project) {
-                taskContent.html(`<div class="alert alert-danger">Project not found: ${project_name}</div>`);
-                pageState.project = null;
-                updateURL();
-                renderProjectSelectionForTasks();
-                return;
-            }
-
-            taskContent.html(`<div class="text-center p-5"><div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div></div>`);
-
-            // Load the collapsed state for this specific project from local storage.
-            const savedState = localStorage.getItem(`collapsedTasks_${project_name}`);
-            if (savedState) {
-                collapsedTasks = new Set(JSON.parse(savedState));
-            } else {
-                collapsedTasks = new Set();
-            }
-
-            frappe.call({
-                method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_tasks',
-                args: { project: project_name },
-                callback: function (r) {
-                    if (r.message && !r.message.error) {
-                        currentProjectTasks = r.message;
-                        renderTaskTreeView(project, r.message);
-                        taskContent.find('#task-name-filter').val(pageState.task_name || '');
-                        taskContent.find('#task-owner-filter').val(pageState.task_owner || '');
-                        taskContent.find('#task-status-filter').val(pageState.task_status || '');
-                        if (pageState.task_name || pageState.task_owner || pageState.task_status) {
-                            applyTaskFiltersAndSort();
-                        }
-                    } else {
-                        taskContent.html(`<div class="alert alert-danger">Error fetching tasks: ${r.message ? r.message.error : 'Unknown error'}</div>`);
-                    }
-                }
-            });
-        }
-
-        /**
-         * Shows a dialog to manage multiple assignees for a task.
-         * @param {jQuery} assigneeLink - The jQuery object for the clicked assignee link.
+         * Shows a dialog to manage multiple assignees for a project.
          */
         function showProjectAssigneeDialog(assigneeLink) {
             const projectRow = assigneeLink.closest('tr');
@@ -1171,159 +910,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             renderAssignees();
         }
 
-        function showTaskAssigneeDialog(assigneeLink) {
-            const taskNode = assigneeLink.closest('.task-node');
-            const taskName = taskNode.data('task-id');
-            const taskSubject = taskNode.find('.task-grid-cell:first a').text();
-
-            // Find the task from the main task list to get assignee details
-            let task;
-            function findTask(tasks, taskId) {
-                for (let t of tasks) {
-                    if (t.name === taskId) return t;
-                    if (t.children) {
-                        const found = findTask(t.children, taskId);
-                        if (found) return found;
-                    }
-                }
-                return null;
-            }
-            task = findTask(currentProjectTasks, taskName);
-
-            if (!task) {
-                frappe.show_alert({ message: 'Could not find task details.', indicator: 'red' });
-                return;
-            }
-
-            const dialog = new frappe.ui.Dialog({
-                title: `Assignments for: ${taskSubject}`,
-                fields: [
-                    {
-                        fieldname: 'assign_to',
-                        fieldtype: 'Link',
-                        options: 'User',
-                        label: 'Assign a user',
-                        description: 'Select a user to add them to the task.'
-                    },
-                    {
-                        fieldname: 'assignees_html',
-                        fieldtype: 'HTML',
-                        options: '<div class="assignee-list-wrapper mt-3"></div>'
-                    }
-                ]
-            });
-
-            const assigneeWrapper = dialog.get_field('assignees_html').$wrapper;
-            const assigneeListWrapper = assigneeWrapper.find('.assignee-list-wrapper');
-
-            function renderAssignees() {
-                assigneeListWrapper.empty();
-                if (task.assignees && task.assignees.length > 0) {
-                    const assigneeItems = task.assignees.map(assignee => `
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            ${assignee.full_name}
-                    <button class="btn btn-xs btn-danger remove-assignee" data-user-id="${assignee.email}">Remove</button>
-                        </li>
-                        `).join('');
-                    assigneeListWrapper.html(`<ul class="list-group">${assigneeItems}</ul>`);
-                } else {
-                    assigneeListWrapper.html('<p class="text-muted">No users are assigned to this task.</p>');
-                }
-            }
-
-            function updateTaskRowAssignees() {
-                const newAssigneeText = task.assignees && task.assignees.length > 0
-                    ? task.assignees.map(a => a.full_name).join(', ')
-                    : 'Unassigned';
-                assigneeLink.text(newAssigneeText);
-                task.assigned_to = newAssigneeText; // Update the underlying data model
-            }
-
-            dialog.get_field('assign_to').df.onchange = () => {
-                const userId = dialog.get_value('assign_to');
-                if (!userId) return;
-
-                // Check if user is already assigned
-                if (task.assignees && task.assignees.find(a => a.email === userId)) {
-                    frappe.show_alert({ message: 'User is already assigned.', indicator: 'info' });
-                    dialog.set_value('assign_to', ''); // Clear input
-                    return;
-                }
-
-                frappe.call({
-                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.add_task_assignee',
-                    args: { task_name: taskName, user_id: userId },
-                    callback: function (r) {
-                        if (r.message && r.message.status === 'success') {
-                            task.assignees = r.message.assignees; // Update local task object
-                            renderAssignees();
-                            updateTaskRowAssignees();
-                            dialog.set_value('assign_to', ''); // Clear input
-                        } else {
-                            frappe.show_alert({ message: r.message.message || 'Could not assign user.', indicator: 'red' });
-                        }
-                    }
-                });
-            };
-
-            assigneeListWrapper.on('click', '.remove-assignee', function () {
-                const userId = $(this).data('user-id');
-                frappe.call({
-                    method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.remove_task_assignee',
-                    args: { task_name: taskName, user_id: userId },
-                    callback: function (r) {
-                        if (r.message && r.message.status === 'success') {
-                            task.assignees = r.message.assignees; // Update local task object
-                            renderAssignees();
-                            updateTaskRowAssignees();
-                        } else {
-                            frappe.show_alert({ message: r.message.message || 'Could not remove user.', indicator: 'red' });
-                        }
-                    }
-                });
-            });
-
-            dialog.show();
-            renderAssignees();
-        }
-
-        // --- Helper Functions ---
-        /**
-         * Gets a Bootstrap badge class based on project status.
-         * @param {string} status - The status of the project.
-         * @returns {string} The corresponding Bootstrap badge class.
-         */
-        function getStatusClass(status) {
-            switch (status) {
-                case 'Active': return 'badge-primary';
-                case 'Open': return 'badge-primary';
-                case 'Completed': return 'badge-success';
-                case 'Overdue': return 'badge-danger';
-                case 'Canceled': return 'badge-danger';
-                case 'Cancelled': return 'badge-danger';
-                case 'On Hold': return 'badge-warning';
-                case 'Invoiced': return 'badge-info';
-                default: return 'badge-secondary';
-            }
-        }
-
-        /**
-         * Gets a CSS class for styling priority text.
-         * @param {string} priority - The priority level of the project.
-         * @returns {string} The corresponding CSS class for the priority level.
-         */
-        function getPriorityClass(priority) {
-            if (!priority) return '';
-            switch (priority.toLowerCase()) {
-                case 'high': return 'text-danger font-weight-bold';
-                case 'medium': return 'text-warning';
-                default: return 'text-muted';
-            }
-        }
-
         /**
          * Loads all initial data required for the dashboard to function.
-         * Fetches projects, priorities, and statuses from the server in parallel.
          */
         function loadInitialData() {
             parseURLAndSetState();
@@ -1335,11 +923,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 statusOptionsList = (r.message && !r.message.error) ? r.message : ['Active', 'On Hold', 'Canceled', 'Completed', 'Invoiced'];
             });
             const fetchProjects = frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_data" });
-            const fetchTaskStatuses = frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_task_status_options" }).then(r => {
-                taskStatusOptionsList = (r.message && !r.message.error) ? r.message : ['Open', 'Working', 'Completed', 'Cancelled'];
-            });
 
-            Promise.all([fetchPriorities, fetchStatuses, fetchProjects, fetchTaskStatuses]).then(results => {
+            Promise.all([fetchPriorities, fetchStatuses, fetchProjects]).then(results => {
                 const r_proj = results[2];
                 if (r_proj.message && !r_proj.message.error) {
                     allProjects = r_proj.message;
@@ -1362,22 +947,18 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             const clickedTab = $(this);
             if (clickedTab.hasClass('active')) return;
 
-            const hasPendingChanges = Object.keys(pendingProjectChanges).length > 0 || Object.keys(pendingTaskChanges).length > 0;
+            const hasPendingChanges = Object.keys(pendingProjectChanges).length > 0;
 
             if (hasPendingChanges) {
                 frappe.confirm(
                     'You have unsaved changes. Are you sure you want to switch tabs and discard them?',
                     () => {
-                        // User confirmed, proceed with tab switch and discard changes
-                        discardAllPendingChanges(); // This will also hide the buttons and reload data
+                        discardAllPendingChanges();
                         proceedWithTabSwitch(clickedTab);
                     },
-                    () => {
-                        // User cancelled, do nothing
-                    }
+                    () => {}
                 );
             } else {
-                // No pending changes, switch tabs immediately
                 proceedWithTabSwitch(clickedTab);
             }
         });
@@ -1386,7 +967,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             tabContainer.find('.nav-link').removeClass('active');
             clickedTab.addClass('active');
             activeTab = clickedTab.data('status');
-            pageState = {}; // Reset page state like filters
+            pageState = {};
             searchInput.val('');
             priorityViewToggle.toggle(activeTab === 'PriorityOverview');
             updateURL(true);
@@ -1395,11 +976,8 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         priorityViewToggle.on('click', 'button', function () { const $btn = $(this); if ($btn.hasClass('active')) return; priorityViewToggle.find('button').removeClass('active'); $btn.addClass('active'); priorityView = $btn.data('view'); updateURL(); applyFiltersAndRender(); });
         $(page.body).on('click', '.collapsible-header', function () { const groupId = $(this).data('group-id'); const body = $(this).next('.collapsible-body'); body.slideToggle(200); $(this).find('svg').toggleClass('rotate-180'); if (body.is(':visible')) { expandedGroups.add(groupId); } else { expandedGroups.delete(groupId); } });
 
-        // Handle clicks on task links within the project tables to navigate to the task tree view.
         content.on('click', 'a[href*="#TasksTree"]', function (e) {
             e.preventDefault();
-
-            // Extract the project name from the link's href attribute.
             const url = new URL($(this).attr('href'), window.location.origin);
             const params = new URLSearchParams(url.hash.split('?')[1]);
             const projectName = params.get('project');
@@ -1409,286 +987,28 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 return;
             }
 
-            // --- Manually orchestrate the tab switch ---
-            // 1. Set the active tab and page state.
             activeTab = 'TasksTree';
             pageState = { project: projectName };
 
-            // 2. Update the tab UI to highlight the 'Tasks Tree' tab.
             tabContainer.find('.nav-link').removeClass('active');
             tabContainer.find('.nav-link[data-status="TasksTree"]').addClass('active');
-            priorityViewToggle.hide(); // Not visible on task tree.
+            priorityViewToggle.hide();
 
-            // 3. Update the browser URL and history.
-            updateURL(true); // push=true to allow using the back button.
-
-            // 4. Trigger the main render function, which will now render the task view.
+            updateURL(true);
             applyFiltersAndRender();
         });
 
         taskContent.on('click', '.view-tasks-btn', function () { pageState.project = $(this).data('project'); updateURL(true); loadAndRenderTasks(pageState.project); });
-        taskContent.on('click', '#back-to-projects', function () { pageState.project = null; activeTab = 'TasksTree'; updateURL(true); applyFiltersAndRender(); });
+        // Back button is now handled inside loadAndRenderTasks
 
-        // Add event listeners for task filters
-        taskContent.on('keyup', '#task-name-filter, #task-owner-filter', frappe.utils.debounce(() => { applyTaskFiltersAndSort(); updateURL(); }, 300));
-        taskContent.on('change', '#task-status-filter', () => { applyTaskFiltersAndSort(); updateURL(); });
-        taskContent.on('click', '#clear-task-filters', function () {
-            taskContent.find('#task-name-filter').val('');
-            taskContent.find('#task-owner-filter').val('');
-            taskContent.find('#task-status-filter').val('');
-            applyTaskFiltersAndSort();
-            updateURL();
-        });
-
-        taskContent.on('click', '#save-task-order', function () {
-            const saveButton = $(this);
-            const indicator = $('#task-saving-indicator');
-            const projectName = pageState.project;
-
-            if (!projectName) {
-                frappe.show_alert({ message: 'Could not determine the current project.', indicator: 'red' });
-                return;
-            }
-
-            indicator.show();
-            saveButton.prop('disabled', true);
-
-            function getTaskUpdatesFromDOM() {
-                const updates = [];
-
-                function recurse(container, parentOrderString) {
-                    const children = $(container).children('.task-node');
-
-                    children.each(function (index) {
-                        const taskNode = $(this);
-                        const taskId = taskNode.data('task-id');
-                        const parentNode = taskNode.parent().closest('.task-node');
-                        const parentId = parentNode.length ? parentNode.data('task-id') : null;
-
-                        let currentOrderString;
-                        if (parentOrderString) {
-                            currentOrderString = parentOrderString + (index + 1);
-                        } else {
-                            currentOrderString = (index + 1) + ".0";
-                        }
-
-                        updates.push({
-                            name: taskId,
-                            parent_task: parentId,
-                            custom_subtask_order: parseFloat(currentOrderString)
-                        });
-
-                        const childContainer = taskNode.children('.child-tasks-container');
-                        if (childContainer.children('.task-node').length > 0) {
-                            let nextParentOrderString = currentOrderString.endsWith('.0')
-                                ? currentOrderString.slice(0, -2) + '.'
-                                : currentOrderString;
-                            recurse(childContainer, nextParentOrderString);
-                        }
-                    });
-                }
-
-                recurse(taskContent.find('.task-grid-body'), null);
-
-                return updates;
-            }
-
-            const updates = getTaskUpdatesFromDOM();
-
-            frappe.call({
-                method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_structure',
-                args: { project_name: projectName, tasks: updates },
-                callback: function (r) {
-                    if (r.message && r.message.status === 'success') {
-                        saveButton.hide();
-                        // Refresh the tasks to show the new saved order.
-                        // This also has the effect of re-rendering the header, hiding the save button until the next change.
-                        loadAndRenderTasks(projectName);
-                    } else {
-                        frappe.show_alert({ message: r.message.message || 'Could not save task order.', indicator: 'red' });
-                        loadAndRenderTasks(projectName); // Revert on failure
-                    }
-                },
-                always: function () {
-                    indicator.hide();
-                    saveButton.prop('disabled', false);
-                }
-            });
-        });
-        taskContent.on('click', '.toggle-child-tasks', function () {
-            const $icon = $(this);
-            const $taskNode = $icon.closest('.task-node');
-            const taskId = $taskNode.data('task-id');
-            const $childContainer = $taskNode.find('.child-tasks-container');
-
-            // Toggle the icon and the visibility of the child container
-            $icon.toggleClass('fa-caret-down fa-caret-right');
-            $childContainer.slideToggle(200);
-
-            // Update the collapsed state
-            if ($icon.hasClass('fa-caret-right')) {
-                collapsedTasks.add(taskId);
-            } else {
-                collapsedTasks.delete(taskId);
-            }
-
-            // Save the updated state to local storage for the current project
-            const projectName = pageState.project;
-            if (projectName) {
-                localStorage.setItem(`collapsedTasks_${projectName} `, JSON.stringify(Array.from(collapsedTasks)));
-            }
-        });
-        taskContent.on('click', '.editable-date a', function (e) {
-            e.preventDefault();
-            const link = $(this);
-            const cell = link.closest('td');
-            if (cell.find('.datepicker-input').length > 0) return;
-
-            const taskName = cell.data('task-id');
-            const field = cell.data('field');
-            const originalValue = cell.data('original-date');
-            let hasChanged = false; // Flag to track if the date was changed
-
-            link.hide();
-
-            const control_wrapper = $('<div class="datepicker-input" style="width: 130px;"></div>').appendTo(cell);
-            let datepicker = frappe.ui.form.make_control({
-                parent: control_wrapper,
-                df: { fieldtype: 'Date', fieldname: field },
-                render_input: true
-            });
-            datepicker.set_value(originalValue);
-            datepicker.input.focus();
-
-            const cleanup = () => {
-                control_wrapper.remove();
-                link.show();
-            };
-
-            $(datepicker.input).on('change', () => {
-                hasChanged = true;
-                const newValue = datepicker.get_value();
-                const displayValue = newValue ? frappe.datetime.str_to_user(newValue) : 'Set Date';
-
-                // Optimistically update the UI
-                link.text(displayValue);
-                cell.addClass('unsaved-change');
-
-                // Store change locally instead of calling the server
-                if (!pendingTaskChanges[taskName]) {
-                    pendingTaskChanges[taskName] = {};
-                }
-                pendingTaskChanges[taskName][field] = newValue;
-
-                // Show the save/discard buttons
-                $('#task-pending-changes-controls').show();
-
-                // Update the underlying data model for future re-renders
-                function findAndUpdateTask(tasks, taskId, fieldName, newDate) {
-                    for (let task of tasks) {
-                        if (task.name === taskId) {
-                            task[fieldName] = newDate;
-                            return true;
-                        }
-                        if (task.children && task.children.length > 0) {
-                            if (findAndUpdateTask(task.children, taskId, fieldName, newDate)) return true;
-                        }
-                    }
-                    return false;
-                }
-                findAndUpdateTask(currentProjectTasks, taskName, field, newValue);
-
-                // The input is removed on blur, which happens right after this
-                cleanup();
-            });
-
-            $(datepicker.input).on('blur', () => {
-                // Use a small timeout to allow the 'change' event to fire first
-                // when a date is selected from the picker. This resolves a race
-                // condition where the blur event closes the input before the
-                // change is registered.
-                setTimeout(() => {
-                    // Only cleanup if the value hasn't been changed and submitted.
-                    if (!hasChanged) {
-                        cleanup();
-                    }
-                }, 200); // 200ms delay
-            });
-        });
-        taskContent.on('click', '.editable-time a', function (e) {
-            e.preventDefault();
-            const link = $(this);
-            const cell = link.closest('td');
-            if (cell.find('.time-input').length > 0) return;
-
-            const taskName = cell.data('task-id');
-            const originalValue = cell.data('original-value');
-            link.hide();
-
-            const input = $(`< input type = "number" class="form-control form-control-sm time-input" style = "width: 80px;" min = "0" step = "0.5" > `)
-                .val(originalValue)
-                .appendTo(cell)
-                .focus();
-
-            const cleanup = () => {
-                input.remove();
-                link.show();
-            };
-
-            const saveChanges = () => {
-                const newValue = input.val();
-                if (newValue === '' || isNaN(newValue) || parseFloat(newValue) < 0) {
-                    cleanup();
-                    return;
-                }
-                const newFloatValue = parseFloat(newValue);
-                link.text(newFloatValue);
-                cell.addClass('unsaved-change');
-
-                // Store change locally
-                if (!pendingTaskChanges[taskName]) {
-                    pendingTaskChanges[taskName] = {};
-                }
-                pendingTaskChanges[taskName]['expected_time'] = newFloatValue;
-
-                // Show save/discard buttons
-                $('#task-pending-changes-controls').show();
-
-                // Optimistically update the main data object
-                function findAndUpdateTask(tasks, taskId, value) {
-                    for (let task of tasks) {
-                        if (task.name === taskId) {
-                            task.expected_time = value;
-                            return true;
-                        }
-                        if (task.children && task.children.length > 0 && findAndUpdateTask(task.children, taskId, value)) return true;
-                    }
-                    return false;
-                }
-                findAndUpdateTask(currentProjectTasks, taskName, newFloatValue);
-                cleanup();
-            };
-
-            input.on('blur', saveChanges).on('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    input.blur();
-                } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    cleanup();
-                }
-            });
-        });
         content.on('click', 'thead th', function () { const field = $(this).data('sort'); if (!field) return; if (currentSort.field === field) { currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc'; } else { currentSort.field = field; currentSort.order = 'asc'; } applyFiltersAndRender(); });
 
-        // --- Updated Change Listener for Color Pills ---
         content.on('change', 'select, input[type="number"]', function () {
             const element = $(this);
             const projectName = element.closest('tr').data('project-name');
             const field = element.data('field');
             const value = element.val();
 
-            // Update Color if it's a pill-select
             if (element.hasClass('pill-select')) {
                 if (field === 'status') {
                     applyColorToSelect(element, 'status');
@@ -1704,42 +1024,12 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
 
             $('#pending-changes-controls').show();
 
-            // Optimistically update the main data object for re-renders
             const project = allProjects.find(p => p.name === projectName);
             if (project) {
                 project[field] = value;
             }
         });
 
-        taskContent.on('click', '.assignee-link', function (e) { e.preventDefault(); showTaskAssigneeDialog($(this)); });
-        taskContent.on('change', '.task-status-select', function () {
-            const select = $(this);
-            const taskName = select.closest('.task-node').data('task-id');
-            const value = select.val();
-
-            // Update Color
-            applyColorToSelect(select, 'status');
-
-            if (!pendingTaskChanges[taskName]) {
-                pendingTaskChanges[taskName] = {};
-            }
-            pendingTaskChanges[taskName]['status'] = value;
-            $('#task-pending-changes-controls').show();
-
-            function findAndUpdateTask(tasks, taskId, status) {
-                for (let task of tasks) {
-                    if (task.name === taskId) {
-                        task.status = status;
-                        return true;
-                    }
-                    if (task.children && task.children.length > 0 && findAndUpdateTask(task.children, taskId, status)) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            findAndUpdateTask(currentProjectTasks, taskName, value);
-        });
         content.on('click', '.project-assignee-link', function (e) { e.preventDefault(); showProjectAssigneeDialog($(this)); });
 
         function saveAllPendingChanges() {
@@ -1747,38 +1037,31 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                 method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_multiple_docs',
                 args: {
                     project_updates: JSON.stringify(pendingProjectChanges),
-                    task_updates: JSON.stringify(pendingTaskChanges)
+                    task_updates: '{}' // Task updates handled by Manager now
                 },
                 callback: function (r) {
                     if (r.message && r.message.status === 'success') {
                         frappe.show_alert({ message: 'Changes saved!', indicator: 'green' });
                         pendingProjectChanges = {};
-                        pendingTaskChanges = {};
                         $('#pending-changes-controls').hide();
-                        $('#task-pending-changes-controls').hide();
-                        // No need to reload data as we updated it optimistically
                     } else {
                         frappe.show_alert({ message: r.message.message || 'Error saving changes.', indicator: 'red' });
-                        // Optionally, trigger a full reload to revert optimistic updates on failure
                         loadInitialData();
                     }
                 }
             });
         }
 
-        $(page.body).on('click', '#save-pending-changes, #save-task-pending-changes', saveAllPendingChanges);
+        $(page.body).on('click', '#save-pending-changes', saveAllPendingChanges);
 
         function discardAllPendingChanges() {
             pendingProjectChanges = {};
-            pendingTaskChanges = {};
             $('#pending-changes-controls').hide();
-            $('#task-pending-changes-controls').hide();
-            // Reload data from the server to revert optimistic UI updates
             loadInitialData();
             frappe.show_alert({ message: 'Changes discarded.', indicator: 'info' });
         }
 
-        $(page.body).on('click', '#discard-pending-changes, #discard-task-pending-changes', discardAllPendingChanges);
+        $(page.body).on('click', '#discard-pending-changes', discardAllPendingChanges);
 
         window.addEventListener('popstate', () => { if (allProjects.length > 0) { parseURLAndSetState(); applyFiltersAndRender(); } else { window.location.reload(); } });
 

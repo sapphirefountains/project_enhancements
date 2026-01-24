@@ -73,5 +73,23 @@
   "label": "Gantt Chart View",
   "insert_after": "custom_gantt_chart_section",
   "name": "Project-custom_gantt_chart_html"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Project",
+  "fieldname": "custom_tasks_section",
+  "fieldtype": "Section Break",
+  "label": "Tasks Tree",
+  "insert_after": "custom_gantt_chart_html",
+  "name": "Project-custom_tasks_section"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Project",
+  "fieldname": "custom_tasks_html",
+  "fieldtype": "HTML",
+  "label": "Tasks Tree View",
+  "insert_after": "custom_tasks_section",
+  "name": "Project-custom_tasks_html"
  }
 ]
