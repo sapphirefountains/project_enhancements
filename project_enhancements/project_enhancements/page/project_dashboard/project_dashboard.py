@@ -464,6 +464,144 @@ def get_project_tasks(project):
         return {"error": f"Could not fetch tasks for project {project}. Please check logs."}
 
 
+def _fetch_all_master_project_projects(master_project):
+    """Fetches all projects linked to a given master project.
+
+    Args:
+        master_project (str): The name (ID) of the Master Project.
+
+    Returns:
+        list[dict]: A flat list of all projects associated with the master project.
+    """
+    project_fields = [
+        "name",
+        "project_name",
+        "status",
+        "expected_start_date",
+        "expected_end_date",
+        "percent_complete",
+        "custom_subproject_order",
+        "creation",
+    ]
+
+    try:
+        # Fetching all projects related to the master project
+        projects = frappe.get_list("Project", fields=project_fields, filters={"custom_master_project": master_project})
+        return projects
+    except Exception as e:
+        frappe.log_error(
+            f"Project fetch failed for master project {master_project}: {e}", frappe.get_traceback()
+        )
+        return []
+
+@frappe.whitelist()
+def get_master_project_projects(master_project):
+    """Fetches all projects for a master project.
+
+    Retrieves all projects for a master project and enriches them with
+    assignee details.
+
+    Args:
+        master_project (str): The name (ID) of the Master Project.
+
+    Returns:
+        list[dict] | dict: A list of project dictionaries. Returns a
+            dictionary with an 'error' key on failure.
+    """
+    if not master_project:
+        return {"error": "Master Project name is required."}
+
+    try:
+        projects = _fetch_all_master_project_projects(master_project)
+
+        for project in projects:
+            assignees = _get_assignee_names("Project", project.get("name"))
+            project["assignees"] = assignees
+            if assignees:
+                project["assigned_to"] = ", ".join([d["full_name"] for d in assignees])
+            else:
+                project["assigned_to"] = ""
+            project["children"] = []
+
+        # Sort all projects based on custom order, then by creation date.
+        projects.sort(
+            key=lambda p: (
+                float(p.get("custom_subproject_order") or float("inf")),
+                getdate(p.get("creation")),
+            )
+        )
+
+        return projects
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"Error fetching projects for master project {master_project}")
+        return {"error": f"Could not fetch projects for master project {master_project}. Please check logs."}
+
+@frappe.whitelist()
+def update_master_project_structure(master_project, projects):
+    """Updates the ordering for a list of projects under a Master Project.
+
+    Args:
+        master_project (str): The name (ID) of the Master Project.
+        projects (list[dict]): A list of dictionaries representing project orders.
+
+    Returns:
+        dict: A dictionary indicating the status of the operation.
+    """
+    if not master_project or not projects:
+        return {"status": "error", "message": "Master Project name and project data are required."}
+
+    if isinstance(projects, str):
+        try:
+            projects = json.loads(projects)
+        except json.JSONDecodeError:
+            return {"status": "error", "message": "Invalid project data format."}
+
+    if not frappe.has_permission("Master Project", ptype="write", doc=master_project):
+        return {
+            "status": "error",
+            "message": "You do not have permission to modify this Master Project.",
+        }
+
+    try:
+        project_names = [p.get("name") for p in projects if p.get("name")]
+
+        if project_names:
+            db_projects = frappe.get_all(
+                "Project", filters={"name": ("in", project_names)}, fields=["name", "custom_master_project"]
+            )
+            if len(db_projects) != len(project_names):
+                return {"status": "error", "message": "One or more projects could not be found."}
+
+            for p in db_projects:
+                if p.custom_master_project != master_project:
+                    return {
+                        "status": "error",
+                        "message": f"Project {p.name} does not belong to Master Project {master_project}.",
+                    }
+
+        for p_data in projects:
+            p_name = p_data.get("name")
+            if not p_name:
+                continue
+
+            order = p_data.get("custom_subproject_order")
+            p_doc = frappe.get_doc("Project", p_name)
+
+            # Use dictionary style setter if it doesn't exist to prevent failure if field missing from standard doc
+            p_doc.set("custom_subproject_order", order)
+            p_doc.save(ignore_permissions=True)
+
+        return {"status": "success"}
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), f"Error updating project structure for {master_project}")
+        return {
+            "status": "error",
+            "message": f"An unexpected error occurred while saving the new project order: {e}",
+        }
+
+
 @frappe.whitelist()
 def update_task_date(task_name, field, value):
     """Updates a task's start or end date with permission checks.
