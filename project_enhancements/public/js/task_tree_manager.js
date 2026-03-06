@@ -30,9 +30,6 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 
     loadAssets() {
         return new Promise((resolve) => {
-            // Load CSS
-            frappe.require("/assets/project_enhancements/css/project_dashboard.css");
-
             // Load SortableJS
             const script_url = "https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js";
             frappe.require(script_url, () => {
@@ -43,7 +40,7 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 
     renderStructure() {
         this.wrapper.html(`
-            <div class="task-tree-manager glass-panel p-3">
+            <div class="task-tree-manager p-3 bg-white border rounded">
                 <div class="task-tree-header mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div class="d-flex align-items-center">
@@ -51,20 +48,20 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
                             <span class="task-saving-indicator text-muted mr-3" style="display: none;"><i class="fa fa-spinner fa-spin"></i> Saving...</span>
                             <div class="task-pending-changes-controls mr-2" style="display: none;">
                                 <div class="btn-group btn-group-sm">
-                                    <button type="button" class="btn btn-glass-success save-changes-btn">Save Changes</button>
-                                    <button type="button" class="btn btn-glass-danger discard-changes-btn">Discard Changes</button>
+                                    <button type="button" class="btn btn-success save-changes-btn">Save Changes</button>
+                                    <button type="button" class="btn btn-danger discard-changes-btn">Discard Changes</button>
                                 </div>
                             </div>
-                            <button class="btn btn-sm btn-glass-success mr-2 save-order-btn" style="display: none;">Save Order</button>
-                            ${!this.readonly ? `<a href="/app/task/new-task?project=${this.projectName}" class="btn btn-vibrant-blue btn-sm">Add Task</a>` : ''}
+                            <button class="btn btn-sm btn-success mr-2 save-order-btn" style="display: none;">Save Order</button>
+                            ${!this.readonly ? `<a href="/app/task/new-task?project=${this.projectName}" class="btn btn-primary btn-sm">Add Task</a>` : ''}
                         </div>
                     </div>
-                    <div class="task-filters p-2 rounded-sm bg-light" style="background-color: rgba(255, 255, 255, 0.4) !important;">
+                    <div class="task-filters p-2 rounded-sm bg-light border">
                         <div class="row">
                             <div class="col-md-4"><input type="text" class="form-control form-control-sm task-name-filter" placeholder="Filter by task name..."></div>
                             <div class="col-md-3"><input type="text" class="form-control form-control-sm task-owner-filter" placeholder="Filter by owner..."></div>
                             <div class="col-md-3"><select class="form-control form-control-sm task-status-filter"><option value="">All Statuses</option></select></div>
-                            <div class="col-md-2"><button class="btn btn-sm btn-glass-neutral btn-block clear-filters-btn">Clear Filters</button></div>
+                            <div class="col-md-2"><button class="btn btn-sm btn-default btn-block clear-filters-btn">Clear Filters</button></div>
                         </div>
                     </div>
                 </div>
@@ -87,11 +84,16 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
     }
 
     fetchData() {
-        const fetchStatusOptions = frappe.call({
+        // Fallback to standard frappe.call if dashboard_api is not available (e.g. on Task form view)
+        const callApi = window.project_enhancements && project_enhancements.dashboard_api
+            ? project_enhancements.dashboard_api.call
+            : frappe.call;
+
+        const fetchStatusOptions = callApi({
             method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_task_status_options"
         });
 
-        const fetchTasks = frappe.call({
+        const fetchTasks = callApi({
             method: 'project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_tasks',
             args: { project: this.projectName }
         });
@@ -111,6 +113,9 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
             } else {
                 this.wrapper.find('.task-grid-body').html(`<div class="alert alert-danger">Error fetching tasks: ${tasksResult.message ? tasksResult.message.error : 'Unknown error'}</div>`);
             }
+        }).catch(err => {
+            console.error('TaskTreeManager Error:', err);
+            this.wrapper.find('.task-grid-body').html(`<div class="alert alert-danger">Error fetching tasks. Please try again later.</div>`);
         });
     }
 
