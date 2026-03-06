@@ -88,6 +88,12 @@ project_enhancements.dashboard_components.ActiveExternalProjects = class ActiveE
                     <td class="text-muted">${p.project_user || 'Unassigned'}</td>
                 </tr>
             `);
+
+            // Attach all project data to the row for dynamic filtering
+            Object.keys(p).forEach(key => {
+                row.attr(`data-${key}`, p[key]);
+            });
+
             tbody.append(row);
         });
 
