@@ -30,9 +30,6 @@ project_enhancements.ProjectTreeManager = class ProjectTreeManager {
 
     loadAssets() {
         return new Promise((resolve) => {
-            // Load CSS
-            frappe.require("/assets/project_enhancements/css/project_dashboard.css");
-
             // Load SortableJS
             const script_url = "https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js";
             frappe.require(script_url, () => {
