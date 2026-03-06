@@ -4,6 +4,15 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
     constructor(wrapper) {
         this.wrapper = $(wrapper);
         this.abortController = null;
+        this.current_view = 'company_priority';
+        this.projects = [];
+    }
+
+    set_view(view) {
+        this.current_view = view;
+        if (this.projects && this.projects.length > 0) {
+            this.render_list_view(this.projects);
+        }
     }
 
     async render() {
@@ -29,14 +38,31 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
             if (signal.aborted) return;
 
             if (projects.message && !projects.message.error) {
-                const filteredProjects = projects.message.filter(p => p.is_active === 'Yes');
-                this.render_list_view(filteredProjects);
+                this.projects = projects.message.filter(p => p.is_active === 'Yes');
+                this.render_list_view(this.projects);
             } else {
                 throw new Error(projects.message ? projects.message.error : 'Unknown error fetching projects');
             }
         } finally {
             this.abortController = null;
         }
+    }
+
+    get_priority_weight(priority) {
+        if (!priority) return 100; // Empty/null treated as Not Assigned
+
+        let p = String(priority).trim();
+
+        if (p.toLowerCase() === 'not assigned') return 100;
+        if (p.toLowerCase() === 'repair visit') return 101;
+        if (p.toLowerCase() === 'maintenance') return 102;
+
+        let num = parseInt(p, 10);
+        if (!isNaN(num)) {
+            return num; // 1 to 30
+        }
+
+        return 200; // Unknown string values get pushed to the very bottom
     }
 
     render_list_view(projects) {
@@ -49,8 +75,61 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 
         const listContainer = $('<div class="frappe-list"></div>').appendTo(this.wrapper);
 
+        if (this.current_view === 'company_priority') {
+            // Sort by company priority
+            let sorted_projects = [...projects].sort((a, b) => {
+                let weightA = this.get_priority_weight(a.custom_company_priority);
+                let weightB = this.get_priority_weight(b.custom_company_priority);
+
+                if (weightA !== weightB) {
+                    return weightA - weightB;
+                }
+
+                // Fallback to alphabetical project name if priorities are same
+                let nameA = a.project_name || '';
+                let nameB = b.project_name || '';
+                return nameA.localeCompare(nameB);
+            });
+
+            this.render_table(listContainer, sorted_projects);
+        } else if (this.current_view === 'value_stream') {
+            // Group by project_type (Value Stream)
+            let groups = {};
+            projects.forEach(p => {
+                let stream = p.project_type || 'Uncategorized';
+                if (!groups[stream]) {
+                    groups[stream] = [];
+                }
+                groups[stream].push(p);
+            });
+
+            // Sort streams alphabetically
+            let sorted_streams = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+
+            sorted_streams.forEach(stream => {
+                // Sort projects within stream by project priority
+                let stream_projects = groups[stream].sort((a, b) => {
+                    let weightA = this.get_priority_weight(a.custom_project_priority);
+                    let weightB = this.get_priority_weight(b.custom_project_priority);
+
+                    if (weightA !== weightB) {
+                        return weightA - weightB;
+                    }
+
+                    let nameA = a.project_name || '';
+                    let nameB = b.project_name || '';
+                    return nameA.localeCompare(nameB);
+                });
+
+                $(`<h5 class="mt-4 mb-3 text-muted border-bottom pb-2">${stream}</h5>`).appendTo(listContainer);
+                this.render_table(listContainer, stream_projects);
+            });
+        }
+    }
+
+    render_table(container, projects) {
         const table = $(`
-            <table class="table table-bordered table-hover">
+            <table class="table table-bordered table-hover mb-4">
                 <thead class="thead-light">
                     <tr>
                         <th>Project Name</th>
@@ -61,18 +140,25 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
                 </thead>
                 <tbody></tbody>
             </table>
-        `).appendTo(listContainer);
+        `).appendTo(container);
 
         const tbody = table.find('tbody');
         projects.forEach(p => {
             const row = $(`
                 <tr>
                     <td><a href="/app/project/${p.name}" class="font-weight-bold">${p.project_name}</a></td>
-                    <td>${p.custom_project_priority || 'None'}</td>
-                    <td>${p.custom_company_priority || 'None'}</td>
+                    <td>${p.custom_project_priority || 'Not Assigned'}</td>
+                    <td>${p.custom_company_priority || 'Not Assigned'}</td>
                     <td><span class="badge ${this.get_status_badge(p.status)}">${p.status}</span></td>
                 </tr>
             `);
+
+            // Add data attributes to allow global search filtering
+            row.data('project_name', p.project_name);
+            row.data('custom_project_priority', p.custom_project_priority);
+            row.data('custom_company_priority', p.custom_company_priority);
+            row.data('status', p.status);
+
             tbody.append(row);
         });
     }

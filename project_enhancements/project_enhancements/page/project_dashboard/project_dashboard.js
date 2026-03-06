@@ -105,6 +105,10 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                         <button type="button" class="btn btn-sm btn-default" id="add-filter-btn">
                             <i class="fa fa-filter"></i> Add Filter
                         </button>
+                        <div id="priority-overview-filters" style="display: none;" class="ml-2 btn-group btn-group-sm">
+                            <button type="button" class="btn btn-default active" id="filter-company-priority">Company Priority</button>
+                            <button type="button" class="btn btn-default" id="filter-value-stream">Project Priority by Value Stream</button>
+                        </div>
                     </div>
                     <div class="col-md-4 text-right">
                         <div id="global-pending-changes" style="display: none;">
@@ -143,6 +147,15 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                     currentComponent.unmount();
                 }
                 currentComponent = null;
+            }
+
+            // Show or hide Priority Overview specific controls
+            if (moduleRoute === 'priority-overview') {
+                $('#priority-overview-filters').show();
+                // Reset active state to default when returning to the tab
+                $('#filter-company-priority').addClass('active').siblings().removeClass('active');
+            } else {
+                $('#priority-overview-filters').hide();
             }
 
             // Map route to Component Class & File
@@ -310,6 +323,21 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         // Re-apply filters when route changes
         frappe.router.on('change', () => {
             setTimeout(applyFilters, 100); // Give component time to render
+        });
+
+        // Priority Overview specific filters
+        $('#filter-company-priority').on('click', function() {
+            $(this).addClass('active').siblings().removeClass('active');
+            if (currentComponent && typeof currentComponent.set_view === 'function') {
+                currentComponent.set_view('company_priority');
+            }
+        });
+
+        $('#filter-value-stream').on('click', function() {
+            $(this).addClass('active').siblings().removeClass('active');
+            if (currentComponent && typeof currentComponent.set_view === 'function') {
+                currentComponent.set_view('value_stream');
+            }
         });
 
         // Dynamic Filter Add Logic
