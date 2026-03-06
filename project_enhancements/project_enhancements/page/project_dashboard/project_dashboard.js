@@ -68,31 +68,45 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             <div class="dashboard-tabs p-3 pb-0 border-bottom">
                 <ul class="nav nav-tabs" role="tablist">
                     <li class="nav-item">
-                        <a class="nav-link" href="#project-dashboard/active-external-projects" data-route="active-external-projects">Active External Projects</a>
+                        <a class="nav-link" href="javascript:void(0)" data-route="active-external-projects">Active External Projects</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#project-dashboard/active-internal-projects" data-route="active-internal-projects">Active Internal Projects</a>
+                        <a class="nav-link" href="javascript:void(0)" data-route="active-internal-projects">Active Internal Projects</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#project-dashboard/priority-overview" data-route="priority-overview">Priority Overview</a>
+                        <a class="nav-link" href="javascript:void(0)" data-route="priority-overview">Priority Overview</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#project-dashboard/portfolio-gantt" data-route="portfolio-gantt">Portfolio Gantt</a>
+                        <a class="nav-link" href="javascript:void(0)" data-route="portfolio-gantt">Portfolio Gantt</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#project-dashboard/tasks-tree" data-route="tasks-tree">Tasks Tree</a>
+                        <a class="nav-link" href="javascript:void(0)" data-route="tasks-tree">Tasks Tree</a>
                     </li>
                 </ul>
             </div>
         `).appendTo(container);
 
+        // Bind click events to tabs to update the route
+        tabContainer.find('.nav-link').on('click', function(e) {
+            e.preventDefault();
+            const route = $(this).data('route');
+            if (route) {
+                frappe.set_route('project-dashboard', route);
+            }
+        });
+
         const controlsContainer = $(`
             <div class="dashboard-controls p-2 border-bottom bg-light">
                 <div class="row align-items-center">
-                    <div class="col-md-6 mb-2 mb-md-0">
-                        <input type="text" class="form-control form-control-sm" id="global-project-search" placeholder="Search projects...">
+                    <div class="col-md-8 mb-2 mb-md-0 d-flex align-items-center">
+                        <div class="input-group input-group-sm mr-2" style="max-width: 300px;">
+                            <input type="text" class="form-control" id="global-project-search" placeholder="Search projects...">
+                        </div>
+                        <button type="button" class="btn btn-sm btn-default" id="add-filter-btn">
+                            <i class="fa fa-filter"></i> Add Filter
+                        </button>
                     </div>
-                    <div class="col-md-6 text-right">
+                    <div class="col-md-4 text-right">
                         <div id="global-pending-changes" style="display: none;">
                             <div class="btn-group btn-group-sm">
                                 <button type="button" class="btn btn-success" id="save-global-changes">Save Changes</button>
@@ -100,6 +114,9 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                             </div>
                         </div>
                     </div>
+                </div>
+                <div id="active-filters-container" class="mt-2" style="display: none;">
+                    <!-- Active filter badges will go here -->
                 </div>
             </div>
         `).appendTo(container);
@@ -229,19 +246,164 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         });
 
         // Search Filtering Support
-        $('#global-project-search').on('keyup', frappe.utils.debounce(function() {
-            const searchTerm = $(this).val().toLowerCase();
+        let activeFilters = [];
+
+        function applyFilters() {
+            const searchTerm = $('#global-project-search').val().toLowerCase();
             const rows = contentContainer.find('table tbody tr');
 
             rows.each(function() {
-                const text = $(this).text().toLowerCase();
-                if (text.indexOf(searchTerm) === -1) {
-                    $(this).hide();
+                const row = $(this);
+                let showRow = true;
+
+                // 1. Text Search
+                if (searchTerm) {
+                    const text = row.text().toLowerCase();
+                    if (text.indexOf(searchTerm) === -1) {
+                        showRow = false;
+                    }
+                }
+
+                // 2. Dynamic Filters
+                if (showRow && activeFilters.length > 0) {
+                    for (let filter of activeFilters) {
+                        // Attempt to find the value in the row.
+                        // It could be in a select element or regular text.
+                        const selectEl = row.find(`select[data-field="${filter.fieldname}"]`);
+                        let rowValue = null;
+
+                        if (selectEl.length > 0) {
+                            rowValue = selectEl.val();
+                        } else {
+                            // If it's not an editable select, try to find a data attribute
+                            // For this to work fully for non-editable fields, the components
+                            // need to store data attributes on the row.
+                            rowValue = row.data(filter.fieldname);
+                        }
+
+                        // If we can't find it easily in DOM, we check if it was set via data attributes.
+                        if (rowValue !== undefined && rowValue !== null) {
+                            // Simple equality check (convert both to strings for comparison)
+                            if (String(rowValue).toLowerCase() !== String(filter.value).toLowerCase()) {
+                                showRow = false;
+                                break;
+                            }
+                        } else {
+                             // If the field isn't in data attributes, it might be undefined for this row.
+                             // If filter value is set, it means the filter condition isn't met.
+                             showRow = false;
+                             break;
+                        }
+                    }
+                }
+
+                if (showRow) {
+                    row.show();
                 } else {
-                    $(this).show();
+                    row.hide();
                 }
             });
-        }, 300));
+        }
+
+        $('#global-project-search').on('keyup', frappe.utils.debounce(applyFilters, 300));
+
+        // Re-apply filters when route changes
+        frappe.router.on('change', () => {
+            setTimeout(applyFilters, 100); // Give component time to render
+        });
+
+        // Dynamic Filter Add Logic
+        $('#add-filter-btn').on('click', () => {
+            frappe.model.with_doctype('Project', () => {
+                const meta = frappe.get_meta('Project');
+                // Filter out non-data fields for filtering
+                const filterableFields = meta.fields.filter(df =>
+                    ['Select', 'Link', 'Data', 'Check'].includes(df.fieldtype) &&
+                    !df.hidden
+                );
+
+                const d = new frappe.ui.Dialog({
+                    title: 'Add Filter',
+                    fields: [
+                        {
+                            label: 'Field',
+                            fieldname: 'filter_field',
+                            fieldtype: 'Select',
+                            options: filterableFields.map(df => ({
+                                label: df.label,
+                                value: df.fieldname
+                            })),
+                            reqd: 1,
+                            onchange: function() {
+                                const selectedFieldname = this.get_value();
+                                const fieldDef = filterableFields.find(df => df.fieldname === selectedFieldname);
+
+                                // Reset the value field based on selected type
+                                const valueField = d.get_field('filter_value');
+                                if (fieldDef) {
+                                    valueField.df.fieldtype = fieldDef.fieldtype;
+                                    valueField.df.options = fieldDef.options;
+                                    valueField.refresh();
+                                }
+                            }
+                        },
+                        {
+                            label: 'Value',
+                            fieldname: 'filter_value',
+                            fieldtype: 'Data',
+                            reqd: 1
+                        }
+                    ],
+                    primary_action_label: 'Apply',
+                    primary_action: (values) => {
+                        const fieldDef = filterableFields.find(df => df.fieldname === values.filter_field);
+                        activeFilters.push({
+                            fieldname: values.filter_field,
+                            label: fieldDef ? fieldDef.label : values.filter_field,
+                            value: values.filter_value
+                        });
+
+                        renderActiveFilters();
+                        applyFilters();
+                        d.hide();
+                    }
+                });
+
+                // Trigger initial onchange
+                if (filterableFields.length > 0) {
+                    d.get_field('filter_field').set_value(filterableFields[0].fieldname);
+                }
+
+                d.show();
+            });
+        });
+
+        function renderActiveFilters() {
+            const container = $('#active-filters-container');
+            if (activeFilters.length === 0) {
+                container.hide();
+                return;
+            }
+
+            container.empty().show();
+
+            activeFilters.forEach((filter, index) => {
+                const badge = $(`
+                    <span class="badge badge-secondary mb-1 mr-1" style="font-size: 0.85em; font-weight: normal; padding: 0.4em 0.6em;">
+                        ${frappe.utils.escape_html(filter.label)}: <strong>${frappe.utils.escape_html(String(filter.value))}</strong>
+                        <a href="javascript:void(0)" class="text-white ml-2 remove-filter" data-index="${index}"><i class="fa fa-times"></i></a>
+                    </span>
+                `);
+                container.append(badge);
+            });
+
+            container.find('.remove-filter').on('click', function() {
+                const idx = $(this).data('index');
+                activeFilters.splice(idx, 1);
+                renderActiveFilters();
+                applyFilters();
+            });
+        }
 
 
         // --- Event Delegation & Initialization ---
