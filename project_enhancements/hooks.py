@@ -77,7 +77,7 @@ fixtures = [
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/project_enhancements/css/project_enhancements.css"
+app_include_css = "/assets/project_enhancements/css/task_tree.css"
 app_include_js = [
     "/assets/project_enhancements/js/gantt_auto_scroll.js",
     "/assets/project_enhancements/js/task_tree_manager.js",
