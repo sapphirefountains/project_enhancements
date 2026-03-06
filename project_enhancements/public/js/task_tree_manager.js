@@ -156,10 +156,12 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
             const node = $(`
                 <div class="task-node" data-task-id="${task.name}">
                     <div class="task-grid-row">
-                        <div class="task-grid-cell" style="padding-left: ${level * 20}px;">
-                            <i class="fa fa-bars task-drag-handle mr-2 text-muted" style="cursor: grab;"></i>
-                            <i class="fa fa-fw ${iconClass} mr-1" style="cursor: pointer;"></i>
-                            <a href="/app/task/${task.name}">${task.subject}</a>
+                        <div class="task-grid-cell">
+                            <div style="padding-left: ${level * 20}px; display: flex; align-items: center; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                <i class="fa fa-bars task-drag-handle mr-2 text-muted" style="cursor: grab; flex-shrink: 0;"></i>
+                                <i class="fa fa-fw ${iconClass} mr-1" style="cursor: pointer; flex-shrink: 0;"></i>
+                                <a href="/app/task/${task.name}" style="overflow: hidden; text-overflow: ellipsis;">${task.subject}</a>
+                            </div>
                         </div>
                         <div class="task-grid-cell assignee-cell"><a href="#" class="assignee-link">${task.assigned_to || 'Unassigned'}</a></div>
                         <div class="task-grid-cell">
