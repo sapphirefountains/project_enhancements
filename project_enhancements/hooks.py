@@ -34,10 +34,10 @@ app_license = "mit"
 # on the Project doctype's form view. The path is relative to the app's root.
 
 doctype_js = {
-	"Project": ["project_enhancements/doctype/project/project.js", "public/js/project_form_script.js"],
+	"Project": ["project_enhancements/doctype/project/project.js", "project_enhancements/public/js/project_form_script.js"],
 	"Opportunity": "project_enhancements/doctype/opportunity/opportunity.js",
 	"Address": "project_enhancements/doctype/address/address.js",
-	"Master Project": ["public/js/master_project_form_script.js"]
+	"Master Project": ["project_enhancements/public/js/master_project_form_script.js"]
 }
 
 # ------------------
@@ -100,7 +100,7 @@ app_include_js = [
 # include js in doctype views
 # doctype_js = {"doctype" : "public/js/doctype.js"}
 doctype_list_js = {
-    "Task": "public/js/task_gantt.js"
+    "Task": "project_enhancements/public/js/task_gantt.js"
 }
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
