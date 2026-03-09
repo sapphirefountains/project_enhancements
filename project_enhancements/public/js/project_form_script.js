@@ -47,5 +47,22 @@ frappe.ui.form.on('Project', {
                 console.warn("Project Enhancements: TaskTreeManager class not found. Ensure task_tree_manager.js is loaded.");
             }
         }
+
+        // Deep linking logic from Dashboard
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('origin') === 'dashboard' && urlParams.get('view') === 'custom_scope') {
+            // Wait for standard form initialization to complete
+            setTimeout(() => {
+                const scopeTab = formTabs.find('.nav-item[data-label="Scope"], .nav-item[data-fieldname="custom_scope"]');
+                if (scopeTab.length) {
+                    const tabLink = scopeTab.find('a.nav-link');
+                    if (tabLink.length) {
+                        tabLink.click();
+                    } else {
+                        scopeTab.click();
+                    }
+                }
+            }, 300);
+        }
     }
 });

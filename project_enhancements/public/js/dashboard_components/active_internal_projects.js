@@ -76,7 +76,7 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
 
             const row = $(`
                 <tr data-project="${p.name}">
-                    <td><a href="/app/project/${p.name}" class="font-weight-bold">${p.project_name}</a></td>
+                    <td><a href="/app/project/${p.name}?view=custom_scope&origin=dashboard" class="font-weight-bold">${p.project_name}</a></td>
                     <td><select class="form-control form-control-sm project-edit" data-field="status">${statusSelect}</select></td>
                     <td><select class="form-control form-control-sm project-edit" data-field="custom_project_priority">${prioritySelect}</select></td>
                     <td>

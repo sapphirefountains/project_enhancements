@@ -68,13 +68,13 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             <div class="dashboard-tabs p-3 pb-0 border-bottom">
                 <ul class="nav nav-tabs" role="tablist">
                     <li class="nav-item">
-                        <a class="nav-link" href="javascript:void(0)" data-route="active-external-projects">Active External Projects</a>
+                        <a class="nav-link" href="javascript:void(0)" data-route="priority-overview">Priority Overview</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="javascript:void(0)" data-route="active-internal-projects">Active Internal Projects</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="javascript:void(0)" data-route="priority-overview">Priority Overview</a>
+                        <a class="nav-link" href="javascript:void(0)" data-route="completed-projects">Completed Projects</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="javascript:void(0)" data-route="portfolio-gantt">Portfolio Gantt</a>
@@ -107,7 +107,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                         </button>
                         <div id="priority-overview-filters" style="display: none;" class="ml-2 btn-group btn-group-sm">
                             <button type="button" class="btn btn-default active" id="filter-company-priority">Company Priority</button>
-                            <button type="button" class="btn btn-default" id="filter-value-stream">Project Priority by Value Stream</button>
+                            <button type="button" class="btn btn-default" id="filter-value-stream">By Value Stream</button>
                         </div>
                     </div>
                     <div class="col-md-4 text-right">
@@ -134,7 +134,10 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             const route = frappe.get_route();
             if (route[0] !== 'project-dashboard') return;
 
-            const moduleRoute = route[1] || 'active-external-projects';
+            const moduleRoute = route[1] || localStorage.getItem('project_dashboard_default_tab') || 'priority-overview';
+
+            // Save active tab preference
+            localStorage.setItem('project_dashboard_default_tab', moduleRoute);
             const componentArgs = route.slice(2);
 
             // Update Tab Active State
@@ -161,12 +164,6 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
             // Map route to Component Class & File
             let componentConfig;
             switch (moduleRoute) {
-                case 'active-external-projects':
-                    componentConfig = {
-                        file: '/assets/project_enhancements/js/dashboard_components/active_external_projects.js',
-                        className: 'ActiveExternalProjects'
-                    };
-                    break;
                 case 'active-internal-projects':
                     componentConfig = {
                         file: '/assets/project_enhancements/js/dashboard_components/active_internal_projects.js',
@@ -191,9 +188,15 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                         className: 'TasksTree'
                     };
                     break;
+                case 'completed-projects':
+                    componentConfig = {
+                        file: '/assets/project_enhancements/js/dashboard_components/completed_projects.js',
+                        className: 'CompletedProjects'
+                    };
+                    break;
                 default:
-                    // Fallback to active external
-                    frappe.set_route('project-dashboard', 'active-external-projects');
+                    // Fallback to priority overview
+                    frappe.set_route('project-dashboard', 'priority-overview');
                     return;
             }
 
@@ -440,8 +443,9 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
         // Initial render logic
         const currentRoute = frappe.get_route();
         if (currentRoute.length === 1 && currentRoute[0] === 'project-dashboard') {
-            // No sub-route, default to external projects
-            frappe.set_route('project-dashboard', 'active-external-projects');
+            // No sub-route, default to priority overview or local storage preference
+            const defaultTab = localStorage.getItem('project_dashboard_default_tab') || 'priority-overview';
+            frappe.set_route('project-dashboard', defaultTab);
         } else {
             // Trigger route logic for current route
             handleRouteChange();

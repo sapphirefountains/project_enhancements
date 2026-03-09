@@ -146,7 +146,7 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
         projects.forEach(p => {
             const row = $(`
                 <tr>
-                    <td><a href="/app/project/${p.name}" class="font-weight-bold">${p.project_name}</a></td>
+                    <td><a href="/app/project/${p.name}?view=custom_scope&origin=dashboard" class="font-weight-bold">${p.project_name}</a></td>
                     <td>${this.get_priority_badge(p.custom_project_priority)}</td>
                     <td>${this.get_priority_badge(p.custom_company_priority)}</td>
                     <td><span class="badge ${this.get_status_badge(p.status)}">${p.status}</span></td>
