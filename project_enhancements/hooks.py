@@ -80,8 +80,7 @@ fixtures = [
 app_include_css = "/assets/project_enhancements/css/task_tree.css"
 app_include_js = [
     "/assets/project_enhancements/js/gantt_auto_scroll.js",
-    "/assets/project_enhancements/js/task_tree_manager.js",
-    "/assets/project_enhancements/js/project_tree_manager.js"
+    "/assets/project_enhancements/js/task_tree_manager.js"
 ]
 
 # include js, css files in header of web template
