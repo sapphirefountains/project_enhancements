@@ -147,8 +147,8 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
             const row = $(`
                 <tr>
                     <td><a href="/app/project/${p.name}" class="font-weight-bold">${p.project_name}</a></td>
-                    <td>${p.custom_project_priority || 'Not Assigned'}</td>
-                    <td>${p.custom_company_priority || 'Not Assigned'}</td>
+                    <td>${this.get_priority_badge(p.custom_project_priority)}</td>
+                    <td>${this.get_priority_badge(p.custom_company_priority)}</td>
                     <td><span class="badge ${this.get_status_badge(p.status)}">${p.status}</span></td>
                 </tr>
             `);
@@ -161,6 +161,34 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 
             tbody.append(row);
         });
+    }
+
+    get_priority_badge(priority) {
+        if (!priority) return '<span class="badge" style="background-color: #6c757d; color: white;">Not Assigned</span>';
+
+        let p = String(priority).trim();
+        let safe_p = frappe.utils.escape_html(p);
+
+        if (p.toLowerCase() === 'not assigned') {
+            return '<span class="badge" style="background-color: #6c757d; color: white;">' + safe_p + '</span>';
+        }
+        if (p.toLowerCase() === 'repair visit') {
+            return '<span class="badge" style="background-color: #6f42c1; color: white;">' + safe_p + '</span>';
+        }
+        if (p.toLowerCase() === 'maintenance') {
+            return '<span class="badge" style="background-color: #007bff; color: white;">' + safe_p + '</span>';
+        }
+
+        let num = parseInt(p, 10);
+        if (!isNaN(num)) {
+            // 1 to 30 -> Red (0) to Green (120)
+            let clamped_num = Math.max(1, Math.min(30, num));
+            let hue = ((clamped_num - 1) / 29) * 120;
+            // Use 45% lightness so white text is readable across all hues
+            return `<span class="badge" style="background-color: hsl(${hue}, 100%, 45%); color: white;">${safe_p}</span>`;
+        }
+
+        return '<span class="badge" style="background-color: #6c757d; color: white;">' + safe_p + '</span>';
     }
 
     get_status_badge(status) {
