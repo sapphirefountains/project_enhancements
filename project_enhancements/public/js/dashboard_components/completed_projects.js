@@ -1,6 +1,6 @@
 frappe.provide('project_enhancements.dashboard_components');
 
-project_enhancements.dashboard_components.ActiveExternalProjects = class ActiveExternalProjects {
+project_enhancements.dashboard_components.CompletedProjects = class CompletedProjects {
     constructor(wrapper) {
         this.wrapper = $(wrapper);
         this.abortController = null;
@@ -17,27 +17,52 @@ project_enhancements.dashboard_components.ActiveExternalProjects = class ActiveE
         }
     }
 
-    async fetch_and_render_data() {
+    async fetch_and_render_data(attempt = 1) {
         this.abortController = new AbortController();
         const signal = this.abortController.signal;
 
         try {
             const projects = await project_enhancements.dashboard_api.call({
-                method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_data"
+                method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_data",
+                args: {
+                    is_active: 'No'
+                }
             }, signal);
 
             if (signal.aborted) return;
 
             if (projects.message && !projects.message.error) {
-                const allowedTypes = ["External", "Design", "Build", "Service", "Rent"];
-                const filteredProjects = projects.message.filter(p => p.is_active === 'Yes' && allowedTypes.includes(p.project_type));
-
-                this.render_list_view(filteredProjects);
+                this.render_list_view(projects.message);
             } else {
-                throw new Error(projects.message ? projects.message.error : 'Unknown error fetching projects');
+                throw new Error(projects.message ? projects.message.error : 'Unknown error fetching completed projects');
+            }
+        } catch (error) {
+            if (error.name === 'CancellationError') {
+                return;
+            }
+
+            // Exponential backoff logic for retries
+            const maxRetries = 3;
+            if (attempt <= maxRetries && (error.name === 'TimeoutError' || error.message.includes('fetch'))) {
+                console.warn(`Attempt ${attempt} failed. Retrying in ${Math.pow(2, attempt)} seconds...`);
+                this.wrapper.html(`
+                    <div class="alert alert-warning p-4 text-center">
+                        <p><i class="fa fa-spinner fa-spin mr-2"></i> Retrying data fetch (Attempt ${attempt}/${maxRetries})...</p>
+                    </div>
+                `);
+
+                await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+
+                if (signal.aborted) return;
+
+                return this.fetch_and_render_data(attempt + 1);
+            } else {
+                this.handle_error(error);
             }
         } finally {
-            this.abortController = null;
+            if (this.abortController && this.abortController.signal === signal) {
+                this.abortController = null;
+            }
         }
     }
 
@@ -45,21 +70,19 @@ project_enhancements.dashboard_components.ActiveExternalProjects = class ActiveE
         this.wrapper.empty();
 
         if (!projects || projects.length === 0) {
-            this.wrapper.html('<p class="text-muted text-center p-4">No active external projects found.</p>');
+            this.wrapper.html('<p class="text-muted text-center p-4">No completed projects found.</p>');
             return;
         }
 
         const listContainer = $('<div class="frappe-list"></div>').appendTo(this.wrapper);
 
-        // Use standard frappe UI List View layout approach
         const table = $(`
             <table class="table table-bordered table-hover">
                 <thead class="thead-light">
                     <tr>
                         <th>Project Name</th>
                         <th>Status</th>
-                        <th>Priority</th>
-                        <th>% Complete</th>
+                        <th>Type</th>
                         <th>Assigned To</th>
                     </tr>
                 </thead>
@@ -68,23 +91,13 @@ project_enhancements.dashboard_components.ActiveExternalProjects = class ActiveE
         `).appendTo(listContainer);
 
         const tbody = table.find('tbody');
-        const statusOptions = ['Active', 'On Hold', 'Canceled', 'Completed', 'Invoiced'];
-        const priorityOptions = ['High', 'Medium', 'Low'];
 
         projects.forEach(p => {
-            const statusSelect = statusOptions.map(s => `<option value="${s}" ${p.status === s ? 'selected' : ''}>${s}</option>`).join('');
-            const prioritySelect = priorityOptions.map(pr => `<option value="${pr}" ${p.custom_project_priority === pr ? 'selected' : ''}>${pr}</option>`).join('');
-
             const row = $(`
                 <tr data-project="${p.name}">
-                    <td><a href="/app/project/${p.name}" class="font-weight-bold">${p.project_name}</a></td>
-                    <td><select class="form-control form-control-sm project-edit" data-field="status">${statusSelect}</select></td>
-                    <td><select class="form-control form-control-sm project-edit" data-field="custom_project_priority">${prioritySelect}</select></td>
-                    <td>
-                        <div class="progress" style="height: 10px; border-radius: 4px;">
-                            <div class="progress-bar bg-primary" role="progressbar" style="width: ${p.percent_complete || 0}%" aria-valuenow="${p.percent_complete || 0}" aria-valuemin="0" aria-valuemax="100"></div>
-                        </div>
-                    </td>
+                    <td><a href="/app/project/${p.name}?view=custom_scope&origin=dashboard" class="font-weight-bold">${p.project_name}</a></td>
+                    <td><span class="badge ${this.get_status_badge(p.status)}">${p.status}</span></td>
+                    <td>${p.project_type || 'Uncategorized'}</td>
                     <td class="text-muted">${p.project_user || 'Unassigned'}</td>
                 </tr>
             `);
@@ -95,21 +108,6 @@ project_enhancements.dashboard_components.ActiveExternalProjects = class ActiveE
             });
 
             tbody.append(row);
-        });
-
-        // Trigger global event on edit
-        this.wrapper.find('.project-edit').on('change', (e) => {
-            const el = $(e.target);
-            const project = el.closest('tr').data('project');
-            const field = el.data('field');
-            const val = el.val();
-
-            // Dispatch a custom event to the document so the main controller can pick it up
-            $(document).trigger('dashboard_project_change', {
-                project: project,
-                field: field,
-                value: val
-            });
         });
     }
 
@@ -138,15 +136,15 @@ project_enhancements.dashboard_components.ActiveExternalProjects = class ActiveE
 
     handle_error(error) {
         if (error.name === 'CancellationError') {
-            console.log('Active External Projects request aborted due to context switch.');
+            console.log('Completed Projects request aborted due to context switch.');
             return;
         }
 
-        console.error('Active External Projects Error:', error);
+        console.error('Completed Projects Error:', error);
 
         this.wrapper.html(`
             <div class="alert alert-danger p-4 text-center">
-                <h4><i class="fa fa-exclamation-triangle mr-2"></i> Failed to Load Data</h4>
+                <h4><i class="fa fa-exclamation-triangle mr-2"></i> Service Unavailable</h4>
                 <p>${error.message || 'An unexpected error occurred.'}</p>
                 <button class="btn btn-primary btn-sm mt-3 retry-btn">Retry</button>
             </div>

@@ -75,7 +75,7 @@ project_enhancements.dashboard_components.TasksTree = class TasksTree {
         projects.forEach(p => {
             const row = $(`
                 <tr>
-                    <td><a href="/app/project/${p.name}" class="font-weight-bold">${p.project_name}</a></td>
+                    <td><a href="/app/project/${p.name}?view=custom_scope&origin=dashboard" class="font-weight-bold">${p.project_name}</a></td>
                     <td><button class="btn btn-primary btn-sm view-tasks-btn" data-project="${p.name}">View Tasks</button></td>
                 </tr>
             `);

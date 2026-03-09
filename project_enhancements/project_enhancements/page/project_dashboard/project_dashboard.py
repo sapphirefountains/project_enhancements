@@ -90,12 +90,15 @@ def _get_assignee_names(doctype, docname):
 
 
 @frappe.whitelist()
-def get_project_data():
+def get_project_data(is_active=None):
     """Fetches and enriches project data for the dashboard.
 
     Retrieves all non-cancelled projects and annotates each with task counts
     (total and completed) and the names of assigned users. It first checks if
     the user has permission to view the dashboard.
+
+    Args:
+        is_active (str, optional): Filter by 'is_active' status ('Yes' or 'No').
 
     Returns:
         list[dict] | dict: A list of project dictionaries, each enhanced with
@@ -108,6 +111,10 @@ def get_project_data():
         if not check_permission():
             # Using dict for consistency in error handling on the client-side
             return {"error": "You do not have permission to view the Project Dashboard."}
+
+        filters = {"status": ["!=", "Cancelled"]}
+        if is_active:
+            filters["is_active"] = is_active
 
         projects = frappe.get_list(
             "Project",
@@ -124,7 +131,7 @@ def get_project_data():
                 "expected_start_date",
                 "expected_end_date",
             ],
-            filters={"status": ["!=", "Cancelled"]},
+            filters=filters,
             order_by="creation desc",
         )
 
