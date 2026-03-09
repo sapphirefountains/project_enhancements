@@ -42,29 +42,43 @@
 }
 
 /* Specific column widths if needed */
-.task-grid-cell:nth-child(1) {
+/* Ensure min-width is set so cells shrink proportionally and don't blow out due to content */
+.task-grid-header > .task-grid-cell:nth-child(1),
+.task-grid-row > .task-grid-cell:nth-child(1) {
     flex: 3; /* Task Name / Project Name */
+    min-width: 0;
 }
 
-.task-grid-cell:nth-child(2) {
+.task-grid-header > .task-grid-cell:nth-child(2),
+.task-grid-row > .task-grid-cell:nth-child(2) {
     flex: 1.5; /* Owner */
+    min-width: 0;
 }
 
-.task-grid-cell:nth-child(3) {
+.task-grid-header > .task-grid-cell:nth-child(3),
+.task-grid-row > .task-grid-cell:nth-child(3) {
     flex: 1.5; /* Status */
+    min-width: 0;
 }
 
-.task-grid-cell:nth-child(4),
-.task-grid-cell:nth-child(5) {
+.task-grid-header > .task-grid-cell:nth-child(4),
+.task-grid-header > .task-grid-cell:nth-child(5),
+.task-grid-row > .task-grid-cell:nth-child(4),
+.task-grid-row > .task-grid-cell:nth-child(5) {
     flex: 1.5; /* Dates */
+    min-width: 0;
 }
 
-.task-grid-cell:nth-child(6) {
+.task-grid-header > .task-grid-cell:nth-child(6),
+.task-grid-row > .task-grid-cell:nth-child(6) {
     flex: 2; /* % Complete */
+    min-width: 0;
 }
 
-.task-grid-cell:nth-child(7) {
+.task-grid-header > .task-grid-cell:nth-child(7),
+.task-grid-row > .task-grid-cell:nth-child(7) {
     flex: 1; /* Duration (hrs) */
+    min-width: 0;
 }
 
 .task-grid-cell select.form-control {
