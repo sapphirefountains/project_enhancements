@@ -1,0 +1,114 @@
+.task-grid {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    border: 1px solid #d1d8dd;
+    border-radius: 4px;
+    background-color: #fff;
+    overflow: hidden;
+}
+
+.task-grid-header {
+    display: flex;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #d1d8dd;
+    font-weight: 600;
+    color: #4d4d4d;
+}
+
+.task-grid-row {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 8px 0;
+}
+
+.task-grid-row:hover {
+    background-color: #f8f9fa;
+}
+
+.task-grid-body .task-node:last-child > .task-grid-row {
+    border-bottom: none;
+}
+
+.task-grid-cell {
+    padding: 0 12px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Specific column widths if needed */
+/* Ensure min-width is set so cells shrink proportionally and don't blow out due to content */
+.task-grid-header > .task-grid-cell:nth-child(1),
+.task-grid-row > .task-grid-cell:nth-child(1) {
+    flex: 3; /* Task Name / Project Name */
+    min-width: 0;
+}
+
+.task-grid-header > .task-grid-cell:nth-child(2),
+.task-grid-row > .task-grid-cell:nth-child(2) {
+    flex: 1.5; /* Owner */
+    min-width: 0;
+}
+
+.task-grid-header > .task-grid-cell:nth-child(3),
+.task-grid-row > .task-grid-cell:nth-child(3) {
+    flex: 1.5; /* Status */
+    min-width: 0;
+}
+
+.task-grid-header > .task-grid-cell:nth-child(4),
+.task-grid-header > .task-grid-cell:nth-child(5),
+.task-grid-row > .task-grid-cell:nth-child(4),
+.task-grid-row > .task-grid-cell:nth-child(5) {
+    flex: 1.5; /* Dates */
+    min-width: 0;
+}
+
+.task-grid-header > .task-grid-cell:nth-child(6),
+.task-grid-row > .task-grid-cell:nth-child(6) {
+    flex: 2; /* % Complete */
+    min-width: 0;
+}
+
+.task-grid-header > .task-grid-cell:nth-child(7),
+.task-grid-row > .task-grid-cell:nth-child(7) {
+    flex: 1; /* Duration (hrs) */
+    min-width: 0;
+}
+
+.task-grid-cell select.form-control {
+    width: 100%;
+}
+
+.task-grid-cell .progress {
+    width: 100%;
+    margin-bottom: 0;
+}
+
+.task-node {
+    display: flex;
+    flex-direction: column;
+}
+
+.child-tasks-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.unsaved-change {
+    background-color: #fff3cd;
+}
+
+.task-drag-handle {
+    cursor: grab;
+    color: #a0aec0;
+}
+
+.task-drag-handle:active {
+    cursor: grabbing;
+}

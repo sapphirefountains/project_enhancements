@@ -36,7 +36,8 @@ app_license = "mit"
 doctype_js = {
 	"Project": ["project_enhancements/doctype/project/project.js", "public/js/project_form_script.js"],
 	"Opportunity": "project_enhancements/doctype/opportunity/opportunity.js",
-	"Address": "project_enhancements/doctype/address/address.js"
+	"Address": "project_enhancements/doctype/address/address.js",
+	"Master Project": ["public/js/master_project_form_script.js"]
 }
 
 # ------------------
@@ -76,8 +77,11 @@ fixtures = [
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/project_enhancements/css/project_enhancements.css"
-app_include_js = "/assets/project_enhancements/js/gantt_auto_scroll.js"
+app_include_css = "/assets/project_enhancements/css/task_tree.css"
+app_include_js = [
+    "/assets/project_enhancements/js/gantt_auto_scroll.js",
+    "/assets/project_enhancements/js/task_tree_manager.js"
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/project_enhancements/css/project_enhancements.css"

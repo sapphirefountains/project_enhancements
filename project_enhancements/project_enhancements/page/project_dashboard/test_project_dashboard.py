@@ -135,7 +135,7 @@ class TestProjectDashboard(unittest.TestCase):
         mock_fetch_tasks.return_value = mock_tasks
         with patch(
             "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard._get_assignee_names",
-            return_value=[{"full_name": "Test User", "email": "test@example.com"}],
+            return_value=[{"full_name": "test user"}],
         ):
             result = get_project_tasks("PROJ-001")
 
@@ -195,10 +195,10 @@ class TestProjectDashboard(unittest.TestCase):
         """Test successful retrieval of status options."""
         mock_meta = mock_get_meta.return_value
         mock_meta.fields = [
-            frappe._dict({"fieldname": "status", "options": "Open\nIn Progress\nCompleted"})
+            frappe._dict({"fieldname": "status", "options": "Active\nOn Hold\nCanceled\nCompleted\nInvoiced"})
         ]
         result = get_status_options()
-        self.assertEqual(result, ["Open", "In Progress", "Completed"])
+        self.assertEqual(result, ["Active", "On Hold", "Canceled", "Completed", "Invoiced"])
 
     @patch("project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.log_error")
     @patch("project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.get_meta")
