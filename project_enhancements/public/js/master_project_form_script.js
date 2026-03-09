@@ -1,19 +1,36 @@
+console.log("master_project_form_script.js loaded successfully.");
+
 // The frappe.ui.form.on event is triggered when a form is loaded in Frappe.
 // We are targeting the 'Master Project' DocType specifically.
 frappe.ui.form.on('Master Project', {
     // The 'refresh' trigger ensures our script runs every time the form is loaded or refreshed.
+    onload: function(frm) {
+        console.log("Master Project form 'onload' triggered.");
+    },
     refresh: function(frm) {
+        console.log("Master Project form 'refresh' triggered.");
+
         // Target the custom 'project_list' HTML field
         const targetField = frm.fields_dict['project_list'];
+        console.log("Target field 'project_list':", targetField);
 
         if (targetField && targetField.wrapper) {
+            console.log("Target field and wrapper found. Rendering projects table.");
             render_projects_table(frm, targetField.wrapper);
+        } else {
+            console.error("Error: targetField or targetField.wrapper is missing for 'project_list'.");
+            frappe.msgprint({
+                title: __('Missing Field'),
+                indicator: 'red',
+                message: __('The custom HTML field "project_list" could not be found or initialized. Please check the DocType configuration.')
+            });
         }
     }
 });
 
 function render_projects_table(frm, wrapper) {
     const masterProjectName = frm.doc.name;
+    console.log("Master Project Name:", masterProjectName);
 
     $(wrapper).html(`
         <div class="project-list-manager glass-panel p-3">
@@ -62,6 +79,7 @@ function render_projects_table(frm, wrapper) {
         </div>
     `);
 
+    console.log("Attempting to fetch projects for Master Project:", masterProjectName);
     // Fetch the projects
     frappe.call({
         method: "frappe.client.get_list",
@@ -81,12 +99,25 @@ function render_projects_table(frm, wrapper) {
             limit_page_length: 0
         },
         callback: function(r) {
+            console.log("frappe.client.get_list response:", r);
+            if (r.exc) {
+                console.error("Error fetching projects:", r.exc);
+                frappe.msgprint({
+                    title: __('Error Fetching Projects'),
+                    indicator: 'red',
+                    message: __('An error occurred while fetching the projects for this Master Project.')
+                });
+                return;
+            }
+
             let projects = r.message || [];
+            console.log(`Fetched ${projects.length} projects.`);
 
             // Because standard get_list doesn't fetch assigned users easily without additional queries,
             // we will fetch assignments next.
             if (projects.length > 0) {
                 let project_names = projects.map(p => p.name);
+                console.log("Attempting to fetch ToDo entries for project names:", project_names);
 
                 frappe.call({
                     method: 'frappe.client.get_list',
@@ -101,6 +132,16 @@ function render_projects_table(frm, wrapper) {
                         limit_page_length: 0
                     },
                     callback: function(todo_r) {
+                        console.log("frappe.client.get_list (ToDo) response:", todo_r);
+                        if (todo_r.exc) {
+                            console.error("Error fetching ToDos:", todo_r.exc);
+                            frappe.msgprint({
+                                title: __('Error Fetching Assignments'),
+                                indicator: 'orange',
+                                message: __('An error occurred while fetching project assignments, some users may not display correctly.')
+                            });
+                        }
+
                         let todos = todo_r.message || [];
                         let assignments = {};
                         todos.forEach(t => {
