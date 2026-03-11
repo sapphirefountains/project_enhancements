@@ -6,9 +6,13 @@ frappe.ui.form.on('Master Project', {
     // The 'refresh' trigger ensures our script runs every time the form is loaded or refreshed.
     onload: function(frm) {
         console.log("Master Project form 'onload' triggered.");
+        console.error("Code is working");
+        alert("Code is working");
     },
     refresh: function(frm) {
         console.log("Master Project form 'refresh' triggered.");
+        console.error("Code is working");
+        alert("Code is working");
 
         // Target the custom 'project_list' HTML field
         const targetField = frm.fields_dict['project_list'];
