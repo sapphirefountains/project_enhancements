@@ -176,7 +176,7 @@ function get_status_label(status) {
     else if (status === "Cancelled" || status === "Overdue") colorClass = "badge-danger";
     else if (status === "Working" || status === "On Hold") colorClass = "badge-warning";
 
-    return \`<span class="badge \${colorClass}">\${status || 'None'}</span>\`;
+    return `<span class="badge ${colorClass}">${status || 'None'}</span>`;
 }
 
 function populate_table(wrapper, projects) {
@@ -203,24 +203,24 @@ function populate_table(wrapper, projects) {
 
         let safeProjectName = p.project_name ? frappe.utils.escape_html(p.project_name) : frappe.utils.escape_html(p.name);
 
-        let row = \`
-            <tr class="project-row" data-project-name="\${(p.project_name || p.name).toLowerCase().replace(/"/g, '&quot;')}" data-owner="\${owners_display.toLowerCase().replace(/"/g, '&quot;')}" data-status="\${(p.status || '').replace(/"/g, '&quot;')}">
+        let row = `
+            <tr class="project-row" data-project-name="${(p.project_name || p.name).toLowerCase().replace(/"/g, '&quot;')}" data-owner="${owners_display.toLowerCase().replace(/"/g, '&quot;')}" data-status="${(p.status || '').replace(/"/g, '&quot;')}">
                 <td>
                     <i class="fa fa-bars text-muted mr-2"></i>
-                    <a href="/app/project/\${encodeURIComponent(p.name)}">\${safeProjectName}</a>
+                    <a href="/app/project/${encodeURIComponent(p.name)}">${safeProjectName}</a>
                 </td>
-                <td>\${owners_display}</td>
-                <td>\${get_status_label(p.status)}</td>
-                <td>\${start_date}</td>
-                <td>\${end_date}</td>
+                <td>${owners_display}</td>
+                <td>${get_status_label(p.status)}</td>
+                <td>${start_date}</td>
+                <td>${end_date}</td>
                 <td>
                     <div class="progress" style="height: 15px;">
-                        <div class="progress-bar bg-dark" role="progressbar" style="width: \${percent_complete}%;" aria-valuenow="\${percent_complete}" aria-valuemin="0" aria-valuemax="100">\${percent_complete}%</div>
+                        <div class="progress-bar bg-dark" role="progressbar" style="width: ${percent_complete}%;" aria-valuenow="${percent_complete}" aria-valuemin="0" aria-valuemax="100">${percent_complete}%</div>
                     </div>
                 </td>
-                <td>\${duration}</td>
+                <td>${duration}</td>
             </tr>
-        \`;
+        `;
         tbody.append(row);
     });
 }
