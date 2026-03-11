@@ -37,7 +37,7 @@ doctype_js = {
 	"Project": ["project_enhancements/doctype/project/project.js", "project_enhancements/public/js/project_form_script.js"],
 	"Opportunity": "project_enhancements/doctype/opportunity/opportunity.js",
 	"Address": "project_enhancements/doctype/address/address.js",
-	"Master Project": ["project_enhancements/public/js/master_project_form_script.js"]
+	"Master Project": ["project_enhancements/public/js/master_project.js"]
 }
 
 # ------------------
@@ -194,13 +194,16 @@ doctype_list_js = {
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+# Document Events
+# ---------------
+# Hook on document methods and events
+
+doc_events = {
+	"Master Project": {
+		"validate": "project_enhancements.project_enhancements.master_project.trigger_server_side",
+		"on_update": "project_enhancements.project_enhancements.master_project.trigger_server_side"
+	}
+}
 
 # Scheduled Tasks
 # ---------------
