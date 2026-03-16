@@ -79,5 +79,17 @@ frappe.ui.form.on('Project', {
 
         // Check when hash changes (e.g. Back/Forward navigation)
         $(window).on('hashchange', checkAndSwitchToScopeTab);
+
+        // Add 'View Tasks' Custom Button
+        if (!frm.is_new()) {
+            setTimeout(() => {
+                frm.remove_custom_button(__('View Tasks')); // Remove if exists to avoid duplicates
+
+                frm.add_custom_button(__('View Tasks'), function() {
+                    // Cleaner navigation method to the specific project task tree
+                    frappe.set_route('project-dashboard', 'tasks-tree', frm.doc.name);
+                }).addClass('btn-primary');
+            }, 10);
+        }
     }
 });

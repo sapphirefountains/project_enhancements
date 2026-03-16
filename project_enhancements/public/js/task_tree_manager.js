@@ -90,7 +90,13 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
         // Fallback to standard frappe.call if dashboard_api is not available (e.g. on Task form view)
         const callApi = window.project_enhancements && project_enhancements.dashboard_api
             ? project_enhancements.dashboard_api.call
-            : frappe.call;
+            : (options) => new Promise((resolve, reject) => {
+                frappe.call({
+                    ...options,
+                    callback: resolve,
+                    error: reject
+                });
+            });
 
         const fetchStatusOptions = callApi({
             method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_task_status_options"
