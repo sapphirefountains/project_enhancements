@@ -86,9 +86,8 @@ frappe.ui.form.on('Project', {
                 }
 
                 // 1. Calendar View Handler
-                frm.page.add_inner_button(__('Calendar View'), async function() {
-                    const dropdownBtn = frm.page.wrapper.find('.inner-group-button[data-label="View"]');
-                    dropdownBtn.prop('disabled', true);
+                frm.add_custom_button(__('Calendar View'), async function() {
+                    frappe.dom.freeze(__('Navigating to Calendar View...'));
 
                     try {
                         frappe.route_options = { project: frm.doc.name };
@@ -97,14 +96,13 @@ frappe.ui.form.on('Project', {
                         console.error('Routing failed:', error);
                         frappe.show_alert({ message: __('Failed to navigate to Calendar View.'), indicator: 'red' });
                     } finally {
-                        dropdownBtn.prop('disabled', false);
+                        frappe.dom.unfreeze();
                     }
                 }, __('View'));
 
                 // 2. Custom Tree View Handler
-                frm.page.add_inner_button(__('Tree View'), async function() {
-                    const dropdownBtn = frm.page.wrapper.find('.inner-group-button[data-label="View"]');
-                    dropdownBtn.prop('disabled', true);
+                frm.add_custom_button(__('Tree View'), async function() {
+                    frappe.dom.freeze(__('Loading Tree View...'));
 
                     try {
                         window.location.hash = '#custom_scope';
@@ -149,7 +147,7 @@ frappe.ui.form.on('Project', {
                         console.error('Tree View loading failed:', error);
                         frappe.show_alert({ message: __('Failed to load Tree View.'), indicator: 'red' });
                     } finally {
-                        dropdownBtn.prop('disabled', false);
+                        frappe.dom.unfreeze();
                     }
                 }, __('View'));
 
