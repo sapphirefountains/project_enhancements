@@ -31,7 +31,7 @@
   {
    "fieldname": "project_list",
    "fieldtype": "HTML",
-   "label": "Project List (Legacy)"
+   "label": "Project List"
   },
   {
    "fieldname": "tasks",
