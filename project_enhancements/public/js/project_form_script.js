@@ -2,6 +2,11 @@
 
 frappe.ui.form.on('Project', {
     refresh: function(frm) {
+        // Stop execution of custom buttons/trees if document is not saved yet
+        if (frm.is_new()) {
+            return;
+        }
+
         // =========================================================================
         // 1. STATE CLEANUP: Destroy old tree instance when navigating between projects
         // =========================================================================
@@ -15,13 +20,7 @@ frappe.ui.form.on('Project', {
             }
             frm.task_tree_instance = null;
         }
-        // Update the state tracker to the current project
         frm._current_task_tree_project = frm.doc.name;
-
-        // Stop execution of custom buttons/trees if document is not saved yet
-        if (frm.is_new()) {
-            return;
-        }
 
         // =========================================================================
         // 2. ORIGINAL REPO LOGIC: Move Activity and Connections sections
@@ -40,10 +39,9 @@ frappe.ui.form.on('Project', {
         }
 
         // =========================================================================
-        // 3. TREE VIEW LAZY LOADER
+        // 3. TREE VIEW FORCED LOADER (No Lazy Loading)
         // =========================================================================
-        const load_default_task_tree = async (frm) => {
-            if (frm.is_new()) return;
+        const force_load_task_tree = async (frm) => {
             try {
                 if (!frm._task_tree_loaded) {
                     await frappe.require('/assets/project_enhancements/js/task_tree_manager.js');
@@ -53,6 +51,7 @@ frappe.ui.form.on('Project', {
                     const wrapperField = frm.get_field('custom_tasks_html');
                     if (wrapperField && wrapperField.$wrapper) {
                         if (!frm.task_tree_instance) {
+                            console.log(`Forcing Task Tree render for Project: ${frm.doc.name}`);
                             frm.task_tree_instance = new project_enhancements.TaskTreeManager({
                                 wrapper: wrapperField.$wrapper,
                                 projectName: frm.doc.name
@@ -61,29 +60,14 @@ frappe.ui.form.on('Project', {
                     }
                 }
             } catch (error) {
-                console.error('Failed to load default Task Tree:', error);
+                console.error('Failed to force load Task Tree:', error);
             }
         };
 
-        // Attach the lazy loader to the Scope tab click event
-        setTimeout(() => {
-            const scopeTab = frm.$wrapper.find('.form-tabs .nav-item[data-label="Scope"], .form-tabs .nav-item[data-fieldname="custom_scope"]');
-            if (scopeTab.length) {
-                // Prevent duplicate event binding
-                scopeTab.off('click.task_tree').on('click.task_tree', function() {
-                    if (frappe.has_permission("Task", "read")) {
-                        load_default_task_tree(frm);
-                    }
-                });
-                
-                // If user lands directly on the scope tab (e.g. from hash), load immediately
-                if (scopeTab.hasClass('active') || scopeTab.find('.nav-link.active').length) {
-                    if (frappe.has_permission("Task", "read")) {
-                        load_default_task_tree(frm);
-                    }
-                }
-            }
-        }, 300);
+        // Execute unconditionally upon form refresh!
+        if (frappe.has_permission("Task", "read")) {
+            force_load_task_tree(frm);
+        }
 
         // =========================================================================
         // 4. ORIGINAL REPO LOGIC: Deep linking logic from Dashboard
