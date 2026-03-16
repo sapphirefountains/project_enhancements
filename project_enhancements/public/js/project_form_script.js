@@ -3,7 +3,28 @@
 frappe.ui.form.on('Project', {
     refresh: function(frm) {
         // =========================================================================
-        // 1. ORIGINAL REPO LOGIC: Move Activity and Connections sections
+        // 1. STATE CLEANUP: Destroy old tree instance when navigating between projects
+        // =========================================================================
+        if (frm.task_tree_instance && frm._current_task_tree_project !== frm.doc.name) {
+            console.log(`Cleaning up Task Tree cache from previous project: ${frm._current_task_tree_project}`);
+            if (frm.task_tree_instance.sortableInstances) {
+                frm.task_tree_instance.sortableInstances.forEach(instance => instance.destroy());
+            }
+            if (frm.get_field('custom_tasks_html') && frm.get_field('custom_tasks_html').$wrapper) {
+                frm.get_field('custom_tasks_html').$wrapper.empty();
+            }
+            frm.task_tree_instance = null;
+        }
+        // Update the state tracker to the current project
+        frm._current_task_tree_project = frm.doc.name;
+
+        // Stop execution of custom buttons/trees if document is not saved yet
+        if (frm.is_new()) {
+            return;
+        }
+
+        // =========================================================================
+        // 2. ORIGINAL REPO LOGIC: Move Activity and Connections sections
         // =========================================================================
         const formTabs = frm.$wrapper.find('.form-tabs');
         const detailsTab = formTabs.find('.nav-item[data-label="Details"]');
@@ -19,29 +40,7 @@ frappe.ui.form.on('Project', {
         }
 
         // =========================================================================
-        // 2. ORIGINAL REPO LOGIC: Deep linking logic from Dashboard
-        // =========================================================================
-        const checkAndSwitchToScopeTab = () => {
-            if (window.location.hash === '#custom_scope') {
-                setTimeout(() => {
-                    const scopeTab = formTabs.find('.nav-item[data-label="Scope"], .nav-item[data-fieldname="custom_scope"]');
-                    if (scopeTab.length) {
-                        const tabLink = scopeTab.find('a.nav-link');
-                        if (tabLink.length) {
-                            tabLink.click();
-                        } else {
-                            scopeTab.click();
-                        }
-                    }
-                }, 300);
-            }
-        };
-
-        checkAndSwitchToScopeTab();
-        $(window).on('hashchange', checkAndSwitchToScopeTab);
-
-        // =========================================================================
-        // 3. NEW LOGIC: Load the Task Tree in the background
+        // 3. TREE VIEW LAZY LOADER
         // =========================================================================
         const load_default_task_tree = async (frm) => {
             if (frm.is_new()) return;
@@ -66,18 +65,50 @@ frappe.ui.form.on('Project', {
             }
         };
 
-        // Stop execution of custom buttons/trees if document is not saved yet
-        if (frm.is_new()) {
-            return;
-        }
-
-        // Trigger the tree view to load into the custom_scope tab immediately
-        if (frappe.has_permission("Task", "read")) {
-            load_default_task_tree(frm);
-        }
+        // Attach the lazy loader to the Scope tab click event
+        setTimeout(() => {
+            const scopeTab = frm.$wrapper.find('.form-tabs .nav-item[data-label="Scope"], .form-tabs .nav-item[data-fieldname="custom_scope"]');
+            if (scopeTab.length) {
+                // Prevent duplicate event binding
+                scopeTab.off('click.task_tree').on('click.task_tree', function() {
+                    if (frappe.has_permission("Task", "read")) {
+                        load_default_task_tree(frm);
+                    }
+                });
+                
+                // If user lands directly on the scope tab (e.g. from hash), load immediately
+                if (scopeTab.hasClass('active') || scopeTab.find('.nav-link.active').length) {
+                    if (frappe.has_permission("Task", "read")) {
+                        load_default_task_tree(frm);
+                    }
+                }
+            }
+        }, 300);
 
         // =========================================================================
-        // 4. NEW LOGIC: Hide Standard View Button (CSS & jQuery Fallback)
+        // 4. ORIGINAL REPO LOGIC: Deep linking logic from Dashboard
+        // =========================================================================
+        const checkAndSwitchToScopeTab = () => {
+            if (window.location.hash === '#custom_scope') {
+                setTimeout(() => {
+                    const scopeTab = formTabs.find('.nav-item[data-label="Scope"], .nav-item[data-fieldname="custom_scope"]');
+                    if (scopeTab.length) {
+                        const tabLink = scopeTab.find('a.nav-link');
+                        if (tabLink.length) {
+                            tabLink.click();
+                        } else {
+                            scopeTab.click();
+                        }
+                    }
+                }, 300);
+            }
+        };
+
+        checkAndSwitchToScopeTab();
+        $(window).on('hashchange', checkAndSwitchToScopeTab);
+
+        // =========================================================================
+        // 5. HIDE STANDARD VIEW BUTTON
         // =========================================================================
         const styleId = 'hide-standard-view-btn-style';
         if (!document.getElementById(styleId)) {
@@ -99,71 +130,67 @@ frappe.ui.form.on('Project', {
         }, 100);
 
         // =========================================================================
-        // 5. NEW LOGIC: Add Custom "View Tasks" Dropdown
+        // 6. CUSTOM "VIEW TASKS" DROPDOWN
         // =========================================================================
-        console.log("ERPNext v16: Initiating View Tasks button creation...");
-
-        frm.add_custom_button(__('Calendar'), async function() {
-            frappe.dom.freeze(__('Navigating to Calendar View...'));
-            try {
-                frappe.route_options = { project: frm.doc.name };
-                await frappe.set_route('List', 'Task', 'Calendar');
-            } catch (error) {
-                console.error('Routing failed:', error);
-                frappe.msgprint({ title: __('Error'), message: __('Failed to navigate to Calendar View.'), indicator: 'red' });
-            } finally {
-                frappe.dom.unfreeze();
-            }
-        }, __('View Tasks'));
-
-        frm.add_custom_button(__('Kanban'), async function() {
-            frappe.dom.freeze(__('Navigating to Kanban Board...'));
-            try {
-                frappe.route_options = { project: frm.doc.name };
-                await frappe.set_route('List', 'Task', 'Kanban');
-            } catch (error) {
-                console.error('Routing failed:', error);
-                frappe.msgprint({ title: __('Error'), message: __('Failed to navigate to Kanban Board.'), indicator: 'red' });
-            } finally {
-                frappe.dom.unfreeze();
-            }
-        }, __('View Tasks'));
-
-        frm.add_custom_button(__('Gantt'), async function() {
-            frappe.dom.freeze(__('Navigating to Gantt Chart...'));
-            try {
-                frappe.route_options = { project: frm.doc.name };
-                await frappe.set_route('List', 'Task', 'Gantt');
-            } catch (error) {
-                console.error('Routing failed:', error);
-                frappe.msgprint({ title: __('Error'), message: __('Failed to navigate to Gantt Chart.'), indicator: 'red' });
-            } finally {
-                frappe.dom.unfreeze();
-            }
-        }, __('View Tasks'));
-
-        // Simplified Tree View button logic (Tree is already loaded by `load_default_task_tree`)
-        frm.add_custom_button(__('Tree View'), function() {
-            window.location.hash = '#custom_scope';
-            setTimeout(() => {
-                const scopeTab = frm.$wrapper.find('.form-tabs .nav-item[data-label="Scope"], .form-tabs .nav-item[data-fieldname="custom_scope"]');
-                if (scopeTab.length) {
-                    const tabLink = scopeTab.find('a.nav-link');
-                    if (tabLink.length) {
-                        tabLink.click();
-                    } else {
-                        scopeTab.click();
-                    }
+        if (frappe.has_permission("Task", "read")) {
+            
+            frm.add_custom_button(__('Calendar'), async function() {
+                frappe.dom.freeze(__('Navigating to Calendar View...'));
+                try {
+                    frappe.route_options = { project: frm.doc.name };
+                    await frappe.set_route('List', 'Task', 'Calendar');
+                } catch (error) {
+                    frappe.msgprint({ title: __('Error'), message: __('Failed to navigate to Calendar View.'), indicator: 'red' });
+                } finally {
+                    frappe.dom.unfreeze();
                 }
-            }, 100);
-        }, __('View Tasks'));
+            }, __('View Tasks'));
 
-        // Optional UI Enhancement: Make the new View Tasks button primary (blue)
-        setTimeout(() => {
-            const newBtnGroup = frm.page.wrapper.find('.inner-group-button[data-label="View Tasks"] button, .custom-btn-group[data-label="View Tasks"] button').first();
-            if(newBtnGroup.length) {
-                newBtnGroup.removeClass('btn-default').addClass('btn-primary');
-            }
-        }, 300);
+            frm.add_custom_button(__('Kanban'), async function() {
+                frappe.dom.freeze(__('Navigating to Kanban Board...'));
+                try {
+                    frappe.route_options = { project: frm.doc.name };
+                    await frappe.set_route('List', 'Task', 'Kanban');
+                } catch (error) {
+                    frappe.msgprint({ title: __('Error'), message: __('Failed to navigate to Kanban Board.'), indicator: 'red' });
+                } finally {
+                    frappe.dom.unfreeze();
+                }
+            }, __('View Tasks'));
+
+            frm.add_custom_button(__('Gantt'), async function() {
+                frappe.dom.freeze(__('Navigating to Gantt Chart...'));
+                try {
+                    frappe.route_options = { project: frm.doc.name };
+                    await frappe.set_route('List', 'Task', 'Gantt');
+                } catch (error) {
+                    frappe.msgprint({ title: __('Error'), message: __('Failed to navigate to Gantt Chart.'), indicator: 'red' });
+                } finally {
+                    frappe.dom.unfreeze();
+                }
+            }, __('View Tasks'));
+
+            frm.add_custom_button(__('Tree View'), function() {
+                window.location.hash = '#custom_scope';
+                setTimeout(() => {
+                    const scopeTab = frm.$wrapper.find('.form-tabs .nav-item[data-label="Scope"], .form-tabs .nav-item[data-fieldname="custom_scope"]');
+                    if (scopeTab.length) {
+                        const tabLink = scopeTab.find('a.nav-link');
+                        if (tabLink.length) {
+                            tabLink.click();
+                        } else {
+                            scopeTab.click();
+                        }
+                    }
+                }, 100);
+            }, __('View Tasks'));
+
+            setTimeout(() => {
+                const newBtnGroup = frm.page.wrapper.find('.inner-group-button[data-label="View Tasks"] button, .custom-btn-group[data-label="View Tasks"] button').first();
+                if(newBtnGroup.length) {
+                    newBtnGroup.removeClass('btn-default').addClass('btn-primary');
+                }
+            }, 300);
+        }
     }
 });
