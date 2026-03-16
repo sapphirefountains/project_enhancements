@@ -83,12 +83,26 @@ frappe.ui.form.on('Project', {
         // Add 'View Tasks' Custom Button
         if (!frm.is_new()) {
             setTimeout(() => {
-                frm.remove_custom_button(__('View Tasks')); // Remove if exists to avoid duplicates
+                // Ensure the button isn't duplicated
+                if (frm.page.get_menu_item(__('View Tasks'))) {
+                    frm.page.remove_menu_item(__('View Tasks'));
+                }
+                if (frm.page.get_inner_group_button(__('View Tasks'))) {
+                    frm.page.remove_inner_button(__('View Tasks'));
+                }
 
-                frm.add_custom_button(__('View Tasks'), function() {
-                    // Cleaner navigation method to the specific project task tree
+                // Add the primary button next to 'Merge Project' / 'Actions'
+                let btn = frm.page.add_button(__('View Tasks'), function() {
+                    // Navigate to the specific project task tree in the dashboard
                     frappe.set_route('project-dashboard', 'tasks-tree', frm.doc.name);
-                }).addClass('btn-primary');
+                });
+
+                // Style as primary button
+                if (btn) {
+                    btn.addClass('btn-primary');
+                    // Add an icon to visually distinguish the action
+                    btn.html(`<svg class="icon icon-sm"><use href="#icon-node-tree"></use></svg> <span class="hidden-xs">${__('View Tasks')}</span>`);
+                }
             }, 10);
         }
     }
