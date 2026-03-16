@@ -61,34 +61,21 @@ frappe.ui.form.on('Project', {
         // Check when hash changes (e.g. Back/Forward navigation)
         $(window).on('hashchange', checkAndSwitchToScopeTab);
 
-        // Add 'View Tasks' Custom Button
-        if (!frm.is_new()) {
+        // Hide standard 'View' button group and add custom 'View Tasks' group
+        if (!frm.is_new() && frappe.has_permission("Task", "read")) {
             setTimeout(() => {
-                // Ensure the button isn't duplicated
-                if (frm.page.get_menu_item(__('View Tasks'))) {
-                    frm.page.remove_menu_item(__('View Tasks'));
-                }
-                if (frm.page.get_inner_group_button(__('View Tasks'))) {
-                    frm.page.remove_inner_button(__('View Tasks'));
-                }
-
-                // Add the primary button next to 'Merge Project' / 'Actions'
-                let btn = frm.page.add_button(__('View Tasks'), function() {
-                    // Non-blocking state mutation to navigate to the Scope tab natively
-                    window.location.hash = '#custom_scope';
-                });
-
-                // Style as primary button
-                if (btn) {
-                    btn.addClass('btn-primary');
-                    // Add an icon to visually distinguish the action
-                    btn.html(`<svg class="icon icon-sm"><use href="#icon-node-tree"></use></svg> <span class="hidden-xs">${__('View Tasks')}</span>`);
+                // 1. Hide the standard "View" dropdown group to prevent duplicate options
+                // Frappe v16 button groups in the header typically have a data-label attribute
+                const viewBtnGroup = frm.page.wrapper.find('.custom-btn-group[data-label="View"]');
+                if (viewBtnGroup.length) {
+                    viewBtnGroup.hide();
                 }
 
-                // 1. Calendar View Handler
-                frm.add_custom_button(__('Calendar View'), async function() {
+                // 2. Create the custom "View Tasks" top-level button group with 4 options
+
+                // 2.1 Calendar View
+                frm.add_custom_button(__('Calendar'), async function() {
                     frappe.dom.freeze(__('Navigating to Calendar View...'));
-
                     try {
                         frappe.route_options = { project: frm.doc.name };
                         await frappe.set_route('List', 'Task', 'Calendar');
@@ -98,12 +85,39 @@ frappe.ui.form.on('Project', {
                     } finally {
                         frappe.dom.unfreeze();
                     }
-                }, __('View'));
+                }, __('View Tasks'));
 
-                // 2. Custom Tree View Handler
+                // 2.2 Kanban Board
+                frm.add_custom_button(__('Kanban'), async function() {
+                    frappe.dom.freeze(__('Navigating to Kanban Board...'));
+                    try {
+                        frappe.route_options = { project: frm.doc.name };
+                        await frappe.set_route('List', 'Task', 'Kanban');
+                    } catch (error) {
+                        console.error('Routing failed:', error);
+                        frappe.show_alert({ message: __('Failed to navigate to Kanban Board.'), indicator: 'red' });
+                    } finally {
+                        frappe.dom.unfreeze();
+                    }
+                }, __('View Tasks'));
+
+                // 2.3 Gantt Chart
+                frm.add_custom_button(__('Gantt'), async function() {
+                    frappe.dom.freeze(__('Navigating to Gantt Chart...'));
+                    try {
+                        frappe.route_options = { project: frm.doc.name };
+                        await frappe.set_route('List', 'Task', 'Gantt');
+                    } catch (error) {
+                        console.error('Routing failed:', error);
+                        frappe.show_alert({ message: __('Failed to navigate to Gantt Chart.'), indicator: 'red' });
+                    } finally {
+                        frappe.dom.unfreeze();
+                    }
+                }, __('View Tasks'));
+
+                // 2.4 Tree View (Custom component)
                 frm.add_custom_button(__('Tree View'), async function() {
                     frappe.dom.freeze(__('Loading Tree View...'));
-
                     try {
                         window.location.hash = '#custom_scope';
 
@@ -149,7 +163,7 @@ frappe.ui.form.on('Project', {
                     } finally {
                         frappe.dom.unfreeze();
                     }
-                }, __('View'));
+                }, __('View Tasks'));
 
             }, 10);
         }
