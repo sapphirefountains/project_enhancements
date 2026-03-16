@@ -36,13 +36,21 @@ frappe.ui.form.on('Project', {
         }
 
         // Initialize Task Tree in custom_tasks_html field
-        if (frm.fields_dict['custom_tasks_html'] && !frm.task_tree_instance) {
+        if (frm.fields_dict['custom_tasks_html']) {
             // Check if the global namespace and class exist
             if (window.project_enhancements && project_enhancements.TaskTreeManager) {
-                frm.task_tree_instance = new project_enhancements.TaskTreeManager({
-                    wrapper: frm.fields_dict['custom_tasks_html'].wrapper,
-                    projectName: frm.doc.name
-                });
+                // If the instance already exists for a different project, destroy/remove it
+                if (frm.task_tree_instance && frm.task_tree_instance.projectName !== frm.doc.name) {
+                    frm.get_field('custom_tasks_html').$wrapper.empty();
+                    frm.task_tree_instance = null;
+                }
+
+                if (!frm.task_tree_instance) {
+                    frm.task_tree_instance = new project_enhancements.TaskTreeManager({
+                        wrapper: frm.get_field('custom_tasks_html').$wrapper,
+                        projectName: frm.doc.name
+                    });
+                }
             } else {
                 console.warn("Project Enhancements: TaskTreeManager class not found. Ensure task_tree_manager.js is loaded.");
             }
