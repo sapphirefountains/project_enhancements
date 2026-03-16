@@ -3,6 +3,7 @@
  * @description Refactored to utilize native UI primitives, modular component architecture,
  * and robust client-side routing.
  */
+/* global project_enhancements, Gantt */
 
 frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
     const page = frappe.ui.make_app_page({
@@ -80,7 +81,7 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                         <a class="nav-link" href="javascript:void(0)" data-route="portfolio-gantt">Portfolio Gantt</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="javascript:void(0)" data-route="tasks-tree">Tasks Tree</a>
+                        <a class="nav-link" href="javascript:void(0)" data-route="tasks-view">Tasks View</a>
                     </li>
                 </ul>
             </div>
@@ -182,10 +183,10 @@ frappe.pages['project-dashboard'].on_page_load = function (wrapper) {
                         className: 'PortfolioGantt'
                     };
                     break;
-                case 'tasks-tree':
+                case 'tasks-view':
                     componentConfig = {
-                        file: '/assets/project_enhancements/js/dashboard_components/tasks_tree.js',
-                        className: 'TasksTree'
+                        file: '/assets/project_enhancements/js/dashboard_components/tasks_view.js',
+                        className: 'TasksView'
                     };
                     break;
                 case 'completed-projects':

@@ -1,3 +1,5 @@
+/* eslint-disable no-console, no-inner-declarations */
+
 frappe.ui.form.on('Project Workspace', {
     refresh: function(frm) {
         // Add a console log to confirm the script starts
