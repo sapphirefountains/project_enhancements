@@ -83,9 +83,17 @@ project_enhancements.dashboard_components.TasksTree = class TasksTree {
         });
 
         // Event listener for view tasks buttons
-        this.wrapper.find('.view-tasks-btn').on('click', (e) => {
+        this.wrapper.find('.view-tasks-btn').on('click', async (e) => {
             const projectName = $(e.currentTarget).data('project');
-            frappe.set_route('project-dashboard', 'tasks-tree', projectName);
+            try {
+                // Await the routing transition to the Project form
+                await frappe.set_route('Project', projectName);
+                // Once the promise resolves, assert the state
+                window.location.hash = '#custom_scope';
+            } catch (error) {
+                // Intercept any rejected promises (aborted navigation, permission blocks)
+                console.error('Failed to navigate to project tasks:', error);
+            }
         });
     }
 

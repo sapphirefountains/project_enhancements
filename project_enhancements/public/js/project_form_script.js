@@ -37,18 +37,26 @@ frappe.ui.form.on('Project', {
 
         // Initialize Task Tree in custom_tasks_html field
         if (frm.fields_dict['custom_tasks_html']) {
-            // Check if the global namespace and class exist
-            if (window.project_enhancements && project_enhancements.TaskTreeManager) {
-                // Always recreate the instance to ensure it binds to the new DOM wrapper
-                // that Frappe might have generated on refresh
-                frm.get_field('custom_tasks_html').$wrapper.empty();
-                frm.task_tree_instance = new project_enhancements.TaskTreeManager({
-                    wrapper: frm.get_field('custom_tasks_html').$wrapper,
-                    projectName: frm.doc.name
+            // Use frappe.require to asynchronously load the task tree manager asset
+            frappe.require('/assets/project_enhancements/js/task_tree_manager.js')
+                .then(() => {
+                    // Check if the global namespace and class exist after successful resolution
+                    if (window.project_enhancements && project_enhancements.TaskTreeManager) {
+                        // Always recreate the instance to ensure it binds to the new DOM wrapper
+                        // that Frappe might have generated on refresh
+                        frm.get_field('custom_tasks_html').$wrapper.empty();
+                        frm.task_tree_instance = new project_enhancements.TaskTreeManager({
+                            wrapper: frm.get_field('custom_tasks_html').$wrapper,
+                            projectName: frm.doc.name
+                        });
+                    } else {
+                        console.warn("Project Enhancements: TaskTreeManager class not found even after successful asset load.");
+                    }
+                })
+                .catch((error) => {
+                    // Robust error handling to manage network timeouts or asset unavailability
+                    console.error("Project Enhancements: Failed to load task_tree_manager.js", error);
                 });
-            } else {
-                console.warn("Project Enhancements: TaskTreeManager class not found. Ensure task_tree_manager.js is loaded.");
-            }
         }
 
         // Deep linking logic from Dashboard using URL fragment
@@ -88,8 +96,8 @@ frappe.ui.form.on('Project', {
 
                 // Add the primary button next to 'Merge Project' / 'Actions'
                 let btn = frm.page.add_button(__('View Tasks'), function() {
-                    // Navigate to the specific project task tree in the dashboard
-                    frappe.set_route('project-dashboard', 'tasks-tree', frm.doc.name);
+                    // Non-blocking state mutation to navigate to the Scope tab natively
+                    window.location.hash = '#custom_scope';
                 });
 
                 // Style as primary button
