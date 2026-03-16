@@ -87,7 +87,7 @@ project_enhancements.dashboard_components.TasksTree = class TasksTree {
             const projectName = $(e.currentTarget).data('project');
             try {
                 // Await the routing transition to the Project form
-                await frappe.set_route('Project', projectName);
+                await frappe.set_route('project', projectName);
                 // Once the promise resolves, assert the state
                 window.location.hash = '#custom_scope';
             } catch (error) {
