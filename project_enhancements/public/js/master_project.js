@@ -4,6 +4,7 @@ console.log("master_project_form_script.js loaded successfully.");
 frappe.ui.form.on('Master Project', {
     onload: function(frm) {
         console.log("Master Project form 'onload' triggered.");
+        frm.set_df_property('task_tree_view', 'hidden', 1);
     },
     refresh: function(frm) {
         console.log("Master Project form 'refresh' triggered.");
@@ -23,6 +24,21 @@ frappe.ui.form.on('Master Project', {
         } else {
             console.error("Error: tasksField or tasksField.wrapper is missing for 'tasks'.");
         }
+
+        // We render Project List in the 'project_list' HTML field placeholder
+        const projectListField = frm.fields_dict['project_list'];
+
+        if (projectListField && projectListField.wrapper) {
+            console.log("Target field and wrapper found. Rendering project list.");
+            if (!frm._debounced_render_projects) {
+                frm._debounced_render_projects = frappe.utils.debounce(() => {
+                    render_project_list(frm, projectListField.wrapper);
+                }, 300);
+            }
+            frm._debounced_render_projects();
+        } else {
+            console.error("Error: projectListField or projectListField.wrapper is missing for 'project_list'.");
+        }
     }
 });
 
@@ -32,6 +48,9 @@ frappe.ui.form.on('Sub Projects List', {
         if (frm._debounced_render_tasks) {
             frm._debounced_render_tasks();
         }
+        if (frm._debounced_render_projects) {
+            frm._debounced_render_projects();
+        }
     }
 });
 
@@ -40,8 +59,138 @@ frappe.ui.form.on('Master Project', {
         if (frm._debounced_render_tasks) {
             frm._debounced_render_tasks();
         }
+        if (frm._debounced_render_projects) {
+            frm._debounced_render_projects();
+        }
     }
 });
+
+let currentProjectFetchId = 0;
+
+async function render_project_list(frm, wrapper) {
+    const fetchId = ++currentProjectFetchId;
+
+    let linkedProjects = [];
+    if (frm.doc.projects && frm.doc.projects.length > 0) {
+        linkedProjects = frm.doc.projects.map(row => row.project).filter(p => p);
+    }
+
+    $(wrapper).html(`
+        <div class="projects-list-manager glass-panel p-3">
+            <h4 class="mb-3">Connected Projects</h4>
+            <div class="text-center text-muted p-4">
+                <i class="fa fa-spinner fa-spin fa-2x mb-2"></i>
+                <p>Loading projects...</p>
+            </div>
+        </div>
+    `);
+
+    if (linkedProjects.length === 0) {
+        $(wrapper).html(`
+            <div class="projects-list-manager glass-panel p-3">
+                <h4 class="mb-3">Connected Projects</h4>
+                <div class="text-center text-muted p-4">No linked projects found.</div>
+            </div>
+        `);
+        return;
+    }
+
+    try {
+        const results = await new Promise((resolve, reject) => {
+            frappe.call({
+                method: "frappe.client.get_list",
+                args: {
+                    doctype: "Project",
+                    filters: { name: ["in", linkedProjects] },
+                    fields: ["name", "project_name", "status", "priority", "percent_complete", "expected_end_date"],
+                    limit_page_length: 0
+                },
+                callback: function(r) {
+                    if (r.exc) reject(r.exc);
+                    else resolve(r.message || []);
+                }
+            });
+        });
+
+        if (fetchId !== currentProjectFetchId) {
+            return;
+        }
+
+        let htmlContent = `
+            <div class="projects-list-manager glass-panel p-3">
+                <h4 class="mb-3 border-bottom pb-2 text-primary">Connected Projects</h4>
+        `;
+
+        if (results.length === 0) {
+            htmlContent += `<div class="text-muted small mb-3">No projects found.</div>`;
+        } else {
+            htmlContent += `
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered table-hover mb-0">
+                        <thead class="bg-light text-muted">
+                            <tr>
+                                <th style="width: 30%">Project</th>
+                                <th style="width: 15%">Status</th>
+                                <th style="width: 15%">Priority</th>
+                                <th style="width: 20%">% Complete</th>
+                                <th style="width: 20%">End Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            results.forEach(p => {
+                let statusColor = "badge-secondary";
+                if (p.status === "Completed") statusColor = "badge-success";
+                else if (p.status === "Open") statusColor = "badge-primary";
+                else if (p.status === "Overdue" || p.status === "Cancelled") statusColor = "badge-danger";
+
+                let priorityColor = "text-muted";
+                if (p.priority === "High" || p.priority === "Urgent") priorityColor = "text-danger font-weight-bold";
+                else if (p.priority === "Medium") priorityColor = "text-warning";
+
+                let endDate = p.expected_end_date ? frappe.datetime.str_to_user(p.expected_end_date) : '-';
+                let safeName = p.project_name ? frappe.utils.escape_html(p.project_name) : p.name;
+                let percentComplete = p.percent_complete ? p.percent_complete.toFixed(1) : "0.0";
+
+                htmlContent += `
+                    <tr>
+                        <td>
+                            <a href="/app/project/${encodeURIComponent(p.name)}" target="_blank" class="text-dark font-weight-500">
+                                ${safeName}
+                            </a>
+                        </td>
+                        <td><span class="badge ${statusColor}">${p.status || ''}</span></td>
+                        <td><span class="${priorityColor}">${p.priority || ''}</span></td>
+                        <td>${percentComplete}%</td>
+                        <td>${endDate}</td>
+                    </tr>
+                `;
+            });
+
+            htmlContent += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        htmlContent += `</div>`;
+        $(wrapper).html(htmlContent);
+
+    } catch (err) {
+        if (fetchId !== currentProjectFetchId) return;
+
+        console.error("Critical error fetching projects:", err);
+        $(wrapper).html(`
+            <div class="alert alert-danger p-3">
+                <i class="fa fa-exclamation-circle fa-2x pull-left text-danger"></i>
+                <h5 class="text-danger">Failed to load projects</h5>
+                <p class="mb-0">An unexpected error occurred while fetching project data.</p>
+            </div>
+        `);
+    }
+}
 
 let currentTaskFetchId = 0;
 
