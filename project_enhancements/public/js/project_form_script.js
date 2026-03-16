@@ -37,30 +37,6 @@ frappe.ui.form.on('Project', {
             }
         }
 
-        // Initialize Task Tree in custom_tasks_html field
-        if (frm.fields_dict['custom_tasks_html']) {
-            // Use frappe.require to asynchronously load the task tree manager asset
-            frappe.require('/assets/project_enhancements/js/task_tree_manager.js')
-                .then(() => {
-                    // Check if the global namespace and class exist after successful resolution
-                    if (window.project_enhancements && project_enhancements.TaskTreeManager) {
-                        // Always recreate the instance to ensure it binds to the new DOM wrapper
-                        // that Frappe might have generated on refresh
-                        frm.get_field('custom_tasks_html').$wrapper.empty();
-                        frm.task_tree_instance = new project_enhancements.TaskTreeManager({
-                            wrapper: frm.get_field('custom_tasks_html').$wrapper,
-                            projectName: frm.doc.name
-                        });
-                    } else {
-                        console.warn("Project Enhancements: TaskTreeManager class not found even after successful asset load.");
-                    }
-                })
-                .catch((error) => {
-                    // Robust error handling to manage network timeouts or asset unavailability
-                    console.error("Project Enhancements: Failed to load task_tree_manager.js", error);
-                });
-        }
-
         // Deep linking logic from Dashboard using URL fragment
         const checkAndSwitchToScopeTab = () => {
             if (window.location.hash === '#custom_scope') {
@@ -108,6 +84,75 @@ frappe.ui.form.on('Project', {
                     // Add an icon to visually distinguish the action
                     btn.html(`<svg class="icon icon-sm"><use href="#icon-node-tree"></use></svg> <span class="hidden-xs">${__('View Tasks')}</span>`);
                 }
+
+                // 1. Calendar View Handler
+                frm.page.add_inner_button(__('Calendar View'), async function() {
+                    const dropdownBtn = frm.page.wrapper.find('.inner-group-button[data-label="View"]');
+                    dropdownBtn.prop('disabled', true);
+
+                    try {
+                        frappe.route_options = { project: frm.doc.name };
+                        await frappe.set_route('List', 'Task', 'Calendar');
+                    } catch (error) {
+                        console.error('Routing failed:', error);
+                        frappe.show_alert({ message: __('Failed to navigate to Calendar View.'), indicator: 'red' });
+                    } finally {
+                        dropdownBtn.prop('disabled', false);
+                    }
+                }, __('View'));
+
+                // 2. Custom Tree View Handler
+                frm.page.add_inner_button(__('Tree View'), async function() {
+                    const dropdownBtn = frm.page.wrapper.find('.inner-group-button[data-label="View"]');
+                    dropdownBtn.prop('disabled', true);
+
+                    try {
+                        window.location.hash = '#custom_scope';
+
+                        // Wait a tick for the hash change to propagate and the tab to switch
+                        await new Promise(resolve => setTimeout(resolve, 50));
+
+                        const timeoutPromise = new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error('Timeout loading task_tree_manager.js')), 5000)
+                        );
+
+                        let requirePromise;
+                        if (!frm._task_tree_loaded) {
+                            requirePromise = frappe.require('/assets/project_enhancements/js/task_tree_manager.js').then(() => {
+                                frm._task_tree_loaded = true;
+                            });
+                        } else {
+                            requirePromise = Promise.resolve();
+                        }
+
+                        await Promise.race([requirePromise, timeoutPromise]);
+
+                        if (frm.task_tree_instance) {
+                            if (frm.task_tree_instance.sortableInstances) {
+                                frm.task_tree_instance.sortableInstances.forEach(instance => instance.destroy());
+                            }
+                            if (frm.get_field('custom_tasks_html') && frm.get_field('custom_tasks_html').$wrapper) {
+                                frm.get_field('custom_tasks_html').$wrapper.empty();
+                            }
+                            frm.task_tree_instance = null;
+                        }
+
+                        if (window.project_enhancements && project_enhancements.TaskTreeManager) {
+                            frm.task_tree_instance = new project_enhancements.TaskTreeManager({
+                                wrapper: frm.get_field('custom_tasks_html').$wrapper,
+                                projectName: frm.doc.name
+                            });
+                        } else {
+                            throw new Error('TaskTreeManager class not found');
+                        }
+                    } catch (error) {
+                        console.error('Tree View loading failed:', error);
+                        frappe.show_alert({ message: __('Failed to load Tree View.'), indicator: 'red' });
+                    } finally {
+                        dropdownBtn.prop('disabled', false);
+                    }
+                }, __('View'));
+
             }, 10);
         }
     }
