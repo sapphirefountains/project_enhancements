@@ -1,3 +1,4 @@
+/* global project_enhancements */
 frappe.provide('project_enhancements.dashboard_components');
 
 project_enhancements.dashboard_components.CompletedProjects = class CompletedProjects {

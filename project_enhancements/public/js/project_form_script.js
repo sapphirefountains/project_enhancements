@@ -1,3 +1,5 @@
+/* global project_enhancements */
+
 // The frappe.ui.form.on event is triggered when a form is loaded in Frappe.
 // We are targeting the 'Project' DocType specifically.
 frappe.ui.form.on('Project', {

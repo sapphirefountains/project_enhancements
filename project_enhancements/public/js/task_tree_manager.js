@@ -1,7 +1,8 @@
+/* global project_enhancements, Sortable */
 frappe.provide('project_enhancements');
 
 project_enhancements.TaskTreeManager = class TaskTreeManager {
-    constructor({ wrapper, projectName, readonly = false }) {
+    constructor({ wrapper, projectName, readonly = false, preFetchedData = null, taskStatusOptions = null }) {
         this.wrapper = $(wrapper);
         this.projectName = projectName;
         this.readonly = readonly;
@@ -9,8 +10,11 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
         this.collapsedTasks = new Set();
         this.pendingChanges = {};
         // Default options, will be updated from server
-        this.taskStatusOptions = ['Open', 'Working', 'Completed', 'Cancelled'];
+        this.taskStatusOptions = taskStatusOptions || ['Open', 'Working', 'Completed', 'Cancelled'];
         this.sortableInstances = [];
+
+        // Pre-fetched data from a unified view or parent component
+        this.preFetchedData = preFetchedData;
 
         // Load collapsed state from local storage
         const savedState = localStorage.getItem(`collapsedTasks_${this.projectName}`);
@@ -24,8 +28,18 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
     init() {
         this.loadAssets().then(() => {
             this.renderStructure();
-            this.fetchData();
+            if (this.preFetchedData) {
+                this.hydrate(this.preFetchedData);
+            } else {
+                this.fetchData();
+            }
         });
+    }
+
+    hydrate(data) {
+        this.tasks = data;
+        this.updateStatusFilterOptions();
+        this.renderGrid(this.tasks);
     }
 
     loadAssets() {
@@ -113,12 +127,10 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 
             if (statusResult.message) {
                 this.taskStatusOptions = statusResult.message;
-                this.updateStatusFilterOptions();
             }
 
             if (tasksResult.message && !tasksResult.message.error) {
-                this.tasks = tasksResult.message;
-                this.renderGrid(this.tasks);
+                this.hydrate(tasksResult.message);
             } else {
                 this.wrapper.find('.task-grid-body').html(`<div class="alert alert-danger">Error fetching tasks: ${tasksResult.message ? tasksResult.message.error : 'Unknown error'}</div>`);
             }
