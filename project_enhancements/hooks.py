@@ -202,6 +202,9 @@ doc_events = {
 	"Master Project": {
 		"validate": "project_enhancements.project_enhancements.master_project.trigger_server_side",
 		"on_update": "project_enhancements.project_enhancements.master_project.trigger_server_side"
+	},
+	"Project": {
+		"on_update": "project_enhancements.project_enhancements.doctype.project.project.sync_master_project"
 	}
 }
 
