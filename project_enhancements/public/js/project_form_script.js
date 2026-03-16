@@ -61,65 +61,133 @@ frappe.ui.form.on('Project', {
         // Check when hash changes (e.g. Back/Forward navigation)
         $(window).on('hashchange', checkAndSwitchToScopeTab);
 
+// Utility function for asynchronous DOM polling
+const waitForElement = (selector, parent = document, timeout = 2000) => {
+    return new Promise((resolve, reject) => {
+        const el = parent.querySelector(selector);
+        if (el) {
+            return resolve(el);
+        }
+
+        const observer = new MutationObserver((mutations, me) => {
+            const el = parent.querySelector(selector);
+            if (el) {
+                me.disconnect();
+                resolve(el);
+            }
+        });
+
+        observer.observe(parent, {
+            childList: true,
+            subtree: true
+        });
+
+        setTimeout(() => {
+            observer.disconnect();
+            reject(new Error(`Timeout waiting for element: ${selector}`));
+        }, timeout);
+    });
+};
+
         // Hide standard 'View' button group and add custom 'View Tasks' group
         if (!frm.is_new() && frappe.has_permission("Task", "read")) {
-            setTimeout(() => {
-                // 1. Hide the standard "View" dropdown group to prevent duplicate options
-                // Frappe v16 button groups in the header typically have a data-label attribute
-                const viewBtnGroup = frm.page.wrapper.find('.custom-btn-group[data-label="View"]');
-                if (viewBtnGroup.length) {
-                    viewBtnGroup.hide();
+    (async () => {
+        try {
+            // 1. Hide the standard "View" dropdown group to prevent duplicate options
+            // Wait for it to be mounted to avoid race conditions
+            const viewBtnGroupSelector = '.custom-btn-group[data-label="View"]';
+            try {
+                const viewBtnGroup = await waitForElement(viewBtnGroupSelector, frm.page.wrapper[0], 2000);
+                if (viewBtnGroup) {
+                    // Try native API first
+                    try {
+                        if (frm.page.clear_custom_button) {
+                            frm.page.clear_custom_button('View');
+                        }
+                    } catch (e) {
+                        console.warn("Native clear_custom_button failed", e);
+                    }
+
+                    // Fallback to CSS injection for strict overriding if not removed by API
+                    const styleId = 'hide-standard-view-btn-style';
+                    if (!document.getElementById(styleId)) {
+                        const styleEl = document.createElement('style');
+                        styleEl.id = styleId;
+                        styleEl.innerHTML = `
+                            .page-head .custom-btn-group[data-label="View"] {
+                                display: none !important;
+                            }
+                        `;
+                        document.head.appendChild(styleEl);
+                    }
                 }
+            } catch (error) {
+                console.warn(error.message);
+            }
 
-                // 2. Create the custom "View Tasks" top-level button group with 4 options
+            // 2. Create the custom "View Tasks" top-level button group with 4 options
 
-                // 2.1 Calendar View
-                frm.add_custom_button(__('Calendar'), async function() {
-                    frappe.dom.freeze(__('Navigating to Calendar View...'));
-                    try {
-                        frappe.route_options = { project: frm.doc.name };
-                        await frappe.set_route('List', 'Task', 'Calendar');
-                    } catch (error) {
-                        console.error('Routing failed:', error);
-                        frappe.show_alert({ message: __('Failed to navigate to Calendar View.'), indicator: 'red' });
-                    } finally {
-                        frappe.dom.unfreeze();
-                    }
-                }, __('View Tasks'));
+            // Step 1: Create the parent dropdown and attach the first item.
+            // This initiates the creation of the dropdown container in the DOM.
+            frm.add_custom_button(__('Calendar'), async function() {
+                frappe.dom.freeze(__('Navigating to Calendar View...'));
+                try {
+                    frappe.route_options = { project: frm.doc.name };
+                    await frappe.set_route('List', 'Task', 'Calendar');
+                } catch (error) {
+                    console.error('Routing failed:', error);
+                    frappe.msgprint({ title: __('Error'), message: __('Failed to navigate to Calendar View.'), indicator: 'red' });
+                } finally {
+                    frappe.dom.unfreeze();
+                }
+            }, __('View Tasks'));
 
-                // 2.2 Kanban Board
-                frm.add_custom_button(__('Kanban'), async function() {
-                    frappe.dom.freeze(__('Navigating to Kanban Board...'));
-                    try {
-                        frappe.route_options = { project: frm.doc.name };
-                        await frappe.set_route('List', 'Task', 'Kanban');
-                    } catch (error) {
-                        console.error('Routing failed:', error);
-                        frappe.show_alert({ message: __('Failed to navigate to Kanban Board.'), indicator: 'red' });
-                    } finally {
-                        frappe.dom.unfreeze();
-                    }
-                }, __('View Tasks'));
+            // Step 2: Yield the main thread to allow the browser's layout engine to settle
+            // and actually paint the new "View Tasks" dropdown wrapper in the DOM.
+            await new Promise(resolve => setTimeout(resolve, 0));
 
-                // 2.3 Gantt Chart
-                frm.add_custom_button(__('Gantt'), async function() {
-                    frappe.dom.freeze(__('Navigating to Gantt Chart...'));
-                    try {
-                        frappe.route_options = { project: frm.doc.name };
-                        await frappe.set_route('List', 'Task', 'Gantt');
-                    } catch (error) {
-                        console.error('Routing failed:', error);
-                        frappe.show_alert({ message: __('Failed to navigate to Gantt Chart.'), indicator: 'red' });
-                    } finally {
-                        frappe.dom.unfreeze();
-                    }
-                }, __('View Tasks'));
+            // Optional: Wait for the new button group to appear to ensure stability
+            try {
+                await waitForElement('.custom-btn-group[data-label="View Tasks"]', frm.page.wrapper[0], 2000);
+            } catch (e) {
+                console.warn("Parent dropdown 'View Tasks' may not be fully mounted yet.", e);
+            }
 
-                // 2.4 Tree View (Custom component)
-                frm.add_custom_button(__('Tree View'), async function() {
-                    frappe.dom.freeze(__('Loading Tree View...'));
-                    try {
-                        window.location.hash = '#custom_scope';
+            // Step 3: Attach subsequent options to the now-mounted dropdown
+
+            // 2.2 Kanban Board
+            frm.add_custom_button(__('Kanban'), async function() {
+                frappe.dom.freeze(__('Navigating to Kanban Board...'));
+                try {
+                    frappe.route_options = { project: frm.doc.name };
+                    await frappe.set_route('List', 'Task', 'Kanban');
+                } catch (error) {
+                    console.error('Routing failed:', error);
+                    frappe.msgprint({ title: __('Error'), message: __('Failed to navigate to Kanban Board.'), indicator: 'red' });
+                } finally {
+                    frappe.dom.unfreeze();
+                }
+            }, __('View Tasks'));
+
+            // 2.3 Gantt Chart
+            frm.add_custom_button(__('Gantt'), async function() {
+                frappe.dom.freeze(__('Navigating to Gantt Chart...'));
+                try {
+                    frappe.route_options = { project: frm.doc.name };
+                    await frappe.set_route('List', 'Task', 'Gantt');
+                } catch (error) {
+                    console.error('Routing failed:', error);
+                    frappe.msgprint({ title: __('Error'), message: __('Failed to navigate to Gantt Chart.'), indicator: 'red' });
+                } finally {
+                    frappe.dom.unfreeze();
+                }
+            }, __('View Tasks'));
+
+            // 2.4 Tree View (Custom component)
+            frm.add_custom_button(__('Tree View'), async function() {
+                frappe.dom.freeze(__('Loading Tree View...'));
+                try {
+                    window.location.hash = '#custom_scope';
 
                         // Wait a tick for the hash change to propagate and the tab to switch
                         await new Promise(resolve => setTimeout(resolve, 50));
@@ -157,15 +225,18 @@ frappe.ui.form.on('Project', {
                         } else {
                             throw new Error('TaskTreeManager class not found');
                         }
-                    } catch (error) {
-                        console.error('Tree View loading failed:', error);
-                        frappe.show_alert({ message: __('Failed to load Tree View.'), indicator: 'red' });
-                    } finally {
-                        frappe.dom.unfreeze();
-                    }
-                }, __('View Tasks'));
+                } catch (error) {
+                    console.error('Tree View loading failed:', error);
+                    frappe.msgprint({ title: __('Error'), message: __('Failed to load Tree View.'), indicator: 'red' });
+                } finally {
+                    frappe.dom.unfreeze();
+                }
+            }, __('View Tasks'));
 
-            }, 10);
+        } catch (error) {
+            console.error('Error initializing custom buttons:', error);
+        }
+    })();
         }
     }
 });
