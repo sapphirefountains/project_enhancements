@@ -11,9 +11,10 @@ frappe.ui.form.on('Master Project', {
 
         // We render Tasks list in the 'tasks' HTML field placeholder
         const tasksField = frm.fields_dict['tasks'];
+        console.log("tasksField object:", tasksField);
 
         if (tasksField && tasksField.wrapper) {
-            console.log("Target field and wrapper found. Rendering tasks list.");
+            console.log("Target field and wrapper found for 'tasks'. Triggering render_tasks_list.");
             // Debounce the task rendering to avoid redundant fetches on rapid table changes
             if (!frm._debounced_render_tasks) {
                 frm._debounced_render_tasks = frappe.utils.debounce(() => {
@@ -22,14 +23,15 @@ frappe.ui.form.on('Master Project', {
             }
             frm._debounced_render_tasks();
         } else {
-            console.error("Error: tasksField or tasksField.wrapper is missing for 'tasks'.");
+            console.error("Error: tasksField or tasksField.wrapper is missing for 'tasks'.", tasksField);
         }
 
         // We render Project List in the 'project_list' HTML field placeholder
         const projectListField = frm.fields_dict['project_list'];
+        console.log("projectListField object:", projectListField);
 
         if (projectListField && projectListField.wrapper) {
-            console.log("Target field and wrapper found. Rendering project list.");
+            console.log("Target field and wrapper found for 'project_list'. Triggering render_project_list.");
             if (!frm._debounced_render_projects) {
                 frm._debounced_render_projects = frappe.utils.debounce(() => {
                     render_project_list(frm, projectListField.wrapper);
@@ -37,7 +39,7 @@ frappe.ui.form.on('Master Project', {
             }
             frm._debounced_render_projects();
         } else {
-            console.error("Error: projectListField or projectListField.wrapper is missing for 'project_list'.");
+            console.error("Error: projectListField or projectListField.wrapper is missing for 'project_list'.", projectListField);
         }
     }
 });
@@ -68,12 +70,14 @@ frappe.ui.form.on('Master Project', {
 let currentProjectFetchId = 0;
 
 async function render_project_list(frm, wrapper) {
+    console.log("render_project_list started.");
     const fetchId = ++currentProjectFetchId;
 
     let linkedProjects = [];
     if (frm.doc.projects && frm.doc.projects.length > 0) {
         linkedProjects = frm.doc.projects.map(row => row.project).filter(p => p);
     }
+    console.log("linkedProjects for render_project_list:", linkedProjects);
 
     $(wrapper).html(`
         <div class="projects-list-manager glass-panel p-3">
@@ -86,6 +90,7 @@ async function render_project_list(frm, wrapper) {
     `);
 
     if (linkedProjects.length === 0) {
+        console.log("No linked projects found. Rendering empty state for project list.");
         $(wrapper).html(`
             <div class="projects-list-manager glass-panel p-3">
                 <h4 class="mb-3">Connected Projects</h4>
@@ -96,6 +101,7 @@ async function render_project_list(frm, wrapper) {
     }
 
     try {
+        console.log("Fetching project list for linked projects:", linkedProjects);
         const results = await new Promise((resolve, reject) => {
             frappe.call({
                 method: "frappe.client.get_list",
@@ -106,15 +112,22 @@ async function render_project_list(frm, wrapper) {
                     limit_page_length: 0
                 },
                 callback: function(r) {
-                    if (r.exc) reject(r.exc);
-                    else resolve(r.message || []);
+                    if (r.exc) {
+                        console.error("frappe.call to get_list for Project failed:", r.exc);
+                        reject(r.exc);
+                    } else {
+                        console.log("frappe.call to get_list for Project succeeded:", r.message);
+                        resolve(r.message || []);
+                    }
                 }
             });
         });
 
         if (fetchId !== currentProjectFetchId) {
+            console.log("Stale project fetch aborted.");
             return;
         }
+        console.log("Rendering project list HTML with results:", results);
 
         let htmlContent = `
             <div class="projects-list-manager glass-panel p-3">
@@ -195,14 +208,17 @@ async function render_project_list(frm, wrapper) {
 let currentTaskFetchId = 0;
 
 async function render_tasks_list(frm, wrapper) {
+    console.log("render_tasks_list started.");
     const fetchId = ++currentTaskFetchId; // Closure for cancellation
     const masterProjectName = frm.doc.name;
+    console.log("masterProjectName:", masterProjectName);
 
     // Extract linked projects from child table
     let linkedProjects = [];
     if (frm.doc.projects && frm.doc.projects.length > 0) {
         linkedProjects = frm.doc.projects.map(row => row.project).filter(p => p);
     }
+    console.log("linkedProjects for render_tasks_list:", linkedProjects);
 
     // Setup initial loading state
     $(wrapper).html(`
@@ -233,6 +249,7 @@ async function render_tasks_list(frm, wrapper) {
     // Promise generator for fetching tasks for a specific project
     const fetchProjectTasks = (projectName) => {
         return new Promise((resolve, reject) => {
+            console.log(`Fetching tasks for project: ${projectName}`);
             frappe.call({
                 method: "frappe.client.get_list",
                 args: {
@@ -242,8 +259,13 @@ async function render_tasks_list(frm, wrapper) {
                     limit_page_length: 0
                 },
                 callback: function(r) {
-                    if (r.exc) reject(r.exc);
-                    else resolve({ projectName: projectName, tasks: r.message || [] });
+                    if (r.exc) {
+                        console.error(`Task fetch failed for project ${projectName}:`, r.exc);
+                        reject(r.exc);
+                    } else {
+                        console.log(`Task fetch succeeded for project ${projectName}:`, r.message);
+                        resolve({ projectName: projectName, tasks: r.message || [] });
+                    }
                 }
             });
         });
@@ -254,6 +276,7 @@ async function render_tasks_list(frm, wrapper) {
     // If it doesn't exist, this might just return empty, but we must implement the feature.
     const fetchMasterProjectTasks = () => {
         return new Promise((resolve, reject) => {
+            console.log(`Fetching tasks for master project: ${masterProjectName}`);
             frappe.call({
                 method: "frappe.client.get_list",
                 args: {
@@ -263,18 +286,25 @@ async function render_tasks_list(frm, wrapper) {
                     limit_page_length: 0
                 },
                 callback: function(r) {
-                    if (r.exc) resolve({ projectName: masterProjectName, isMaster: true, tasks: [], error: true }); // fail gracefully
-                    else resolve({ projectName: masterProjectName, isMaster: true, tasks: r.message || [] });
+                    if (r.exc) {
+                        console.error(`Task fetch failed for master project ${masterProjectName}:`, r.exc);
+                        resolve({ projectName: masterProjectName, isMaster: true, tasks: [], error: true }); // fail gracefully
+                    } else {
+                        console.log(`Task fetch succeeded for master project ${masterProjectName}:`, r.message);
+                        resolve({ projectName: masterProjectName, isMaster: true, tasks: r.message || [] });
+                    }
                 }
             });
         });
     };
 
     try {
+        console.log("Initiating concurrent task fetches.");
         let fetchPromises = linkedProjects.map(p => fetchWithTimeout(fetchProjectTasks(p)));
         fetchPromises.unshift(fetchWithTimeout(fetchMasterProjectTasks())); // Add Master Project fetch
 
         const results = await Promise.allSettled(fetchPromises);
+        console.log("Task fetches completed. Results:", results);
 
         // If another fetch was triggered while waiting, abort this render.
         if (fetchId !== currentTaskFetchId) {
@@ -378,10 +408,14 @@ async function render_tasks_list(frm, wrapper) {
         htmlContent += `</div>`; // Close tasks-list-manager
 
         // Single atomic write to the DOM
+        console.log("Rendering tasks list HTML.");
         $(wrapper).html(htmlContent);
 
     } catch (err) {
-        if (fetchId !== currentTaskFetchId) return; // Stale request
+        if (fetchId !== currentTaskFetchId) {
+            console.log("Stale task fetch caught error, aborting:", err);
+            return; // Stale request
+        }
 
         console.error("Critical error in concurrent task fetch:", err);
         $(wrapper).html(`
