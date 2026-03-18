@@ -9,19 +9,17 @@ frappe.ui.form.on('Project', {
         // =========================================================================
         // 1. STATE CLEANUP FOR SPA NAVIGATION
         // =========================================================================
-        if (frm._current_task_tree_project !== frm.doc.name) {
-            console.log(`Project changed to ${frm.doc.name}. Cleaning up old tree state.`);
-            if (frm.task_tree_instance) {
-                if (frm.task_tree_instance.sortableInstances) {
-                    frm.task_tree_instance.sortableInstances.forEach(instance => instance.destroy());
-                }
-                frm.task_tree_instance = null;
+        console.log(`Project form refreshed: ${frm.doc.name}. Cleaning up old tree state to prevent detached nodes.`);
+        if (frm.task_tree_instance) {
+            if (frm.task_tree_instance.sortableInstances) {
+                frm.task_tree_instance.sortableInstances.forEach(instance => instance.destroy());
             }
-            if (frm.get_field('custom_tasks_html') && frm.get_field('custom_tasks_html').$wrapper) {
-                frm.get_field('custom_tasks_html').$wrapper.empty();
-            }
-            frm._current_task_tree_project = frm.doc.name;
+            frm.task_tree_instance = null;
         }
+        if (frm.get_field('custom_tasks_html') && frm.get_field('custom_tasks_html').$wrapper) {
+            frm.get_field('custom_tasks_html').$wrapper.empty();
+        }
+        frm._current_task_tree_project = frm.doc.name;
 
         // =========================================================================
         // 2. ORIGINAL REPO LOGIC: Move Activity and Connections sections
@@ -51,21 +49,24 @@ frappe.ui.form.on('Project', {
                 // Disconnect old observer if it exists
                 if (frm._tree_observer) {
                     frm._tree_observer.disconnect();
+                    frm._tree_observer = null;
                 }
+
+                const docName = frm.doc.name;
 
                 frm._tree_observer = new IntersectionObserver((entries) => {
                     entries.forEach(entry => {
                         if (entry.isIntersecting) {
                             // The tab is now visible! Load the tree if not already loaded
                             if (!frm.task_tree_instance) {
-                                console.log(`Scope Tab is visible. Rendering Task Tree for Project: ${frm.doc.name}`);
+                                console.log(`Scope Tab is visible. Rendering Task Tree for Project: ${docName}`);
                                 
                                 frappe.require('/assets/project_enhancements/js/task_tree_manager.js').then(() => {
                                     // Verify instance wasn't created during the network request delay
                                     if (!frm.task_tree_instance && window.project_enhancements && project_enhancements.TaskTreeManager) {
                                         frm.task_tree_instance = new project_enhancements.TaskTreeManager({
                                             wrapper: wrapperField.$wrapper,
-                                            projectName: frm.doc.name
+                                            projectName: docName
                                         });
                                     }
                                 });
