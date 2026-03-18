@@ -76,7 +76,7 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
 
             return {
                 ...project,
-                start: frappe.datetime.date_to_str(helperStartDate),
+                start: moment(helperStartDate).format('YYYY-MM-DD'),
                 custom_start_date: project.start,
             };
         });
