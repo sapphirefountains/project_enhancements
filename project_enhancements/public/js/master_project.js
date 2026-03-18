@@ -246,25 +246,28 @@ async function render_tasks_list(frm, wrapper) {
         return Promise.race([promise, timeout]);
     };
 
-    // Promise generator for fetching tasks for a specific project
-    const fetchProjectTasks = (projectName) => {
+    // Promise generator for fetching tasks for all linked projects
+    const fetchLinkedProjectsTasks = (projectNames) => {
+        if (!projectNames || projectNames.length === 0) {
+            return Promise.resolve([]);
+        }
         return new Promise((resolve, reject) => {
-            console.log(`Fetching tasks for project: ${projectName}`);
+            console.log(`Fetching tasks for linked projects:`, projectNames);
             frappe.call({
                 method: "frappe.client.get_list",
                 args: {
                     doctype: "Task",
-                    filters: { project: projectName },
-                    fields: ["name", "subject", "status", "priority", "exp_start_date", "exp_end_date"],
+                    filters: { project: ["in", projectNames] },
+                    fields: ["name", "subject", "status", "priority", "exp_start_date", "exp_end_date", "project"],
                     limit_page_length: 0
                 },
                 callback: function(r) {
                     if (r.exc) {
-                        console.error(`Task fetch failed for project ${projectName}:`, r.exc);
+                        console.error(`Task fetch failed for linked projects:`, r.exc);
                         reject(r.exc);
                     } else {
-                        console.log(`Task fetch succeeded for project ${projectName}:`, r.message);
-                        resolve({ projectName: projectName, tasks: r.message || [] });
+                        console.log(`Task fetch succeeded for linked projects:`, r.message);
+                        resolve(r.message || []);
                     }
                 }
             });
@@ -299,12 +302,14 @@ async function render_tasks_list(frm, wrapper) {
     };
 
     try {
-        console.log("Initiating concurrent task fetches.");
-        let fetchPromises = linkedProjects.map(p => fetchWithTimeout(fetchProjectTasks(p)));
-        fetchPromises.unshift(fetchWithTimeout(fetchMasterProjectTasks())); // Add Master Project fetch
+        console.log("Initiating consolidated task fetches.");
+        let fetchPromises = [
+            fetchWithTimeout(fetchMasterProjectTasks()),
+            fetchWithTimeout(fetchLinkedProjectsTasks(linkedProjects))
+        ];
 
-        const results = await Promise.allSettled(fetchPromises);
-        console.log("Task fetches completed. Results:", results);
+        const rawResults = await Promise.allSettled(fetchPromises);
+        console.log("Task fetches completed. rawResults:", rawResults);
 
         // If another fetch was triggered while waiting, abort this render.
         if (fetchId !== currentTaskFetchId) {
@@ -312,12 +317,51 @@ async function render_tasks_list(frm, wrapper) {
             return;
         }
 
+        // Process results to match the original grouped structure
+        let anyFailures = false;
+        let processedResults = [];
+
+        // 1. Master Project Tasks
+        if (rawResults[0].status === "fulfilled") {
+            processedResults.push({
+                status: "fulfilled",
+                value: rawResults[0].value
+            });
+        } else {
+            anyFailures = true;
+            console.error("Task fetch failed for master project:", rawResults[0].reason);
+        }
+
+        // 2. Linked Projects Tasks
+        if (rawResults[1].status === "fulfilled") {
+            const allTasks = rawResults[1].value;
+            // Group tasks by project
+            const tasksByProject = {};
+            linkedProjects.forEach(p => { tasksByProject[p] = []; });
+
+            allTasks.forEach(t => {
+                if (tasksByProject[t.project]) {
+                    tasksByProject[t.project].push(t);
+                } else {
+                    tasksByProject[t.project] = [t];
+                }
+            });
+
+            linkedProjects.forEach(p => {
+                processedResults.push({
+                    status: "fulfilled",
+                    value: { projectName: p, tasks: tasksByProject[p] }
+                });
+            });
+        } else {
+            anyFailures = true;
+            console.error("Task fetch failed for linked projects:", rawResults[1].reason);
+        }
+
         // State Aggregation
         let htmlContent = `<div class="tasks-list-manager glass-panel p-3">`;
 
-        let anyFailures = false;
-
-        results.forEach(result => {
+        processedResults.forEach(result => {
             if (result.status === "fulfilled") {
                 let data = result.value;
                 if (!data.tasks) data.tasks = [];
@@ -401,7 +445,7 @@ async function render_tasks_list(frm, wrapper) {
             ` + htmlContent;
         }
 
-        if (linkedProjects.length === 0 && (!results[0] || results[0].value.tasks.length === 0)) {
+        if (linkedProjects.length === 0 && (!processedResults[0] || processedResults[0].value.tasks.length === 0)) {
              htmlContent += `<div class="text-center text-muted p-4">No linked projects or tasks found.</div>`;
         }
 
