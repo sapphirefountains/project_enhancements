@@ -96,7 +96,7 @@ project_enhancements.dashboard_components.CompletedProjects = class CompletedPro
         projects.forEach(p => {
             const row = $(`
                 <tr data-project="${p.name}">
-                    <td><a href="/app/project/${p.name}?view=custom_scope&origin=dashboard" class="font-weight-bold">${p.project_name}</a></td>
+                    <td><a href="/app/project/${p.name}" class="font-weight-bold">${p.project_name}</a></td>
                     <td><span class="badge ${this.get_status_badge(p.status)}">${p.status}</span></td>
                     <td>${p.project_type || 'Uncategorized'}</td>
                     <td class="text-muted">${p.project_user || 'Unassigned'}</td>

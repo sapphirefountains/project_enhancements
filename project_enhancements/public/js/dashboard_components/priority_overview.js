@@ -330,7 +330,7 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 
             const row = $(`
                 <tr>
-                    <td><a href="/app/project/${p.name}#custom_scope" class="font-weight-bold project-link" data-name="${p.name}">${p.project_name}</a></td>
+                    <td><a href="/app/project/${p.name}" class="font-weight-bold project-link" data-name="${p.name}">${p.project_name}</a></td>
                     <td class="editable-cell priority-cell" data-field="custom_company_priority" data-project="${p.name}">
                         <div class="static-view" style="cursor: pointer;" title="Click to edit">
                             ${this.get_priority_badge(display_company_priority)}
@@ -353,9 +353,7 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 
             row.find('.project-link').on('click', (e) => {
                 e.preventDefault();
-                frappe.set_route('project', p.name).then(() => {
-                    window.location.hash = 'custom_scope';
-                });
+                frappe.set_route('project', p.name);
             });
 
             // Initialize inline editing functionality
