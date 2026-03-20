@@ -168,10 +168,11 @@ class TestProjectDashboard(unittest.TestCase):
         """Test successful retrieval of priority options."""
         mock_meta = mock_get_meta.return_value
         mock_meta.fields = [
-            frappe._dict({"fieldname": "custom_project_priority", "options": "High\nMedium\nLow"})
+            frappe._dict({"fieldname": "custom_project_priority", "options": "High\nMedium\nLow"}),
+            frappe._dict({"fieldname": "custom_company_priority", "options": "1\n2\n3"})
         ]
         result = get_priority_options()
-        self.assertEqual(result, ["High", "Medium", "Low"])
+        self.assertEqual(result, {"project_priority": ["High", "Medium", "Low"], "company_priority": ["1", "2", "3"]})
 
     @patch("project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.get_meta")
     def test_get_priority_options_no_field(self, mock_get_meta):
@@ -179,7 +180,7 @@ class TestProjectDashboard(unittest.TestCase):
         mock_meta = mock_get_meta.return_value
         mock_meta.fields = []
         result = get_priority_options()
-        self.assertEqual(result, [])
+        self.assertEqual(result, {"project_priority": [], "company_priority": []})
 
     @patch("project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.log_error")
     @patch("project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.get_meta")
