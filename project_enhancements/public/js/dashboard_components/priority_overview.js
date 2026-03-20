@@ -170,7 +170,8 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
         this.current_view = 'company_priority';
         this.projects = [];
         this.bufferManager = new project_enhancements.dashboard_components.BufferManager(this);
-        this.priorityOptions = [];
+        this.projectPriorityOptions = [];
+        this.companyPriorityOptions = [];
     }
 
     set_view(view) {
@@ -208,8 +209,13 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 
             if (signal.aborted) return;
 
-            if (optionsRes.message && Array.isArray(optionsRes.message)) {
-                this.priorityOptions = optionsRes.message;
+            if (optionsRes.message && !optionsRes.message.error) {
+                this.projectPriorityOptions = optionsRes.message.project_priority || [];
+                this.companyPriorityOptions = optionsRes.message.company_priority || [];
+            } else if (Array.isArray(optionsRes.message)) {
+                // Backward compatibility just in case
+                this.projectPriorityOptions = optionsRes.message;
+                this.companyPriorityOptions = optionsRes.message;
             }
 
             if (projectsRes.message && !projectsRes.message.error) {
@@ -366,7 +372,9 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 
                 // Populate options
                 let optionsHtml = '<option value="">Not Assigned</option>';
-                this.priorityOptions.forEach(opt => {
+                const optionsToUse = field === 'custom_company_priority' ? this.companyPriorityOptions : this.projectPriorityOptions;
+
+                optionsToUse.forEach(opt => {
                     optionsHtml += `<option value="${frappe.utils.escape_html(opt)}">${frappe.utils.escape_html(opt)}</option>`;
                 });
                 select.html(optionsHtml);

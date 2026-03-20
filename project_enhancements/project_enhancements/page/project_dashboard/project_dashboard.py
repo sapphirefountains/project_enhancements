@@ -269,29 +269,33 @@ def update_task_status(task_name, status):
 
 @frappe.whitelist()
 def get_priority_options():
-    """Retrieves 'custom_project_priority' options from Project DocType.
+    """Retrieves 'custom_project_priority' and 'custom_company_priority' options from Project DocType.
 
-    Reads the options for the 'custom_project_priority' field directly from
+    Reads the options for the priority fields directly from
     the Project DocType's metadata.
 
     Returns:
-        list[str] | dict: A list of available priority options. Returns a
+        dict: A dictionary containing available priority options. Returns a
             dictionary with an 'error' key on failure.
     """
     try:
         project_doctype = frappe.get_meta("Project")
-        priority_field = next(
+        project_priority_field = next(
             (df for df in project_doctype.fields if df.fieldname == "custom_project_priority"), None
         )
+        company_priority_field = next(
+            (df for df in project_doctype.fields if df.fieldname == "custom_company_priority"), None
+        )
 
-        if priority_field and priority_field.options:
-            # Options are stored as a string, separated by newlines.
-            # We also filter out any empty lines that might result from trailing newlines.
-            options = [opt for opt in priority_field.options.split("\n") if opt]
-            return options
-        else:
-            # Return a default list or an empty list if no options are found
-            return []
+        options = {"project_priority": [], "company_priority": []}
+
+        if project_priority_field and project_priority_field.options:
+            options["project_priority"] = [opt for opt in project_priority_field.options.split("\n") if opt]
+
+        if company_priority_field and company_priority_field.options:
+            options["company_priority"] = [opt for opt in company_priority_field.options.split("\n") if opt]
+
+        return options
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Error fetching priority options")
