@@ -36,8 +36,7 @@ app_license = "mit"
 doctype_js = {
 	"Project": ["project_enhancements/doctype/project/project.js", "project_enhancements/public/js/project_form_script.js"],
 	"Opportunity": "project_enhancements/doctype/opportunity/opportunity.js",
-	"Address": "project_enhancements/doctype/address/address.js",
-	"Master Project": ["project_enhancements/public/js/master_project.js"]
+	"Address": "project_enhancements/doctype/address/address.js"
 }
 
 # ------------------
@@ -198,15 +197,11 @@ doctype_list_js = {
 # ---------------
 # Hook on document methods and events
 
-doc_events = {
-	"Master Project": {
-		"validate": "project_enhancements.project_enhancements.master_project.trigger_server_side",
-		"on_update": "project_enhancements.project_enhancements.master_project.trigger_server_side"
-	},
-	"Project": {
-		"on_update": "project_enhancements.project_enhancements.doctype.project.project.sync_master_project"
-	}
-}
+# doc_events = {
+# 	"Project": {
+# 		"on_update": "project_enhancements.project_enhancements.doctype.project.project.sync_master_project"
+# 	}
+# }
 
 # Scheduled Tasks
 # ---------------

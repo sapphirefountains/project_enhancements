@@ -91,23 +91,5 @@
   "label": "Tasks Tree View",
   "insert_after": "custom_tasks_section",
   "name": "Project-custom_tasks_html"
- },
- {
-  "doctype": "Custom Field",
-  "dt": "Master Project",
-  "fieldname": "task_tree_view",
-  "fieldtype": "HTML",
-  "label": "Project Tree View",
-  "name": "Master Project-task_tree_view"
- },
- {
-  "doctype": "Custom Field",
-  "dt": "Project",
-  "fieldname": "custom_master_project",
-  "fieldtype": "Link",
-  "options": "Master Project",
-  "label": "Master Project",
-  "insert_after": "project_name",
-  "name": "Project-custom_master_project"
  }
 ]
