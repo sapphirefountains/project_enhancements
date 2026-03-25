@@ -100,6 +100,7 @@
   "label": "Master Project",
   "options": "Master Project",
   "insert_after": "project_name",
-  "name": "Project-custom_master_project"
+  "name": "Project-custom_master_project",
+  "show_title_field_in_link": 1
  }
 ]
