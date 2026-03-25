@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Frappe App Hooks.
 
 This file is a central configuration point for the 'Project Enhancements' app,
@@ -34,9 +33,12 @@ app_license = "mit"
 # on the Project doctype's form view. The path is relative to the app's root.
 
 doctype_js = {
-	"Project": ["project_enhancements/doctype/project/project.js", "project_enhancements/public/js/project_form_script.js"],
+	"Project": [
+		"project_enhancements/doctype/project/project.js",
+		"project_enhancements/public/js/project_form_script.js",
+	],
 	"Opportunity": "project_enhancements/doctype/opportunity/opportunity.js",
-	"Address": "project_enhancements/doctype/address/address.js"
+	"Address": "project_enhancements/doctype/address/address.js",
 }
 
 # ------------------
@@ -47,14 +49,7 @@ doctype_js = {
 # "Gantt Chart" and "Gantt Chart View" are created in the database when
 # the app is installed or migrated.
 
-fixtures = [
-    {
-        "doctype": "Custom Field",
-        "filters": [
-            ["dt", "=", "Project"]
-        ]
-    }
-]
+fixtures = [{"doctype": "Custom Field", "filters": [["dt", "=", "Project"]]}]
 
 # Apps
 # ------------------
@@ -78,8 +73,8 @@ fixtures = [
 # include js, css files in header of desk.html
 app_include_css = "/assets/project_enhancements/css/task_tree.css"
 app_include_js = [
-    "/assets/project_enhancements/js/gantt_auto_scroll.js",
-    "/assets/project_enhancements/js/task_tree_manager.js"
+	"/assets/project_enhancements/js/gantt_auto_scroll.js",
+	"/assets/project_enhancements/js/task_tree_manager.js",
 ]
 
 # include js, css files in header of web template
@@ -98,9 +93,7 @@ app_include_js = [
 
 # include js in doctype views
 # doctype_js = {"doctype" : "public/js/doctype.js"}
-doctype_list_js = {
-    "Task": "project_enhancements/public/js/task_gantt.js"
-}
+doctype_list_js = {"Task": "project_enhancements/public/js/task_gantt.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -299,11 +292,11 @@ doctype_list_js = {
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
-#fixtures = [
+# fixtures = [
 #    {
 #        "doctype": "Custom Field",
 #        "filters": [
 #            ["dt", "=", "Project"]
 #        ]
 #    }
-#]
+# ]
