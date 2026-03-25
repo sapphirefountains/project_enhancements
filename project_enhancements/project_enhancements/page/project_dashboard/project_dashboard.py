@@ -130,6 +130,8 @@ def get_project_data(is_active=None):
                 "percent_complete",
                 "expected_start_date",
                 "expected_end_date",
+                "custom_project_dollar_amount",
+                "estimated_costing",
             ],
             filters=filters,
             order_by="creation desc",
