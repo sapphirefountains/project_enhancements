@@ -316,7 +316,8 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
                         <th>Project Name</th>
                         <th>Company Priority</th>
                         <th>Project Priority</th>
-                        <th>Status</th>
+                        <th>Completion Percentage</th>
+                        <th>Project Budget Health</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -333,6 +334,12 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
             const display_project_priority = this.bufferManager.getPendingValue(p.name, 'custom_project_priority') !== null
                 ? this.bufferManager.getPendingValue(p.name, 'custom_project_priority')
                 : p.custom_project_priority;
+
+            let budget_health = (p.custom_project_dollar_amount || 0) - (p.estimated_costing || 0);
+            let budget_health_formatted = frappe.format(budget_health, { fieldtype: 'Currency' });
+            let budget_color = budget_health >= 0 ? 'text-success' : 'text-danger';
+
+            let completion = p.percent_complete || 0;
 
             const row = $(`
                 <tr>
@@ -353,7 +360,15 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
                             <select class="form-control form-control-sm"></select>
                         </div>
                     </td>
-                    <td><span class="badge ${this.get_status_badge(p.status)}">${p.status}</span></td>
+                    <td style="min-width: 150px;">
+                        <div class="d-flex align-items-center">
+                            <div class="progress flex-grow-1 mr-2" style="height: 10px;">
+                                <div class="progress-bar ${completion === 100 ? 'bg-success' : 'bg-primary'}" role="progressbar" style="width: ${completion}%" aria-valuenow="${completion}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <span class="small font-weight-bold">${Math.round(completion)}%</span>
+                        </div>
+                    </td>
+                    <td class="font-weight-bold ${budget_color}">${budget_health_formatted}</td>
                 </tr>
             `);
 
@@ -419,7 +434,8 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
             row.data('project_name', p.project_name);
             row.data('custom_project_priority', display_project_priority);
             row.data('custom_company_priority', display_company_priority);
-            row.data('status', p.status);
+            row.data('percent_complete', completion);
+            row.data('budget_health', budget_health);
 
             tbody.append(row);
         });
@@ -476,6 +492,7 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
     show_skeleton() {
         this.wrapper.html(`
             <div class="skeleton-list p-4">
+                <div class="skeleton-line" style="width: 100%; height: 20px; margin-bottom: 10px;"></div>
                 <div class="skeleton-line" style="width: 100%; height: 20px; margin-bottom: 10px;"></div>
                 <div class="skeleton-line" style="width: 100%; height: 20px; margin-bottom: 10px;"></div>
                 <div class="skeleton-line" style="width: 100%; height: 20px; margin-bottom: 10px;"></div>
