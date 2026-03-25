@@ -6,3 +6,4 @@
 # Patches added in this section will be executed after doctypes are migrated
 project_enhancements.patches.update_project_statuses
 project_enhancements.patches.delete_master_project
+project_enhancements.patches.rename_master_projects
