@@ -13,4 +13,5 @@ class ProjectDashboardSettings(Document):
 	which roles have permission to view it. It uses a child table to link to
 	standard Role DocTypes.
 	"""
+
 	pass

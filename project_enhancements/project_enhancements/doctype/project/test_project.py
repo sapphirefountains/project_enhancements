@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2024, Sapphire Fountains and Contributors
 # See license.txt
 """Unit tests for the Project doctype's custom server-side scripts."""
-from __future__ import unicode_literals
 
 import unittest
 
@@ -10,15 +8,15 @@ from project_enhancements.project_enhancements.doctype.project.project import ge
 
 
 class TestProject(unittest.TestCase):
-    """Test case for custom functions related to the Project doctype."""
+	"""Test case for custom functions related to the Project doctype."""
 
-    def test_get_project_grouping_option(self):
-        """Test that the project grouping option is returned correctly."""
-        # Call the function
-        result = get_project_grouping_option()
+	def test_get_project_grouping_option(self):
+		"""Test that the project grouping option is returned correctly."""
+		# Call the function
+		result = get_project_grouping_option()
 
-        # Define the expected output
-        expected = {"group_by": "project_type"}
+		# Define the expected output
+		expected = {"group_by": "project_type"}
 
-        # Assert that the result matches the expected output
-        self.assertEqual(result, expected)
+		# Assert that the result matches the expected output
+		self.assertEqual(result, expected)
