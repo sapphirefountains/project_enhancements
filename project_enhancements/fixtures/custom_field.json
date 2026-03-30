@@ -107,7 +107,7 @@
   "doctype": "Custom Field",
   "dt": "Project",
   "fieldname": "custom_project_description",
-  "fieldtype": "Data",
+  "fieldtype": "Small Text",
   "label": "Project Description",
   "insert_after": "column_break_5",
   "name": "Project-custom_project_description"
