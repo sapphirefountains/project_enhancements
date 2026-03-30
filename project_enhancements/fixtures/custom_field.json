@@ -102,5 +102,14 @@
   "insert_after": "project_name",
   "name": "Project-custom_master_project",
   "show_title_field_in_link": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Project",
+  "fieldname": "custom_project_description",
+  "fieldtype": "Data",
+  "label": "Project Description",
+  "insert_after": "column_break_5",
+  "name": "Project-custom_project_description"
  }
 ]
