@@ -261,12 +261,12 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
                         <div class="task-grid-cell">
                             <div style="padding-left: ${
 								level * 20
-							}px; display: flex; align-items: center; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+							}px; display: flex; align-items: center; width: 100%;">
                                 <i class="fa fa-bars task-drag-handle mr-2 text-muted" style="cursor: grab; flex-shrink: 0;"></i>
                                 <i class="fa fa-fw ${iconClass} mr-1" style="cursor: pointer; flex-shrink: 0;"></i>
                                 <a href="/app/task/${
 									task.name
-								}" style="overflow: hidden; text-overflow: ellipsis;">${
+								}" class="task-name-cell-text" title="${task.subject}">${
 				task.subject
 			}</a>
                             </div>
