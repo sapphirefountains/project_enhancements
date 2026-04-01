@@ -237,10 +237,10 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 
 		const renderTaskNode = (task, container, level) => {
 			const start_date = task.exp_start_date
-				? frappe.datetime.moment(task.exp_start_date).format("MM/DD/YY")
+				? frappe.datetime.str_to_user(task.exp_start_date)
 				: "Set Date";
 			const end_date = task.exp_end_date
-				? frappe.datetime.moment(task.exp_end_date).format("MM/DD/YY")
+				? frappe.datetime.str_to_user(task.exp_end_date)
 				: "Set Date";
 			const progress = task.progress || 0;
 			const isCollapsed = this.collapsedTasks.has(task.name);
@@ -537,7 +537,7 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 		$(datepicker.input).on("change", () => {
 			hasChanged = true;
 			const newValue = datepicker.get_value();
-			const displayValue = newValue ? frappe.datetime.moment(newValue).format("MM/DD/YY") : "Set Date";
+			const displayValue = newValue ? frappe.datetime.str_to_user(newValue) : "Set Date";
 
 			link.text(displayValue);
 			cell.addClass("unsaved-change");
