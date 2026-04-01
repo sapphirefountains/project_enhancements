@@ -33,6 +33,20 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 			this.collapsedTasks = new Set(JSON.parse(savedState));
 		}
 
+		// Load column visibility state from local storage
+		this.columnVisibility = {
+			owner: false,
+			status: true,
+			start_date: false,
+			due_date: true,
+			progress: true,
+			duration: false
+		};
+		const savedColumns = localStorage.getItem(`taskTreeColumns_${frappe.session.user}`);
+		if (savedColumns) {
+			this.columnVisibility = JSON.parse(savedColumns);
+		}
+
 		this.init();
 	}
 
@@ -94,19 +108,52 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
                             <div class="col-md-4"><input type="text" class="form-control form-control-sm task-name-filter" placeholder="Filter by task name..."></div>
                             <div class="col-md-3"><input type="text" class="form-control form-control-sm task-owner-filter" placeholder="Filter by owner..."></div>
                             <div class="col-md-3"><select class="form-control form-control-sm task-status-filter"><option value="">All Statuses</option></select></div>
-                            <div class="col-md-2"><button class="btn btn-sm btn-default btn-block clear-filters-btn">Clear Filters</button></div>
+                            <div class="col-md-2 d-flex">
+                                <button class="btn btn-sm btn-default clear-filters-btn mr-2 flex-grow-1">Clear</button>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-default dropdown-toggle" type="button" id="columnToggleMenu" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Toggle Columns">
+                                        <i class="fa fa-columns"></i>
+                                    </button>
+                                    <div class="dropdown-menu dropdown-menu-right p-2" aria-labelledby="columnToggleMenu" style="min-width: 150px;">
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input column-toggle-cb" type="checkbox" value="owner" id="cb-col-owner" ${this.columnVisibility.owner ? 'checked' : ''}>
+                                            <label class="form-check-label" for="cb-col-owner">Owner</label>
+                                        </div>
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input column-toggle-cb" type="checkbox" value="status" id="cb-col-status" ${this.columnVisibility.status ? 'checked' : ''}>
+                                            <label class="form-check-label" for="cb-col-status">Status</label>
+                                        </div>
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input column-toggle-cb" type="checkbox" value="start_date" id="cb-col-start-date" ${this.columnVisibility.start_date ? 'checked' : ''}>
+                                            <label class="form-check-label" for="cb-col-start-date">Start Date</label>
+                                        </div>
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input column-toggle-cb" type="checkbox" value="due_date" id="cb-col-due-date" ${this.columnVisibility.due_date ? 'checked' : ''}>
+                                            <label class="form-check-label" for="cb-col-due-date">Due Date</label>
+                                        </div>
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input column-toggle-cb" type="checkbox" value="progress" id="cb-col-progress" ${this.columnVisibility.progress ? 'checked' : ''}>
+                                            <label class="form-check-label" for="cb-col-progress">% Complete</label>
+                                        </div>
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input column-toggle-cb" type="checkbox" value="duration" id="cb-col-duration" ${this.columnVisibility.duration ? 'checked' : ''}>
+                                            <label class="form-check-label" for="cb-col-duration">Duration</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="task-grid">
                     <div class="task-grid-header">
-                        <div class="task-grid-cell">Task</div>
-                        <div class="task-grid-cell">Owner</div>
-                        <div class="task-grid-cell">Status</div>
-                        <div class="task-grid-cell">Start Date</div>
-                        <div class="task-grid-cell">Due Date</div>
-                        <div class="task-grid-cell">% Complete</div>
-                        <div class="task-grid-cell">Duration (hrs)</div>
+                        <div class="task-grid-cell" data-column="task">Task</div>
+                        <div class="task-grid-cell ${this.columnVisibility.owner ? '' : 'hidden-column'}" data-column="owner">Owner</div>
+                        <div class="task-grid-cell ${this.columnVisibility.status ? '' : 'hidden-column'}" data-column="status">Status</div>
+                        <div class="task-grid-cell ${this.columnVisibility.start_date ? '' : 'hidden-column'}" data-column="start_date">Start Date</div>
+                        <div class="task-grid-cell ${this.columnVisibility.due_date ? '' : 'hidden-column'}" data-column="due_date">Due Date</div>
+                        <div class="task-grid-cell ${this.columnVisibility.progress ? '' : 'hidden-column'}" data-column="progress">% Complete</div>
+                        <div class="task-grid-cell ${this.columnVisibility.duration ? '' : 'hidden-column'}" data-column="duration">Duration (hrs)</div>
                     </div>
                     <div class="task-grid-body"></div>
                 </div>
@@ -224,10 +271,10 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 			}</a>
                             </div>
                         </div>
-                        <div class="task-grid-cell assignee-cell"><a href="#" class="assignee-link">${
+                        <div class="task-grid-cell assignee-cell ${this.columnVisibility.owner ? '' : 'hidden-column'}" data-column="owner"><a href="#" class="assignee-link">${
 							task.assigned_to || "Unassigned"
 						}</a></div>
-                        <div class="task-grid-cell">
+                        <div class="task-grid-cell ${this.columnVisibility.status ? '' : 'hidden-column'}" data-column="status">
                             <select class="form-control form-control-sm task-status-select pill-select" style="width: 120px; ${statusStyle}">
                                 ${this.taskStatusOptions
 									.map(
@@ -241,22 +288,22 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
                         </div>
                         <div class="task-grid-cell editable-date ${
 							hasPendingChange("exp_start_date") ? "unsaved-change" : ""
-						}" data-field="exp_start_date" data-task-id="${
+						} ${this.columnVisibility.start_date ? '' : 'hidden-column'}" data-field="exp_start_date" data-task-id="${
 				task.name
 			}" data-original-date="${
 				task.exp_start_date || ""
-			}"><a href="#">${start_date}</a></div>
+			}" data-column="start_date"><a href="#">${start_date}</a></div>
                         <div class="task-grid-cell editable-date ${
 							hasPendingChange("exp_end_date") ? "unsaved-change" : ""
-						}" data-field="exp_end_date" data-task-id="${
+						} ${this.columnVisibility.due_date ? '' : 'hidden-column'}" data-field="exp_end_date" data-task-id="${
 				task.name
-			}" data-original-date="${task.exp_end_date || ""}"><a href="#">${end_date}</a></div>
-                        <div class="task-grid-cell"><div class="progress" style="height: 15px; width: 100%;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></div>
+			}" data-original-date="${task.exp_end_date || ""}" data-column="due_date"><a href="#">${end_date}</a></div>
+                        <div class="task-grid-cell ${this.columnVisibility.progress ? '' : 'hidden-column'}" data-column="progress"><div class="progress" style="height: 15px; width: 100%;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></div>
                         <div class="task-grid-cell editable-time ${
 							hasPendingChange("expected_time") ? "unsaved-change" : ""
-						}" data-field="expected_time" data-task-id="${
+						} ${this.columnVisibility.duration ? '' : 'hidden-column'}" data-field="expected_time" data-task-id="${
 				task.name
-			}" data-original-value="${task.expected_time || 0}"><a href="#">${
+			}" data-original-value="${task.expected_time || 0}" data-column="duration"><a href="#">${
 				task.expected_time || 0
 			}</a></div>
                     </div>
@@ -438,6 +485,25 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 			e.preventDefault();
 			if (me.readonly) return;
 			me.showAssigneeDialog($(this));
+		});
+
+		// Column Toggle
+		this.wrapper.on("change", ".column-toggle-cb", function (e) {
+			const column = $(this).val();
+			const isChecked = $(this).prop("checked");
+			me.columnVisibility[column] = isChecked;
+			localStorage.setItem(`taskTreeColumns_${frappe.session.user}`, JSON.stringify(me.columnVisibility));
+
+			if (isChecked) {
+				me.wrapper.find(`.task-grid-cell[data-column="${column}"]`).removeClass("hidden-column");
+			} else {
+				me.wrapper.find(`.task-grid-cell[data-column="${column}"]`).addClass("hidden-column");
+			}
+		});
+
+		// Prevent dropdown from closing when clicking inside
+		this.wrapper.on("click", ".dropdown-menu", function (e) {
+			e.stopPropagation();
 		});
 	}
 

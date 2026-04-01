@@ -112,3 +112,7 @@
 .task-drag-handle:active {
     cursor: grabbing;
 }
+
+.hidden-column {
+    display: none !important;
+}
