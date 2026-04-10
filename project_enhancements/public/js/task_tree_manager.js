@@ -107,7 +107,16 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
                         <div class="row">
                             <div class="col-md-4"><input type="text" class="form-control form-control-sm task-name-filter" placeholder="Filter by task name..."></div>
                             <div class="col-md-3"><input type="text" class="form-control form-control-sm task-owner-filter" placeholder="Filter by owner..."></div>
-                            <div class="col-md-3"><select class="form-control form-control-sm task-status-filter"><option value="">All Statuses</option></select></div>
+                            <div class="col-md-3">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-default dropdown-toggle w-100 text-left" type="button" id="statusFilterMenu" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Filter by Status" style="background-color: white; border: 1px solid #d1d8dd; color: #36414c;">
+                                        Statuses
+                                    </button>
+                                    <div class="dropdown-menu p-2" aria-labelledby="statusFilterMenu" style="min-width: 200px; max-height: 300px; overflow-y: auto;" id="status-filter-container">
+                                        <!-- Checkboxes will be injected here -->
+                                    </div>
+                                </div>
+                            </div>
                             <div class="col-md-2 d-flex">
                                 <button class="btn btn-sm btn-default clear-filters-btn mr-2 flex-grow-1">Clear</button>
                                 <div class="dropdown">
@@ -218,11 +227,15 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 	}
 
 	updateStatusFilterOptions() {
-		const filter = this.wrapper.find(".task-status-filter");
-		// keep the first option
-		filter.find("option:not(:first)").remove();
+		const container = this.wrapper.find("#status-filter-container");
+		container.empty();
 		this.taskStatusOptions.forEach((s) => {
-			filter.append(`<option value="${s}">${s}</option>`);
+			container.append(`
+                <div class="form-check mb-1">
+                    <input class="form-check-input task-status-cb" type="checkbox" value="${s}" id="cb-status-${s.replace(/\s+/g, '-')}">
+                    <label class="form-check-label" style="cursor: pointer; width: 100%;" for="cb-status-${s.replace(/\s+/g, '-')}">${s}</label>
+                </div>
+            `);
 		});
 	}
 
@@ -388,7 +401,11 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 	applyFilters() {
 		const nameFilter = (this.wrapper.find(".task-name-filter").val() || "").toLowerCase();
 		const ownerFilter = (this.wrapper.find(".task-owner-filter").val() || "").toLowerCase();
-		const statusFilter = this.wrapper.find(".task-status-filter").val();
+
+		const statusFilters = [];
+		this.wrapper.find(".task-status-cb:checked").each(function() {
+			statusFilters.push($(this).val());
+		});
 
 		// Deep copy tasks to avoid mutating state during filtering
 		let filteredTasks = JSON.parse(JSON.stringify(this.tasks));
@@ -401,7 +418,7 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 			const nameMatch = !nameFilter || task.subject.toLowerCase().includes(nameFilter);
 			const ownerMatch =
 				!ownerFilter || (task.assigned_to || "").toLowerCase().includes(ownerFilter);
-			const statusMatch = !statusFilter || task.status === statusFilter;
+			const statusMatch = statusFilters.length === 0 || statusFilters.includes(task.status);
 
 			if ((nameMatch && ownerMatch && statusMatch) || hasVisibleChildren) {
 				return task;
@@ -422,11 +439,24 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 			".task-name-filter, .task-owner-filter",
 			frappe.utils.debounce(() => me.applyFilters(), 300)
 		);
-		this.wrapper.on("change", ".task-status-filter", () => me.applyFilters());
+		this.wrapper.on("change", ".task-status-cb", () => {
+			// Update the dropdown button text
+			const checkedCount = me.wrapper.find(".task-status-cb:checked").length;
+			const btn = me.wrapper.find("#statusFilterMenu");
+			if (checkedCount === 0) {
+				btn.text("Statuses");
+			} else if (checkedCount === 1) {
+				btn.text(me.wrapper.find(".task-status-cb:checked").first().val());
+			} else {
+				btn.text(`${checkedCount} selected`);
+			}
+			me.applyFilters();
+		});
 		this.wrapper.on("click", ".clear-filters-btn", () => {
 			me.wrapper.find(".task-name-filter").val("");
 			me.wrapper.find(".task-owner-filter").val("");
-			me.wrapper.find(".task-status-filter").val("");
+			me.wrapper.find(".task-status-cb").prop("checked", false);
+			me.wrapper.find("#statusFilterMenu").text("Statuses");
 			me.applyFilters();
 		});
 
