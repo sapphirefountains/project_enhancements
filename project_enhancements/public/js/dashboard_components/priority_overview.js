@@ -31,6 +31,7 @@ project_enhancements.dashboard_components.BufferManager = class BufferManager {
 		}
 
 		this.updateGlobalUI();
+		this.commit();
 	}
 
 	hasChanges() {
