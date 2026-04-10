@@ -6,7 +6,7 @@
   "doctype_or_field": "DocField",
   "field_name": "status",
   "property": "options",
-  "value": "Active\nOn Hold\nCanceled\nCompleted\nInvoiced",
+  "value": "Active\nClient Hold\nParked\nCompleted\nInvoiced\nPaid\nCanceled",
   "is_system_generated": 0,
   "name": "Project-status-options"
  },

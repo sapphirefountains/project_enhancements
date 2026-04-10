@@ -555,14 +555,20 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 				return "badge-primary";
 			case "Completed":
 				return "badge-success";
+			case "Paid":
+				return "badge-success";
 			case "Overdue":
 				return "badge-danger";
 			case "Cancelled":
+			case "Canceled":
 				return "badge-danger";
 			case "Working":
 				return "badge-warning";
-			case "On Hold":
+			case "Client Hold":
+			case "Parked":
 				return "badge-warning";
+			case "Invoiced":
+				return "badge-info";
 			default:
 				return "badge-secondary";
 		}
