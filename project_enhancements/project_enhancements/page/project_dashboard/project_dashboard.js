@@ -241,50 +241,35 @@ frappe.pages["project-dashboard"].on_page_load = function (wrapper) {
 			}
 		}
 
-		// --- Interactive State & Batch Saving ---
-		let pendingProjectChanges = {};
-
+		// --- Interactive State & Auto Saving ---
 		$(document).on("dashboard_project_change", (e, data) => {
-			if (!pendingProjectChanges[data.project]) {
-				pendingProjectChanges[data.project] = {};
-			}
-			pendingProjectChanges[data.project][data.field] = data.value;
-			$("#global-pending-changes").show();
-		});
-
-		$("#save-global-changes").on("click", () => {
 			project_enhancements.dashboard_api
 				.call({
-					method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_multiple_docs",
+					method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_project_details",
 					args: {
-						project_updates: JSON.stringify(pendingProjectChanges),
-						task_updates: "{}",
+						project_name: data.project,
+						field: data.field,
+						value: data.value,
 					},
 				})
 				.then((r) => {
 					if (r.message && r.message.status === "success") {
-						frappe.show_alert({ message: "Changes saved!", indicator: "green" });
-						pendingProjectChanges = {};
-						$("#global-pending-changes").hide();
+						frappe.show_alert({ message: "Change saved automatically", indicator: "green" });
 					} else {
 						frappe.show_alert({
-							message: r.message.message || "Error saving changes.",
+							message: r.message ? r.message.message : "Error saving change.",
 							indicator: "red",
 						});
 						handleRouteChange(); // Reload to revert
 					}
 				})
 				.catch((err) => {
-					frappe.show_alert({ message: "Error saving changes.", indicator: "red" });
+					frappe.show_alert({
+						message: err.message || "Error saving change.",
+						indicator: "red",
+					});
 					handleRouteChange(); // Reload to revert
 				});
-		});
-
-		$("#discard-global-changes").on("click", () => {
-			pendingProjectChanges = {};
-			$("#global-pending-changes").hide();
-			handleRouteChange(); // Reload view
-			frappe.show_alert({ message: "Changes discarded.", indicator: "info" });
 		});
 
 		// Search Filtering Support

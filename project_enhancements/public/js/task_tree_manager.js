@@ -668,7 +668,7 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 	}
 
 	showPendingChangesControls() {
-		this.wrapper.find(".task-pending-changes-controls").show();
+		this.savePendingChanges();
 	}
 
 	savePendingChanges() {
