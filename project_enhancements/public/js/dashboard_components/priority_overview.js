@@ -305,6 +305,9 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 			let groups = {};
 			projects.forEach((p) => {
 				let stream = p.project_type || "Uncategorized";
+				if (stream === "Group Projects" || stream === "Internal") {
+					return; // Exclude Group Projects and Internal
+				}
 				if (!groups[stream]) {
 					groups[stream] = [];
 				}
