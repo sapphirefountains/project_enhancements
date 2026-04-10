@@ -374,6 +374,9 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 			case "Completed":
 				color = "#28a745";
 				break;
+			case "Paid":
+				color = "#28a745";
+				break;
 			case "Overdue":
 				color = "#dc3545";
 				break;

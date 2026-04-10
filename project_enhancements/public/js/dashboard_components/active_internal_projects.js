@@ -82,7 +82,7 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
         `).appendTo(listContainer);
 
 		const tbody = table.find("tbody");
-		const statusOptions = ["Active", "On Hold", "Canceled", "Completed", "Invoiced"];
+		const statusOptions = ["Active", "Client Hold", "Parked", "Completed", "Invoiced", "Paid", "Canceled"];
 		const priorityOptions = ["High", "Medium", "Low"];
 
 		projects.forEach((p) => {
@@ -150,14 +150,20 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
 				return "badge-primary";
 			case "Completed":
 				return "badge-success";
+			case "Paid":
+				return "badge-success";
 			case "Overdue":
 				return "badge-danger";
 			case "Cancelled":
+			case "Canceled":
 				return "badge-danger";
 			case "Working":
 				return "badge-warning";
-			case "On Hold":
+			case "Client Hold":
+			case "Parked":
 				return "badge-warning";
+			case "Invoiced":
+				return "badge-info";
 			default:
 				return "badge-secondary";
 		}

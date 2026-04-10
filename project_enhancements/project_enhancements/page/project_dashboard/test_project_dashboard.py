@@ -238,10 +238,10 @@ class TestProjectDashboard(unittest.TestCase):
 		"""Test successful retrieval of status options."""
 		mock_meta = mock_get_meta.return_value
 		mock_meta.fields = [
-			frappe._dict({"fieldname": "status", "options": "Active\nOn Hold\nCanceled\nCompleted\nInvoiced"})
+			frappe._dict({"fieldname": "status", "options": "Active\nClient Hold\nParked\nCompleted\nInvoiced\nPaid\nCanceled"})
 		]
 		result = get_status_options()
-		self.assertEqual(result, ["Active", "On Hold", "Canceled", "Completed", "Invoiced"])
+		self.assertEqual(result, ["Active", "Client Hold", "Parked", "Completed", "Invoiced", "Paid", "Canceled"])
 
 	@patch(
 		"project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.log_error"
