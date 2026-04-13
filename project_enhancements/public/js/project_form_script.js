@@ -52,6 +52,13 @@ frappe.ui.form.on("Project", {
 			const wrapperField = frm.get_field("custom_tasks_html");
 
 			if (wrapperField && wrapperField.$wrapper) {
+				// Override render to ensure Frappe's tab lazy rendering doesn't clear our DOM
+				wrapperField.render = function() {
+					if (this.$wrapper && this.$wrapper.children().length === 0) {
+						this.$wrapper.html('<div></div>');
+					}
+				};
+
 				const docName = frm.doc.name;
 
 				frappe

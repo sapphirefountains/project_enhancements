@@ -233,7 +233,7 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 			container.append(`
                 <div class="form-check mb-1">
                     <input class="form-check-input task-status-cb" type="checkbox" value="${s}" id="cb-status-${s.replace(/\s+/g, '-')}">
-                    <label class="form-check-label" style="cursor: pointer; width: 100%;" for="cb-status-${s.replace(/\s+/g, '-')}">${s}</label>
+                    <label class="form-check-label" style="cursor: pointer;" for="cb-status-${s.replace(/\s+/g, '-')}">${s}</label>
                 </div>
             `);
 		});
