@@ -46,59 +46,33 @@ frappe.ui.form.on("Project", {
 		}
 
 		// =========================================================================
-		// 3. TREE VIEW RENDERER (INTERSECTION OBSERVER)
+		// 3. TREE VIEW RENDERER
 		// =========================================================================
-		// Solves the Frappe "Lazy Tab Rendering" issue. The observer waits until
-		// the wrapper actually exists and becomes visible before injecting the tree.
 		if (frappe.has_permission("Task", "read")) {
 			const wrapperField = frm.get_field("custom_tasks_html");
 
-			if (wrapperField && wrapperField.$wrapper && wrapperField.$wrapper[0]) {
-				// Disconnect old observer if it exists
-				if (frm._tree_observer) {
-					frm._tree_observer.disconnect();
-					frm._tree_observer = null;
-				}
-
+			if (wrapperField && wrapperField.$wrapper) {
 				const docName = frm.doc.name;
 
-				frm._tree_observer = new IntersectionObserver(
-					(entries) => {
-						entries.forEach((entry) => {
-							if (entry.isIntersecting) {
-								// The tab is now visible! Load the tree if not already loaded
-								if (!frm.task_tree_instance) {
-									console.log(
-										`Scope Tab is visible. Rendering Task Tree for Project: ${docName}`
-									);
-
-									frappe
-										.require(
-											"/assets/project_enhancements/js/task_tree_manager.js"
-										)
-										.then(() => {
-											// Verify instance wasn't created during the network request delay
-											if (
-												!frm.task_tree_instance &&
-												window.project_enhancements &&
-												project_enhancements.TaskTreeManager
-											) {
-												frm.task_tree_instance =
-													new project_enhancements.TaskTreeManager({
-														wrapper: wrapperField.$wrapper,
-														projectName: docName,
-													});
-											}
-										});
-								}
-							}
-						});
-					},
-					{ rootMargin: "2000px" }
-				);
-
-				// Start observing the custom HTML wrapper
-				frm._tree_observer.observe(wrapperField.$wrapper[0]);
+				frappe
+					.require(
+						"/assets/project_enhancements/js/task_tree_manager.js"
+					)
+					.then(() => {
+						// Verify instance wasn't created during the network request delay
+						if (
+							!frm.task_tree_instance &&
+							window.project_enhancements &&
+							project_enhancements.TaskTreeManager
+						) {
+							console.log(`Rendering Task Tree for Project: ${docName}`);
+							frm.task_tree_instance =
+								new project_enhancements.TaskTreeManager({
+									wrapper: wrapperField.$wrapper,
+									projectName: docName,
+								});
+						}
+					});
 			}
 		}
 
