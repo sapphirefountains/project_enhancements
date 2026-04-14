@@ -11,9 +11,9 @@ A custom page that provides a comprehensive, real-time view of all projects.
 - **Tabbed Navigation**: Separate views for "Active," "Inactive," high-priority projects, and a hierarchical "Tasks Tree".
 - **Dynamic Grouping**: Projects are grouped by "Project Type." The order of these groups is customizable via a drag-and-drop interface and is saved locally to your browser.
 - **Search and Sort**:
-    - Instantly search for projects within the current tab.
-    - Sort project groups alphabetically, by project count, or using your custom order.
-    - Sort projects within each group by fields like Project Name, Series, Status, Priority, and more.
+  - Instantly search for projects within the current tab.
+  - Sort project groups alphabetically, by project count, or using your custom order.
+  - Sort projects within each group by fields like Project Name, Series, Status, Priority, and more.
 - **Inline Editing**: Quickly update a project's `Status` or `Priority` directly from the dashboard. The task view allows for inline editing of status, dates, and assignees.
 - **Task Progress**: See at a glance the number of completed vs. total tasks for each project.
 - **Hierarchical Task View**: A dedicated tab to view a project's tasks and sub-tasks in a collapsible tree structure.
@@ -59,10 +59,10 @@ This application is built on the Frappe Framework and consists of several key co
 
 - **`project_dashboard.js`**: This is the core frontend file that builds the entire interactive dashboard. It handles all UI rendering, state management (filters, sorting, tabs), user event listeners (clicks, dropdown changes), and communication with the backend via `frappe.call`.
 - **`project_dashboard.py`**: This backend file provides the necessary API for the frontend. It contains whitelisted Python functions that:
-    - Check user permissions.
-    - Fetch and process project and task data.
-    - Handle inline updates to project and task documents.
-    - Retrieve metadata like status and priority options from other DocTypes.
+  - Check user permissions.
+  - Fetch and process project and task data.
+  - Handle inline updates to project and task documents.
+  - Retrieve metadata like status and priority options from other DocTypes.
 
 ### 2. Project Doctype Customizations
 

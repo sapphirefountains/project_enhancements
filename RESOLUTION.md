@@ -1,6 +1,7 @@
 # Resolution: "Master Project" Hook/Controller Connection Failure
 
 ## Root Cause Analysis
+
 The "Master Project" DocType was created through the Frappe/ERPNext UI (`Custom=1`), which means its definition exists solely in the database and not natively within an app folder. When a DocType is created this way, the Frappe framework completely ignores standard controller files (e.g., `app_name/doctype/master_project/master_project.py` or `master_project.js`).
 
 Because it lacks standard module associations and standard controller loading mechanisms, attempting to place files in `project_enhancements/doctype/master_project/` and hoping they execute will fail silently. The correct way to inject business logic and frontend JS into a `Custom=1` DocType is by leveraging `hooks.py`.
@@ -8,6 +9,7 @@ Because it lacks standard module associations and standard controller loading me
 The previous setup failed because the hooks might not have matched correctly, cache caching prevented updates, or the python function lacked proper server-side hook registration.
 
 ## Resolution Order
+
 1. **Frontend JS Registration**: Register the client-side form script via `doctype_js` in `hooks.py`. This explicitly tells Frappe "Whenever the 'Master Project' form is loaded, also load this specific JS file."
 2. **Backend Controller Creation**: Create a standard Python file within the module folder (e.g., `project_enhancements/project_enhancements/master_project.py`) with a dedicated hook function.
 3. **Backend Event Registration**: Map document lifecycle events (`validate`, `on_update`) for "Master Project" to the newly created python function via `doc_events` in `hooks.py`.
@@ -43,6 +45,7 @@ bench restart
 ## Exact Code Blocks
 
 ### 1. `hooks.py`
+
 Update `hooks.py` to point directly to your files:
 
 ```python
@@ -62,34 +65,38 @@ doc_events = {
 ```
 
 ### 2. `master_project.js` (Frontend Trigger)
+
 File Location: `project_enhancements/public/js/master_project.js`
 
 ```javascript
 console.log("master_project.js loaded successfully.");
 
-frappe.ui.form.on('Master Project', {
-    onload: function(frm) {
-        console.log("Master Project form 'onload' triggered.");
-        console.error("Code is working - ONLOAD"); // Foolproof trigger
+frappe.ui.form.on("Master Project", {
+  onload: function (frm) {
+    console.log("Master Project form 'onload' triggered.");
+    console.error("Code is working - ONLOAD"); // Foolproof trigger
 
-        // This will pop up a message immediately on load
-        frappe.msgprint({
-            title: __('Connection Success'),
-            indicator: 'green',
-            message: __('The frontend Javascript controller is successfully connected!')
-        });
-    },
-    refresh: function(frm) {
-        console.log("Master Project form 'refresh' triggered.");
-        console.error("Code is working - REFRESH");
+    // This will pop up a message immediately on load
+    frappe.msgprint({
+      title: __("Connection Success"),
+      indicator: "green",
+      message: __(
+        "The frontend Javascript controller is successfully connected!",
+      ),
+    });
+  },
+  refresh: function (frm) {
+    console.log("Master Project form 'refresh' triggered.");
+    console.error("Code is working - REFRESH");
 
-        // Existing render logic can stay here
-        // const targetField = frm.fields_dict['project_list']; ...
-    }
+    // Existing render logic can stay here
+    // const targetField = frm.fields_dict['project_list']; ...
+  },
 });
 ```
 
 ### 3. `master_project.py` (Backend Server Log)
+
 File Location: `project_enhancements/project_enhancements/master_project.py`
 
 ```python

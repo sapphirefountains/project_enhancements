@@ -10,7 +10,7 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 60  # Kept higher timeout just in case, though removal of Insights should speed this up
+    timeout-minutes: 60 # Kept higher timeout just in case, though removal of Insights should speed this up
 
     services:
       mariadb:
@@ -40,13 +40,13 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.14'
-          cache: 'pip'
+          python-version: "3.14"
+          cache: "pip"
 
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
-          node-version: '24.12.0'
+          node-version: "24.12.0"
 
       - name: Update Pip
         run: |

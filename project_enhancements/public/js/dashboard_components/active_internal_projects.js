@@ -82,7 +82,15 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
         `).appendTo(listContainer);
 
 		const tbody = table.find("tbody");
-		const statusOptions = ["Active", "Client Hold", "Parked", "Completed", "Invoiced", "Paid", "Canceled"];
+		const statusOptions = [
+			"Active",
+			"Client Hold",
+			"Parked",
+			"Completed",
+			"Invoiced",
+			"Paid",
+			"Canceled",
+		];
 		const priorityOptions = ["High", "Medium", "Low"];
 
 		projects.forEach((p) => {
