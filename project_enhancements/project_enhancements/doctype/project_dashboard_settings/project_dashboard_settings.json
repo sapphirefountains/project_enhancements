@@ -1,45 +1,45 @@
 {
-    "name": "Project Dashboard Settings",
-    "doctype": "DocType",
-    "module": "Project Enhancements",
-    "owner": "Administrator",
-    "modified_by": "Administrator",
-    "creation": "2024-10-01 10:00:00.000000",
-    "modified": "2024-10-01 10:00:00.000000",
-    "engine": "InnoDB",
-    "issingle": 1,
-    "permissions": [
-        {
-            "role": "System Manager",
-            "read": 1,
-            "write": 1,
-            "create": 1,
-            "delete": 1,
-            "submit": 1,
-            "cancel": 1,
-            "amend": 1,
-            "report": 1,
-            "export": 1,
-            "import": 0,
-            "share": 1,
-            "print": 1,
-            "email": 1
-        }
-    ],
-    "fields": [
-        {
-            "fieldname": "permitted_roles",
-            "fieldtype": "Table",
-            "label": "Permitted Roles",
-            "options": "Project Dashboard Permitted Role",
-            "description": "Define which roles have permission to view the Project Dashboard page.",
-            "in_list_view": 0
-        }
-    ],
-    "quick_entry": 1,
-    "track_changes": 1,
-    "track_seen": 0,
-    "track_views": 0,
-    "is_submittable": 0,
-    "show_name_in_global_search": 0
+  "name": "Project Dashboard Settings",
+  "doctype": "DocType",
+  "module": "Project Enhancements",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2024-10-01 10:00:00.000000",
+  "modified": "2024-10-01 10:00:00.000000",
+  "engine": "InnoDB",
+  "issingle": 1,
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "submit": 1,
+      "cancel": 1,
+      "amend": 1,
+      "report": 1,
+      "export": 1,
+      "import": 0,
+      "share": 1,
+      "print": 1,
+      "email": 1
+    }
+  ],
+  "fields": [
+    {
+      "fieldname": "permitted_roles",
+      "fieldtype": "Table",
+      "label": "Permitted Roles",
+      "options": "Project Dashboard Permitted Role",
+      "description": "Define which roles have permission to view the Project Dashboard page.",
+      "in_list_view": 0
+    }
+  ],
+  "quick_entry": 1,
+  "track_changes": 1,
+  "track_seen": 0,
+  "track_views": 0,
+  "is_submittable": 0,
+  "show_name_in_global_search": 0
 }

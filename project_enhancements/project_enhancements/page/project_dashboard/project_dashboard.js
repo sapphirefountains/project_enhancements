@@ -254,7 +254,10 @@ frappe.pages["project-dashboard"].on_page_load = function (wrapper) {
 				})
 				.then((r) => {
 					if (r.message && r.message.status === "success") {
-						frappe.show_alert({ message: "Change saved automatically", indicator: "green" });
+						frappe.show_alert({
+							message: "Change saved automatically",
+							indicator: "green",
+						});
 					} else {
 						frappe.show_alert({
 							message: r.message ? r.message.message : "Error saving change.",

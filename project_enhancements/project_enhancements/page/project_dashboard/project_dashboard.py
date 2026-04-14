@@ -371,6 +371,7 @@ def _fetch_all_project_tasks(project_name):
 		"subject",
 		"assigned_to",
 		"status",
+		"priority",
 		"exp_start_date",
 		"exp_end_date",
 		"progress",
