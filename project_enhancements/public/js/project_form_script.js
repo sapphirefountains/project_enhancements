@@ -78,15 +78,17 @@ frappe.ui.form.on("Project", {
 					}
 				};
 
-				// Override render to ensure Frappe's tab lazy rendering doesn't clear our DOM
-				// By re-instantiating on render, it loads automatically just like gantt (or any other field)
-				// when its parent wrapper is available or brought into view.
-				wrapperField.render = function() {
+				// Override refresh to ensure Frappe's tab lazy rendering doesn't clear our DOM.
+				// Frappe calls refresh() when the tab is made visible.
+				// By re-instantiating on refresh, it loads automatically when the tab is clicked,
+				// avoiding hidden 0x0 dimension errors.
+				const original_refresh = wrapperField.refresh;
+				wrapperField.refresh = function() {
+					if (original_refresh) {
+						original_refresh.call(this);
+					}
 					renderTaskTree.call(this);
 				};
-
-				// Eagerly try to render right away
-				renderTaskTree.call(wrapperField);
 			}
 		}
 
