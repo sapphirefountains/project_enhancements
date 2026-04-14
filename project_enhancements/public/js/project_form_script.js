@@ -133,6 +133,22 @@ frappe.ui.form.on("Project", {
 		$(window).on("hashchange", checkAndSwitchToScopeTab);
 
 		// =========================================================================
+		// 4.5. AUTO-LOAD TREE VIEW ON NATIVE TAB CLICK
+		// =========================================================================
+		frm.$wrapper.find('.form-tabs').on('click', '.nav-item[data-fieldname="custom_scope"], .nav-item[data-label="Scope"]', function () {
+			// A slight timeout ensures Frappe has finished rendering the tab pane's DOM visibility
+			setTimeout(() => {
+				const wrapperField = frm.get_field("custom_tasks_html");
+
+				// Only force the refresh if the wrapper exists and hasn't been populated yet
+				if (wrapperField && wrapperField.$wrapper && wrapperField.$wrapper.children().length === 0) {
+					console.log("Scope tab opened natively - triggering Tree View render.");
+					wrapperField.refresh();
+				}
+			}, 150);
+		});
+
+		// =========================================================================
 		// 5. HIDE STANDARD VIEW BUTTON
 		// =========================================================================
 		const styleId = "hide-standard-view-btn-style";
