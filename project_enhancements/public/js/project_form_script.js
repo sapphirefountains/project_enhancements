@@ -52,34 +52,41 @@ frappe.ui.form.on("Project", {
 			const wrapperField = frm.get_field("custom_tasks_html");
 
 			if (wrapperField && wrapperField.$wrapper) {
-				// Override render to ensure Frappe's tab lazy rendering doesn't clear our DOM
-				wrapperField.render = function() {
+				const renderTaskTree = function() {
 					if (this.$wrapper && this.$wrapper.children().length === 0) {
-						this.$wrapper.html('<div></div>');
+						const docName = frm.doc.name;
+
+						frappe.require("/assets/project_enhancements/js/task_tree_manager.js").then(() => {
+							if (window.project_enhancements && project_enhancements.TaskTreeManager) {
+								console.log(`Rendering Task Tree for Project: ${docName}`);
+
+								if (frm.task_tree_instance) {
+									if (frm.task_tree_instance.sortableInstances) {
+										frm.task_tree_instance.sortableInstances.forEach(instance => instance.destroy());
+									}
+									frm.task_tree_instance = null;
+								}
+
+								this.$wrapper.empty().html('<div class="task-tree-container"></div>');
+
+								frm.task_tree_instance = new project_enhancements.TaskTreeManager({
+									wrapper: this.$wrapper.find(".task-tree-container"),
+									projectName: docName,
+								});
+							}
+						});
 					}
 				};
 
-				const docName = frm.doc.name;
+				// Override render to ensure Frappe's tab lazy rendering doesn't clear our DOM
+				// By re-instantiating on render, it loads automatically just like gantt (or any other field)
+				// when its parent wrapper is available or brought into view.
+				wrapperField.render = function() {
+					renderTaskTree.call(this);
+				};
 
-				frappe
-					.require(
-						"/assets/project_enhancements/js/task_tree_manager.js"
-					)
-					.then(() => {
-						// Verify instance wasn't created during the network request delay
-						if (
-							!frm.task_tree_instance &&
-							window.project_enhancements &&
-							project_enhancements.TaskTreeManager
-						) {
-							console.log(`Rendering Task Tree for Project: ${docName}`);
-							frm.task_tree_instance =
-								new project_enhancements.TaskTreeManager({
-									wrapper: wrapperField.$wrapper,
-									projectName: docName,
-								});
-						}
-					});
+				// Eagerly try to render right away
+				renderTaskTree.call(wrapperField);
 			}
 		}
 
