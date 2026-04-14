@@ -131,8 +131,12 @@ frappe.ui.form.on("Project", {
 		}
 
 		setTimeout(() => {
-			if (frm.page && frm.page.wrapper) {
-				frm.page.wrapper.find('.inner-group-button[data-label="View"]').hide();
+			if (frm.page && frm.page.clear_custom_button) {
+				try {
+					frm.page.clear_custom_button('View');
+				} catch (e) {
+					console.warn("Failed to clear standard 'View' button via API, CSS fallback active.", e);
+				}
 			}
 		}, 100);
 
@@ -140,6 +144,33 @@ frappe.ui.form.on("Project", {
 		// 6. CUSTOM "VIEW TASKS" DROPDOWN
 		// =========================================================================
 		if (frappe.has_permission("Task", "read")) {
+			// Helper to wait for an element without hardcoded timeouts
+			const waitForElement = (selector, timeout = 3000) => {
+				return new Promise((resolve, reject) => {
+					if (document.querySelector(selector)) {
+						return resolve(document.querySelector(selector));
+					}
+
+					const observer = new MutationObserver(() => {
+						if (document.querySelector(selector)) {
+							observer.disconnect();
+							resolve(document.querySelector(selector));
+						}
+					});
+
+					observer.observe(document.body, {
+						childList: true,
+						subtree: true
+					});
+
+					setTimeout(() => {
+						observer.disconnect();
+						reject(new Error(`Timeout waiting for element: ${selector}`));
+					}, timeout);
+				});
+			};
+
+			// Create parent dropdown first
 			frm.add_custom_button(
 				__("Calendar"),
 				async function () {
@@ -160,77 +191,81 @@ frappe.ui.form.on("Project", {
 				__("View Tasks")
 			);
 
-			frm.add_custom_button(
-				__("Kanban"),
-				async function () {
-					frappe.dom.freeze(__("Navigating to Kanban Board..."));
-					try {
-						frappe.route_options = { project: frm.doc.name };
-						await frappe.set_route("List", "Task", "Kanban");
-					} catch (error) {
-						frappe.msgprint({
-							title: __("Error"),
-							message: __("Failed to navigate to Kanban Board."),
-							indicator: "red",
-						});
-					} finally {
-						frappe.dom.unfreeze();
-					}
-				},
-				__("View Tasks")
-			);
-
-			frm.add_custom_button(
-				__("Gantt"),
-				async function () {
-					frappe.dom.freeze(__("Navigating to Gantt Chart..."));
-					try {
-						frappe.route_options = { project: frm.doc.name };
-						await frappe.set_route("List", "Task", "Gantt");
-					} catch (error) {
-						frappe.msgprint({
-							title: __("Error"),
-							message: __("Failed to navigate to Gantt Chart."),
-							indicator: "red",
-						});
-					} finally {
-						frappe.dom.unfreeze();
-					}
-				},
-				__("View Tasks")
-			);
-
-			frm.add_custom_button(
-				__("Tree View"),
-				function () {
-					window.location.hash = "#custom_scope";
-					setTimeout(() => {
-						const scopeTab = frm.$wrapper.find(
-							'.form-tabs .nav-item[data-label="Scope"], .form-tabs .nav-item[data-fieldname="custom_scope"]'
-						);
-						if (scopeTab.length) {
-							const tabLink = scopeTab.find("a.nav-link");
-							if (tabLink.length) {
-								tabLink.click();
-							} else {
-								scopeTab.click();
-							}
-						}
-					}, 100);
-				},
-				__("View Tasks")
-			);
-
+			// Yield execution then check if parent rendered, followed by adding the remaining options
 			setTimeout(() => {
-				const newBtnGroup = frm.page.wrapper
-					.find(
-						'.inner-group-button[data-label="View Tasks"] button, .custom-btn-group[data-label="View Tasks"] button'
-					)
-					.first();
-				if (newBtnGroup.length) {
-					newBtnGroup.removeClass("btn-default").addClass("btn-primary");
-				}
-			}, 300);
+				waitForElement('.inner-group-button[data-label="View Tasks"], .custom-btn-group[data-label="View Tasks"]')
+					.then((dropdownGroupEl) => {
+						frm.add_custom_button(
+							__("Kanban"),
+							async function () {
+								frappe.dom.freeze(__("Navigating to Kanban Board..."));
+								try {
+									frappe.route_options = { project: frm.doc.name };
+									await frappe.set_route("List", "Task", "Kanban");
+								} catch (error) {
+									frappe.msgprint({
+										title: __("Error"),
+										message: __("Failed to navigate to Kanban Board."),
+										indicator: "red",
+									});
+								} finally {
+									frappe.dom.unfreeze();
+								}
+							},
+							__("View Tasks")
+						);
+
+						frm.add_custom_button(
+							__("Gantt"),
+							async function () {
+								frappe.dom.freeze(__("Navigating to Gantt Chart..."));
+								try {
+									frappe.route_options = { project: frm.doc.name };
+									await frappe.set_route("List", "Task", "Gantt");
+								} catch (error) {
+									frappe.msgprint({
+										title: __("Error"),
+										message: __("Failed to navigate to Gantt Chart."),
+										indicator: "red",
+									});
+								} finally {
+									frappe.dom.unfreeze();
+								}
+							},
+							__("View Tasks")
+						);
+
+						frm.add_custom_button(
+							__("Tree View"),
+							function () {
+								window.location.hash = "#custom_scope";
+								setTimeout(() => {
+									const scopeTab = frm.$wrapper.find(
+										'.form-tabs .nav-item[data-label="Scope"], .form-tabs .nav-item[data-fieldname="custom_scope"]'
+									);
+									if (scopeTab.length) {
+										const tabLink = scopeTab.find("a.nav-link");
+										if (tabLink.length) {
+											tabLink.click();
+										} else {
+											scopeTab.click();
+										}
+									}
+								}, 100);
+							},
+							__("View Tasks")
+						);
+
+						// Style parent button
+						const btnGroup = $(dropdownGroupEl).find('button').first();
+						if (btnGroup.length) {
+							btnGroup.removeClass("btn-default").addClass("btn-primary");
+						}
+					})
+					.catch((err) => {
+						console.error(err);
+					});
+			}, 0);
 		}
 	},
 });
