@@ -45,7 +45,7 @@
 /* Ensure min-width is set so cells shrink proportionally and don't blow out due to content */
 .task-grid-header > .task-grid-cell:nth-child(1),
 .task-grid-row > .task-grid-cell:nth-child(1) {
-    flex: 3; /* Task Name / Project Name */
+    flex: 5; /* Task Name / Project Name */
     min-width: 0;
 }
 
@@ -65,13 +65,13 @@
 .task-grid-header > .task-grid-cell:nth-child(5),
 .task-grid-row > .task-grid-cell:nth-child(4),
 .task-grid-row > .task-grid-cell:nth-child(5) {
-    flex: 1.5; /* Dates */
+    flex: 1; /* Dates */
     min-width: 0;
 }
 
 .task-grid-header > .task-grid-cell:nth-child(6),
 .task-grid-row > .task-grid-cell:nth-child(6) {
-    flex: 2; /* % Complete */
+    flex: 1; /* % Complete */
     min-width: 0;
 }
 
