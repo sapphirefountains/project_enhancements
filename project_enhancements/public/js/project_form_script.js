@@ -51,54 +51,60 @@ frappe.ui.form.on("Project", {
 		if (frappe.has_permission("Task", "read")) {
 			const wrapperField = frm.get_field("custom_tasks_html");
 
-			if (wrapperField && wrapperField.$wrapper) {
-				const renderTaskTree = function () {
-					if (this.$wrapper && this.$wrapper.children().length === 0) {
-						const docName = frm.doc.name;
+			if (wrapperField) {
+				// Only bind the override once to avoid memory leaks on multiple saves
+				if (!wrapperField.__custom_tree_bound) {
+					const original_refresh = wrapperField.refresh;
 
-						frappe
-							.require("/assets/project_enhancements/js/task_tree_manager.js")
-							.then(() => {
-								if (
-									window.project_enhancements &&
-									project_enhancements.TaskTreeManager
-								) {
-									console.log(`Rendering Task Tree for Project: ${docName}`);
+					wrapperField.refresh = function () {
+						// Let Frappe do its native HTML field setup first
+						if (original_refresh) {
+							original_refresh.call(this);
+						}
 
-									if (frm.task_tree_instance) {
-										if (frm.task_tree_instance.sortableInstances) {
-											frm.task_tree_instance.sortableInstances.forEach(
-												(instance) => instance.destroy()
-											);
+						// By the time this runs, the tab has been clicked and this.$wrapper is guaranteed to exist
+						if (this.$wrapper && this.$wrapper.children().length === 0) {
+							const docName = frm.doc.name;
+
+							frappe
+								.require("/assets/project_enhancements/js/task_tree_manager.js")
+								.then(() => {
+									if (
+										window.project_enhancements &&
+										project_enhancements.TaskTreeManager
+									) {
+										console.log(`Rendering Task Tree for Project: ${docName}`);
+
+										if (frm.task_tree_instance) {
+											if (frm.task_tree_instance.sortableInstances) {
+												frm.task_tree_instance.sortableInstances.forEach(
+													(instance) => instance.destroy()
+												);
+											}
+											frm.task_tree_instance = null;
 										}
-										frm.task_tree_instance = null;
+
+										this.$wrapper
+											.empty()
+											.html('<div class="task-tree-container"></div>');
+
+										frm.task_tree_instance =
+											new project_enhancements.TaskTreeManager({
+												wrapper: this.$wrapper.find(".task-tree-container"),
+												projectName: docName,
+											});
 									}
+								});
+						}
+					};
 
-									this.$wrapper
-										.empty()
-										.html('<div class="task-tree-container"></div>');
+					wrapperField.__custom_tree_bound = true;
+				}
 
-									frm.task_tree_instance =
-										new project_enhancements.TaskTreeManager({
-											wrapper: this.$wrapper.find(".task-tree-container"),
-											projectName: docName,
-										});
-								}
-							});
-					}
-				};
-
-				// Override refresh to ensure Frappe's tab lazy rendering doesn't clear our DOM
-				// By re-instantiating on refresh, it loads automatically just like gantt (or any other field)
-				// when its parent wrapper is available or brought into view.
-				const original_refresh = wrapperField.refresh;
-				wrapperField.refresh = function () {
-					if (original_refresh) {
-						original_refresh.call(this);
-					}
-					renderTaskTree.call(this);
-				};
-				wrapperField.refresh();
+				// If the wrapper is already active (e.g., page was refreshed while already on the tab)
+				if (wrapperField.$wrapper) {
+					wrapperField.refresh();
+				}
 			}
 		}
 
