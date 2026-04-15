@@ -1094,3 +1094,26 @@ def update_multiple_docs(project_updates, task_updates):
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "Error in batch update")
 		return {"status": "error", "message": str(e)}
+
+@frappe.whitelist()
+def delete_task(task_name):
+	"""Deletes a single task.
+
+	Args:
+	    task_name (str): The name (ID) of the task to delete.
+
+	Returns:
+	    dict: A dictionary indicating the status of the operation.
+	"""
+	if not task_name:
+		return {"status": "error", "message": "Task name is required."}
+
+	try:
+		if not frappe.has_permission("Task", ptype="delete", doc=task_name):
+			return {"status": "error", "message": "You do not have permission to delete this task."}
+
+		frappe.delete_doc("Task", task_name)
+		return {"status": "success"}
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"Error deleting task {task_name}")
+		return {"status": "error", "message": "Could not delete task. Please check the logs."}

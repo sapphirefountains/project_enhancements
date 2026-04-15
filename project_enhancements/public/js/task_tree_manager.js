@@ -197,6 +197,7 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
                         <div class="task-grid-cell ${
 							this.columnVisibility.duration ? "" : "hidden-column"
 						}" data-column="duration">Duration (hrs)</div>
+                        ${!this.readonly ? `<div class="task-grid-cell actions-cell" data-column="actions">Actions</div>` : ''}
                     </div>
                     <div class="task-grid-body"></div>
                 </div>
@@ -372,6 +373,9 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 			}" data-field="expected_time" data-task-id="${task.name}" data-original-value="${
 				task.expected_time || 0
 			}" data-column="duration"><a href="#">${task.expected_time || 0}</a></div>
+                        ${!this.readonly ? `<div class="task-grid-cell actions-cell" data-column="actions">
+                            <button class="btn btn-xs btn-danger delete-task-btn" title="Delete Task" data-task-name="${task.name}" data-task-subject="${task.subject}"><i class="fa fa-trash"></i></button>
+                        </div>` : ''}
                     </div>
                     <div class="child-tasks-container" style="${
 						isCollapsed ? "display: none;" : ""
@@ -571,6 +575,58 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 			e.preventDefault();
 			if (me.readonly) return;
 			me.showAssigneeDialog($(this));
+		});
+
+		// Delete Task
+		this.wrapper.on("click", ".delete-task-btn", function (e) {
+			e.stopPropagation();
+			const btn = $(this);
+			const taskName = btn.data("task-name");
+			const taskSubject = btn.data("task-subject");
+
+			frappe.confirm(
+				`Are you sure you want to delete task ${taskSubject}? This action cannot be undone.`,
+				() => {
+					frappe.call({
+						method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.delete_task",
+						args: { task_name: taskName },
+						callback: (r) => {
+							if (r.message && r.message.status === "success") {
+								frappe.show_alert({ message: "Task deleted successfully.", indicator: "green" });
+
+								// Remove from local array
+								const removeTask = (tasksList, idToRemove) => {
+									for (let i = 0; i < tasksList.length; i++) {
+										if (tasksList[i].name === idToRemove) {
+											tasksList.splice(i, 1);
+											return true;
+										}
+										if (tasksList[i].children && tasksList[i].children.length > 0) {
+											if (removeTask(tasksList[i].children, idToRemove)) {
+												return true;
+											}
+										}
+									}
+									return false;
+								};
+
+
+								removeTask(me.tasks, taskName);
+
+								// Clean up any pending changes
+								if (me.pendingChanges && me.pendingChanges[taskName]) {
+									delete me.pendingChanges[taskName];
+								}
+
+								// Re-render
+								me.applyFilters();
+							} else {
+								frappe.show_alert({ message: r.message.message || "Failed to delete task.", indicator: "red" });
+							}
+						}
+					});
+				}
+			);
 		});
 
 		// Column Toggle
