@@ -87,6 +87,13 @@
 	min-width: 0;
 }
 
+.task-grid-header > .task-grid-cell.actions-cell,
+.task-grid-row > .task-grid-cell.actions-cell {
+	flex: 0.5; /* Actions */
+	min-width: 0;
+	justify-content: center;
+}
+
 .task-grid-cell select.form-control {
 	width: 100%;
 }
