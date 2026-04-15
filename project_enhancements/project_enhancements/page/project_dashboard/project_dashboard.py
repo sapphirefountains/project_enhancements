@@ -134,6 +134,7 @@ def get_project_data(is_active=None):
 				"expected_end_date",
 				"custom_project_dollar_amount",
 				"estimated_costing",
+				"custom_master_project",
 			],
 			filters=filters,
 			order_by="creation desc",
