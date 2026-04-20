@@ -144,19 +144,19 @@ frappe.ui.form.on("Project", {
 			if (tabLabel === "Scope" || tabFieldname === "custom_scope") {
 				setTimeout(() => {
 					const treeField = frm.get_field("custom_tasks_html");
-					if (treeField && treeField.$wrapper && treeField.$wrapper.children().length === 0) {
-						console.log("Scope tab fully visible - triggering Tree View render.");
+					if (treeField && treeField.$wrapper) {
+						console.log("Scope tab visible - refreshing Tree View.");
 						treeField.refresh();
 					}
-				}, 100);
+				}, 150);
 			} else if (tabLabel === "Schedule" || tabFieldname === "custom_schedule") {
 				setTimeout(() => {
 					const ganttField = frm.get_field("custom_gantt_chart_html");
-					if (ganttField && ganttField.$wrapper && ganttField.$wrapper.children().length === 0) {
-						console.log("Schedule tab fully visible - triggering Gantt render.");
+					if (ganttField && ganttField.$wrapper) {
+						console.log("Schedule tab visible - refreshing Gantt Chart.");
 						ganttField.refresh();
 					}
-				}, 100);
+				}, 150);
 			}
 		});
 

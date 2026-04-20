@@ -162,7 +162,7 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
 				return "badge-success";
 			case "Overdue":
 				return "badge-danger";
-			case "Cancelled":
+			case "Canceled":
 			case "Canceled":
 				return "badge-danger";
 			case "Working":

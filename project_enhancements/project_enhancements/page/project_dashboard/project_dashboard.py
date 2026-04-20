@@ -69,7 +69,7 @@ def get_project_data(is_active=None):
 	"""Fetches and enriches project data for the dashboard using bulk queries."""
 	try:
 		# Note: Custom check_permission removed in favor of native Page Role permissions
-		filters = {"status": ["!=", "Cancelled"]}
+		filters = {"status": ["!=", "Canceled"]}
 		if is_active:
 			filters["is_active"] = is_active
 
@@ -89,13 +89,13 @@ def get_project_data(is_active=None):
 		if not project_names:
 			return projects
 
-		# 1. Bulk fetch task counts using grouped query
-		task_data = frappe.get_all(
-			"Task",
-			filters={"project": ["in", project_names]},
-			fields=["project", "status", {"count": "*"}],
-			group_by="project, status"
-		)
+		# 1. Bulk fetch task counts using raw SQL for reliable grouped aggregation
+		task_data = frappe.db.sql("""
+			SELECT project, status, COUNT(*) as count
+			FROM `tabTask`
+			WHERE project IN %s
+			GROUP BY project, status
+		""", (project_names,), as_dict=1)
 		
 		task_map = {}
 		for td in task_data:
@@ -262,23 +262,28 @@ def update_project_details(project_name, field, value):
 
 @frappe.whitelist()
 def update_task_status(task_name, status):
-	"""Updates the status of a single task.
-
-	Args:
-	    task_name (str): The name (ID) of the task to update.
-	    status (str): The new status for the task.
-
-	Returns:
-	    dict: A dictionary indicating the status of the operation.
-	"""
+	"""Updates the status of a single task."""
 	if not check_permission():
 		return {"status": "error", "message": "You do not have permission to perform this action."}
 	try:
 		frappe.db.set_value("Task", task_name, "status", status)
 		return {"status": "success"}
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), f"Error updating task {task_name}")
-		return {"status": "error", "message": "Could not update task status. Please check the logs."}
+		frappe.log_error(frappe.get_traceback(), f"Error updating task status for {task_name}")
+		return {"status": "error", "message": "Could not update task status."}
+
+
+@frappe.whitelist()
+def update_task_priority(task_name, priority):
+	"""Updates the priority of a single task."""
+	if not check_permission():
+		return {"status": "error", "message": "You do not have permission to perform this action."}
+	try:
+		frappe.db.set_value("Task", task_name, "priority", priority)
+		return {"status": "success"}
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"Error updating task priority for {task_name}")
+		return {"status": "error", "message": "Could not update task priority."}
 
 
 @frappe.whitelist()
@@ -443,11 +448,19 @@ def get_task_children(parent_task):
 		order_by="custom_subtask_order asc"
 	)
 	
+	today = getdate(nowdate())
 	for child in children:
 		assignees = _get_assignee_names("Task", child["name"])
 		child["assigned_to"] = ", ".join([d["full_name"] for d in assignees]) if assignees else ""
-		# Check if this child has children of its own
 		child["has_children"] = frappe.db.exists("Task", {"parent_task": child["name"]})
+		
+		# Overdue check
+		child["is_overdue"] = (
+			child.get("exp_end_date") and 
+			getdate(child.get("exp_end_date")) < today and 
+			(child.get("progress") or 0) < 100 and
+			child.get("status") not in ["Completed", "Canceled"]
+		)
 		
 	return children
 
@@ -461,7 +474,7 @@ def get_resource_allocation_data(project_name):
 	tasks = frappe.get_all(
 		"Task",
 		fields=["name", "subject", "exp_start_date", "exp_end_date", "expected_time"],
-		filters={"project": project_name, "status": ["not in", ["Completed", "Cancelled"]]}
+		filters={"project": project_name, "status": ["not in", ["Completed", "Canceled"]]}
 	)
 
 	allocation = {} # { "User Name": { "YYYY-MM-DD": { "hours": hrs, "tasks": [] } } }
@@ -527,7 +540,7 @@ def get_project_health_metrics(project_name):
 			completed_tasks += 1
 			continue
 		
-		if t.status == "Cancelled":
+		if t.status == "Canceled":
 			continue
 
 		if t.exp_end_date and getdate(t.exp_end_date) < today:
@@ -535,7 +548,7 @@ def get_project_health_metrics(project_name):
 			if t.priority in ["High", "Urgent"]:
 				high_priority_overdue += 1
 
-	# Schedule Health: (On-track tasks / Total non-cancelled)
+	# Schedule Health: (On-track tasks / Total non-canceled)
 	# For simplicity: ((Total - Overdue) / Total) * 100
 	schedule_health = max(0, round(((total_tasks - overdue_tasks) / total_tasks) * 100))
 
@@ -972,7 +985,7 @@ def _shift_successors(predecessor_name, day_diff, processed=None):
 def get_gantt_tasks_for_project(project_name):
 	"""
 	Fetches all tasks for a specific project, formatted for the frappe-gantt library.
-	Includes baseline dates, overdue logic, and assignee data.
+	Optimized with bulk-fetching for dependencies and assignees.
 	"""
 	if not project_name:
 		return {"error": "Project name is required."}
@@ -986,9 +999,15 @@ def get_gantt_tasks_for_project(project_name):
 				"baseline_start_date", "baseline_end_date"
 			],
 			filters={"project": project_name},
+			limit_page_length=None # Ensure all tasks are fetched
 		)
 
+		if not tasks:
+			return []
+
 		task_names = [task["name"] for task in tasks]
+
+		# 1. Bulk fetch dependencies
 		dependencies = frappe.get_all(
 			"Task Depends On",
 			fields=["parent", "task"],
@@ -1001,6 +1020,28 @@ def get_gantt_tasks_for_project(project_name):
 				dependency_map[dep.parent] = []
 			if dep.task:
 				dependency_map[dep.parent].append(dep.task)
+
+		# 2. Bulk fetch assignees
+		todos = frappe.get_all(
+			"ToDo",
+			filters={"reference_type": "Task", "reference_name": ["in", task_names], "status": "Open"},
+			fields=["reference_name", "allocated_to"]
+		)
+		
+		user_emails = list({t["allocated_to"] for t in todos if t.get("allocated_to")})
+		user_map = {}
+		if user_emails:
+			users = frappe.get_all("User", filters={"email": ["in", user_emails]}, fields=["email", "full_name"])
+			user_map = {u["email"]: u["full_name"] for u in users}
+
+		task_assignee_map = {}
+		for todo in todos:
+			t_name = todo["reference_name"]
+			if t_name not in task_assignee_map:
+				task_assignee_map[t_name] = []
+			email = todo.get("allocated_to")
+			if email and email in user_map:
+				task_assignee_map[t_name].append(user_map[email])
 
 		gantt_tasks = []
 		today = getdate(nowdate())
@@ -1016,11 +1057,11 @@ def get_gantt_tasks_for_project(project_name):
 			
 			progress = task.progress or 0
 			custom_class = ""
-			if end_date < today and progress < 100 and task.status not in ["Completed", "Cancelled"]:
+			if end_date < today and progress < 100 and task.status not in ["Completed", "Canceled"]:
 				custom_class = "bar-overdue"
 
-			assignees = _get_assignee_names("Task", task.name)
-			assigned_to_str = ", ".join([d["full_name"] for d in assignees]) if assignees else "Unassigned"
+			assignees = task_assignee_map.get(task.name, [])
+			assigned_to_str = ", ".join(assignees) if assignees else "Unassigned"
 
 			gantt_tasks.append(
 				{
@@ -1107,7 +1148,7 @@ def get_all_projects_for_gantt():
 			fields=["name", "project_name", "expected_start_date", "expected_end_date", "percent_complete"],
 			filters={
 				"is_active": "Yes",
-				"status": ["!=", "Cancelled"],
+				"status": ["!=", "Canceled"],
 				"expected_start_date": ["is", "set"],
 			},
 		)

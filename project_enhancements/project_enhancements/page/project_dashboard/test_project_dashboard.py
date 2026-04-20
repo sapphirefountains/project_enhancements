@@ -116,7 +116,7 @@ class TestProjectDashboard(unittest.TestCase):
 				"expected_start_date",
 				"expected_end_date",
 			],
-			filters={"status": ["!=", "Cancelled"]},
+			filters={"status": ["!=", "Canceled"]},
 			order_by="creation desc",
 		)
 		self.assertEqual(mock_db_count.call_count, 2)

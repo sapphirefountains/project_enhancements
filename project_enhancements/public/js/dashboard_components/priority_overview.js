@@ -560,7 +560,7 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 				return "badge-success";
 			case "Overdue":
 				return "badge-danger";
-			case "Cancelled":
+			case "Canceled":
 			case "Canceled":
 				return "badge-danger";
 			case "Working":
