@@ -417,64 +417,169 @@ def _fetch_all_project_tasks(project_name):
 
 
 @frappe.whitelist()
-def get_project_tasks(project):
-	"""Fetches all tasks for a project and structures them hierarchically.
+def get_task_children(parent_task):
+	"""Fetches direct children of a task for lazy loading."""
+	if not parent_task:
+		return []
+	
+	task_fields = [
+		"name", "subject", "status", "priority", "exp_start_date", 
+		"exp_end_date", "progress", "expected_time", "parent_task", "custom_subtask_order"
+	]
+	
+	children = frappe.get_all(
+		"Task", 
+		fields=task_fields, 
+		filters={"parent_task": parent_task},
+		order_by="custom_subtask_order asc"
+	)
+	
+	for child in children:
+		assignees = _get_assignee_names("Task", child["name"])
+		child["assigned_to"] = ", ".join([d["full_name"] for d in assignees]) if assignees else ""
+		# Check if this child has children of its own
+		child["has_children"] = frappe.db.exists("Task", {"parent_task": child["name"]})
+		
+	return children
 
-	Retrieves all tasks and sub-tasks for a project, enriches them with
-	assignee details, and then builds a tree structure based on the
-	'parent_task' field. The tasks are sorted by a custom order field
-	and then by creation date.
 
-	Args:
-	    project (str): The name (ID) of the project to fetch tasks for.
+@frappe.whitelist()
+def get_resource_allocation_data(project_name):
+	"""Aggregates expected time and task list by assignee per day."""
+	if not project_name:
+		return {}
 
-	Returns:
-	    list[dict] | dict: A list of root-level task dictionaries, where each
-	        task may contain a 'children' list of sub-tasks. Returns a
-	        dictionary with an 'error' key on failure.
+	tasks = frappe.get_all(
+		"Task",
+		fields=["name", "subject", "exp_start_date", "exp_end_date", "expected_time"],
+		filters={"project": project_name, "status": ["not in", ["Completed", "Cancelled"]]}
+	)
+
+	allocation = {} # { "User Name": { "YYYY-MM-DD": { "hours": hrs, "tasks": [] } } }
+
+	for task in tasks:
+		if not task.exp_start_date or not task.exp_end_date or not task.expected_time:
+			continue
+		
+		assignees = _get_assignee_names("Task", task.name)
+		if not assignees:
+			continue
+			
+		start = getdate(task.exp_start_date)
+		end = getdate(task.exp_end_date)
+		duration = (end - start).days + 1
+		hours_per_day = float(task.expected_time) / duration if duration > 0 else 0
+
+		for assignee in assignees:
+			name = assignee["full_name"]
+			if name not in allocation:
+				allocation[name] = {}
+			
+			curr = start
+			while curr <= end:
+				date_str = curr.strftime("%Y-%m-%d")
+				if date_str not in allocation[name]:
+					allocation[name][date_str] = {"hours": 0, "tasks": []}
+				
+				allocation[name][date_str]["hours"] += hours_per_day
+				allocation[name][date_str]["tasks"].append({
+					"id": task.name,
+					"subject": task.subject,
+					"hours": round(hours_per_day, 2)
+				})
+				curr += timedelta(days=1)
+
+	return allocation
+
+
+@frappe.whitelist()
+def get_project_health_metrics(project_name):
+	"""Calculates key health indicators for a project."""
+	if not project_name:
+		return {}
+
+	tasks = frappe.get_all(
+		"Task",
+		fields=["name", "status", "exp_end_date", "progress", "priority"],
+		filters={"project": project_name}
+	)
+
+	total_tasks = len(tasks)
+	if total_tasks == 0:
+		return {"total_tasks": 0}
+
+	today = getdate(nowdate())
+	overdue_tasks = 0
+	high_priority_overdue = 0
+	completed_tasks = 0
+	
+	for t in tasks:
+		if t.status == "Completed":
+			completed_tasks += 1
+			continue
+		
+		if t.status == "Cancelled":
+			continue
+
+		if t.exp_end_date and getdate(t.exp_end_date) < today:
+			overdue_tasks += 1
+			if t.priority in ["High", "Urgent"]:
+				high_priority_overdue += 1
+
+	# Schedule Health: (On-track tasks / Total non-cancelled)
+	# For simplicity: ((Total - Overdue) / Total) * 100
+	schedule_health = max(0, round(((total_tasks - overdue_tasks) / total_tasks) * 100))
+
+	return {
+		"total_tasks": total_tasks,
+		"completed_count": completed_tasks,
+		"overdue_count": overdue_tasks,
+		"high_priority_overdue": high_priority_overdue,
+		"schedule_health": schedule_health,
+		"overall_progress": frappe.db.get_value("Project", project_name, "percent_complete") or 0
+	}
+
+
+@frappe.whitelist()
+def get_project_tasks(project, parent=None):
+	"""
+	Fetches tasks for a project. If 'parent' is provided, fetches only 
+	its direct children (Lazy Loading). Otherwise, fetches root tasks.
 	"""
 	if not project:
 		return {"error": "Project name is required."}
 
 	try:
-		tasks = _fetch_all_project_tasks(project)
+		task_fields = [
+			"name", "subject", "status", "priority", "exp_start_date", 
+			"exp_end_date", "progress", "expected_time", "parent_task", "custom_subtask_order"
+		]
+		
+		filters = {"project": project}
+		if parent:
+			filters["parent_task"] = parent
+		else:
+			# Fetch root tasks (no parent or parent not in this project/already deleted)
+			filters["parent_task"] = ("is", "not set")
 
-		for task in tasks:
-			assignees = _get_assignee_names("Task", task.get("name"))
-			task["assignees"] = assignees
-			if assignees:
-				task["assigned_to"] = ", ".join([d["full_name"] for d in assignees])
-			else:
-				task["assigned_to"] = ""
-
-		# Sort all tasks based on custom order, then by creation date.
-		# Tasks with no order are treated as having an infinite order value,
-		# placing them after ordered tasks.
-		tasks.sort(
-			key=lambda t: (
-				float(t.get("custom_subtask_order") or float("inf")),
-				getdate(t.get("creation")),
-			)
+		tasks = frappe.get_all(
+			"Task", 
+			fields=task_fields, 
+			filters=filters,
+			order_by="custom_subtask_order asc"
 		)
 
-		task_map = {task["name"]: task for task in tasks}
 		for task in tasks:
-			task["children"] = []
+			assignees = _get_assignee_names("Task", task["name"])
+			task["assigned_to"] = ", ".join([d["full_name"] for d in assignees]) if assignees else ""
+			task["has_children"] = frappe.db.exists("Task", {"parent_task": task["name"]})
+			task["children"] = [] # Placeholder for consistency
 
-		root_tasks = []
-		for task in tasks:
-			parent_task_id = task.get("parent_task")
-			if parent_task_id and parent_task_id in task_map:
-				parent = task_map[parent_task_id]
-				parent["children"].append(task)
-			else:
-				root_tasks.append(task)
-
-		return root_tasks
+		return tasks
 
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), f"Error fetching tasks for project {project}")
-		return {"error": f"Could not fetch tasks for project {project}. Please check logs."}
+		return {"error": "Could not fetch tasks."}
 
 
 def _fetch_all_master_project_projects(master_project):
@@ -875,11 +980,78 @@ def update_task_structure(project_name, tasks):
 
 
 @frappe.whitelist()
+def update_task_dates_from_gantt(task_name, start_date, end_date):
+	"""
+	Updates a task's start and end dates from the Gantt chart and 
+	recursively shifts all downstream dependencies.
+	"""
+	if not task_name or not start_date or not end_date:
+		return {"status": "error", "message": "Task, start date, and end date are required."}
+
+	try:
+		project = frappe.db.get_value("Task", task_name, "project")
+		if not project or not frappe.has_permission("Project", ptype="write", doc=project):
+			return {"status": "error", "message": "No permission to modify tasks for this project."}
+
+		# Calculate day difference for shifting
+		old_dates = frappe.db.get_value("Task", task_name, ["exp_start_date", "exp_end_date"], as_dict=True)
+		day_diff = 0
+		if old_dates.exp_start_date:
+			day_diff = (getdate(start_date) - getdate(old_dates.exp_start_date)).days
+
+		# Update current task
+		frappe.db.set_value("Task", task_name, {"exp_start_date": start_date, "exp_end_date": end_date})
+
+		# If there's a shift, propagate it to successors
+		if day_diff != 0:
+			_shift_successors(task_name, day_diff)
+
+		return {"status": "success"}
+
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), f"Error updating task dates and shifting for {task_name}")
+		return {"status": "error", "message": str(e)}
+
+
+def _shift_successors(predecessor_name, day_diff, processed=None):
+	"""Recursively shifts dates of all tasks that depend on the given task."""
+	if processed is None:
+		processed = set()
+	
+	if predecessor_name in processed:
+		return
+	processed.add(predecessor_name)
+
+	# Find tasks that depend on this task
+	successors = frappe.get_all(
+		"Task Depends On",
+		filters={"task": predecessor_name},
+		fields=["parent"]
+	)
+
+	for succ in successors:
+		task_name = succ.parent
+		task_doc = frappe.get_doc("Task", task_name)
+		
+		if task_doc.exp_start_date:
+			new_start = getdate(task_doc.exp_start_date) + timedelta(days=day_diff)
+			task_doc.exp_start_date = new_start.strftime("%Y-%m-%d")
+			
+		if task_doc.exp_end_date:
+			new_end = getdate(task_doc.exp_end_date) + timedelta(days=day_diff)
+			task_doc.exp_end_date = new_end.strftime("%Y-%m-%d")
+		
+		task_doc.save(ignore_permissions=True)
+		
+		# Recursive shift for the next level
+		_shift_successors(task_name, day_diff, processed)
+
+
+@frappe.whitelist()
 def get_gantt_tasks_for_project(project_name):
 	"""
 	Fetches all tasks for a specific project, formatted for the frappe-gantt library.
-	If tasks are missing start or end dates, it provides sensible defaults.
-	Includes overdue logic and assignee data for enhanced tooltips.
+	Includes baseline dates, overdue logic, and assignee data.
 	"""
 	if not project_name:
 		return {"error": "Project name is required."}
@@ -887,7 +1059,11 @@ def get_gantt_tasks_for_project(project_name):
 	try:
 		tasks = frappe.get_all(
 			"Task",
-			fields=["name", "subject", "exp_start_date", "exp_end_date", "progress", "status"],
+			fields=[
+				"name", "subject", "exp_start_date", "exp_end_date", 
+				"progress", "status", "is_milestone",
+				"baseline_start_date", "baseline_end_date"
+			],
 			filters={"project": project_name},
 		)
 
@@ -912,19 +1088,16 @@ def get_gantt_tasks_for_project(project_name):
 			start_date = getdate(task.exp_start_date) if task.exp_start_date else today
 			end_date = getdate(task.exp_end_date) if task.exp_end_date else start_date + timedelta(days=3)
 
-			# Ensure end date is not before start date
 			if end_date < start_date:
 				end_date = start_date + timedelta(days=3)
 
 			task_dependencies = dependency_map.get(task.name, [])
 			
-			# Overdue logic
 			progress = task.progress or 0
 			custom_class = ""
 			if end_date < today and progress < 100 and task.status not in ["Completed", "Cancelled"]:
 				custom_class = "bar-overdue"
 
-			# Fetch assignees
 			assignees = _get_assignee_names("Task", task.name)
 			assigned_to_str = ", ".join([d["full_name"] for d in assignees]) if assignees else "Unassigned"
 
@@ -938,7 +1111,10 @@ def get_gantt_tasks_for_project(project_name):
 					"dependencies": ",".join([d for d in task_dependencies if d]),
 					"custom_class": custom_class,
 					"assigned_to": assigned_to_str,
-					"status": task.status
+					"status": task.status,
+					"is_milestone": task.is_milestone,
+					"baseline_start": task.baseline_start_date,
+					"baseline_end": task.baseline_end_date
 				}
 			)
 
@@ -946,42 +1122,7 @@ def get_gantt_tasks_for_project(project_name):
 
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), f"Error fetching Gantt tasks for project {project_name}")
-		return {"error": f"Could not fetch Gantt tasks for project {project_name}. Please check logs."}
-
-
-@frappe.whitelist()
-def update_task_dates_from_gantt(task_name, start_date, end_date):
-	"""
-	Updates a task's start and end dates from the Gantt chart.
-
-	Args:
-	    task_name (str): The name (ID) of the task to update.
-	    start_date (str): The new start date in 'YYYY-MM-DD' format.
-	    end_date (str): The new end date in 'YYYY-MM-DD' format.
-
-	Returns:
-	    dict: A dictionary indicating the status of the operation.
-	"""
-	if not task_name or not start_date or not end_date:
-		return {"status": "error", "message": "Task, start date, and end date are required."}
-
-	try:
-		project = frappe.db.get_value("Task", task_name, "project")
-		if not project:
-			return {"status": "error", "message": "This task is not linked to a project."}
-
-		if not frappe.has_permission("Project", ptype="write", doc=project):
-			return {
-				"status": "error",
-				"message": "You do not have permission to modify tasks for this project.",
-			}
-
-		frappe.db.set_value("Task", task_name, {"exp_start_date": start_date, "exp_end_date": end_date})
-		return {"status": "success"}
-
-	except Exception:
-		frappe.log_error(frappe.get_traceback(), f"Error updating task dates from Gantt for {task_name}")
-		return {"status": "error", "message": "Could not update task dates. Please check the logs."}
+		return {"error": "Could not fetch tasks for Gantt board."}
 
 
 @frappe.whitelist()

@@ -286,111 +286,253 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 
 		if (!tasks || tasks.length === 0) {
 			gridBody.html('<div class="p-4 text-center text-muted">No tasks match filters.</div>');
+			gridBody.append(this.createQuickAddRow(null, 0));
 			return;
 		}
 
-		const renderTaskNode = (task, container, level) => {
-			const start_date = task.exp_start_date
-				? frappe.datetime.str_to_user(task.exp_start_date)
-				: "Set Date";
-			const end_date = task.exp_end_date
-				? frappe.datetime.str_to_user(task.exp_end_date)
-				: "Set Date";
-			const progress = task.progress || 0;
-			const isCollapsed = this.collapsedTasks.has(task.name);
-
-			const iconClass =
-				task.children.length > 0
-					? (isCollapsed ? "fa-caret-right" : "fa-caret-down") + " toggle-child-tasks"
-					: "";
-
-			const statusStyle = this.getStatusStyle(task.status);
-			const hasPendingChange = (field) =>
-				this.pendingChanges[task.name] &&
-				this.pendingChanges[task.name][field] !== undefined;
-
-			const node = $(`
-                <div class="task-node" data-task-id="${task.name}">
-                    <div class="task-grid-row">
-                        <div class="task-grid-cell">
-                            <div style="padding-left: ${
-								level * 20
-							}px; display: flex; align-items: center; width: 100%;">
-                                <i class="fa fa-bars task-drag-handle mr-2 text-muted" style="cursor: grab; flex-shrink: 0;"></i>
-                                <i class="fa fa-fw ${iconClass} mr-1" style="cursor: pointer; flex-shrink: 0;"></i>
-                                <a href="/app/task/${
-									task.name
-								}" class="task-name-cell-text" title="${task.subject}">${
-				task.subject
-			}</a>
-                            </div>
-                        </div>
-                        <div class="task-grid-cell assignee-cell ${
-							this.columnVisibility.owner ? "" : "hidden-column"
-						}" data-column="owner"><a href="#" class="assignee-link">${
-				task.assigned_to || "Unassigned"
-			}</a></div>
-                        <div class="task-grid-cell ${
-							this.columnVisibility.status ? "" : "hidden-column"
-						}" data-column="status">
-                            <select class="form-control form-control-sm task-status-select pill-select" style="width: 120px; ${statusStyle}">
-                                ${this.taskStatusOptions
-									.map(
-										(s) =>
-											`<option value="${s}" ${
-												task.status === s ? "selected" : ""
-											}>${s}</option>`
-									)
-									.join("")}
-                            </select>
-                        </div>
-                        <div class="task-grid-cell ${
-							this.columnVisibility.priority ? "" : "hidden-column"
-						}" data-column="priority">
-                            ${task.priority || "Medium"}
-                        </div>
-                        <div class="task-grid-cell editable-date ${
-							hasPendingChange("exp_start_date") ? "unsaved-change" : ""
-						} ${
-				this.columnVisibility.start_date ? "" : "hidden-column"
-			}" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${
-				task.exp_start_date || ""
-			}" data-column="start_date"><a href="#">${start_date}</a></div>
-                        <div class="task-grid-cell editable-date ${
-							hasPendingChange("exp_end_date") ? "unsaved-change" : ""
-						} ${
-				this.columnVisibility.due_date ? "" : "hidden-column"
-			}" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${
-				task.exp_end_date || ""
-			}" data-column="due_date"><a href="#">${end_date}</a></div>
-                        <div class="task-grid-cell ${
-							this.columnVisibility.progress ? "" : "hidden-column"
-						}" data-column="progress"><div class="progress" style="height: 15px; width: 100%;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></div>
-                        <div class="task-grid-cell editable-time ${
-							hasPendingChange("expected_time") ? "unsaved-change" : ""
-						} ${
-				this.columnVisibility.duration ? "" : "hidden-column"
-			}" data-field="expected_time" data-task-id="${task.name}" data-original-value="${
-				task.expected_time || 0
-			}" data-column="duration"><a href="#">${task.expected_time || 0}</a></div>
-                        ${!this.readonly ? `<div class="task-grid-cell actions-cell" data-column="actions">
-                            <button class="btn btn-xs btn-danger delete-task-btn" title="Delete Task" data-task-name="${task.name}" data-task-subject="${task.subject}"><i class="fa fa-trash"></i></button>
-                        </div>` : ''}
-                    </div>
-                    <div class="child-tasks-container" style="${
-						isCollapsed ? "display: none;" : ""
-					}"></div>
-                </div>
-            `).appendTo(container);
-
-			if (task.children && task.children.length > 0) {
-				const childContainer = node.find(".child-tasks-container");
-				task.children.forEach((child) => renderTaskNode(child, childContainer, level + 1));
-			}
-		};
-
-		tasks.forEach((task) => renderTaskNode(task, gridBody, 0));
+		tasks.forEach((task) => this.renderTaskNode(task, gridBody, 0));
+		gridBody.prepend(this.createQuickAddRow(null, 0)); // Root quick add
 		this.initializeTaskSorting();
+	}
+
+	renderTaskNode(task, container, level) {
+		const start_date = task.exp_start_date
+			? frappe.datetime.str_to_user(task.exp_start_date)
+			: "Set Date";
+		const end_date = task.exp_end_date
+			? frappe.datetime.str_to_user(task.exp_end_date)
+			: "Set Date";
+		const progress = task.progress || 0;
+		const isCollapsed = this.collapsedTasks.has(task.name);
+
+		// Lazy Loading: Check has_children flag from server
+		const hasChildren = task.has_children || (task.children && task.children.length > 0);
+		const iconClass =
+			hasChildren
+				? (isCollapsed ? "fa-caret-right" : "fa-caret-down") + " toggle-child-tasks"
+				: "fa-circle text-extra-muted" ; // Small dot for leaf nodes
+
+		const statusBadge = this.getStatusBadge(task.status);
+		const hasPendingChange = (field) =>
+			this.pendingChanges[task.name] &&
+			this.pendingChanges[task.name][field] !== undefined;
+
+		const node = $(`
+			<div class="task-node" data-task-id="${task.name}" data-loaded="${(task.children && task.children.length > 0) || !hasChildren}">
+				<div class="task-grid-row">
+					<div class="task-grid-cell">
+						<div style="padding-left: ${
+							level * 20
+						}px; display: flex; align-items: center; width: 100%;">
+							<i class="fa fa-bars task-drag-handle mr-2 text-muted" style="cursor: grab; flex-shrink: 0;"></i>
+							<i class="fa fa-fw ${iconClass}" style="cursor: pointer; flex-shrink: 0; font-size: 10px;"></i>
+							<a href="/app/task/${
+								task.name
+							}" class="task-name-cell-text" title="${task.subject}">${
+			task.subject
+		}</a>
+						</div>
+					</div>
+					<div class="task-grid-cell assignee-cell ${
+						this.columnVisibility.owner ? "" : "hidden-column"
+					}" data-column="owner"><a href="#" class="assignee-link">${
+			task.assigned_to || "Unassigned"
+		}</a></div>
+					<div class="task-grid-cell status-cell ${
+						this.columnVisibility.status ? "" : "hidden-column"
+					}" data-column="status">
+						${statusBadge}
+					</div>
+					<div class="task-grid-cell ${
+						this.columnVisibility.priority ? "" : "hidden-column"
+					}" data-column="priority">
+						${task.priority || "Medium"}
+					</div>
+					<div class="task-grid-cell editable-date ${
+						hasPendingChange("exp_start_date") ? "unsaved-change" : ""
+					} ${
+			this.columnVisibility.start_date ? "" : "hidden-column"
+		}" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${
+			task.exp_start_date || ""
+		}" data-column="start_date"><a href="#">${start_date}</a></div>
+					<div class="task-grid-cell editable-date ${
+						hasPendingChange("exp_end_date") ? "unsaved-change" : ""
+					} ${
+			this.columnVisibility.due_date ? "" : "hidden-column"
+		}" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${
+			task.exp_end_date || ""
+		}" data-column="due_date"><a href="#">${end_date}</a></div>
+					<div class="task-grid-cell ${
+						this.columnVisibility.progress ? "" : "hidden-column"
+					}" data-column="progress"><div class="progress" style="height: 15px; width: 100%;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></div>
+					<div class="task-grid-cell editable-time ${
+						hasPendingChange("expected_time") ? "unsaved-change" : ""
+					} ${
+			this.columnVisibility.duration ? "" : "hidden-column"
+		}" data-field="expected_time" data-task-id="${task.name}" data-original-value="${
+			task.expected_time || 0
+		}" data-column="duration"><a href="#">${task.expected_time || 0}</a></div>
+					${!this.readonly ? `<div class="task-grid-cell actions-cell" data-column="actions">
+						<button class="btn btn-xs btn-danger delete-task-btn" title="Delete Task" data-task-name="${task.name}" data-task-subject="${task.subject}"><i class="fa fa-trash"></i></button>
+					</div>` : ''}
+				</div>
+				<div class="child-tasks-container" style="${
+					isCollapsed ? "display: none;" : ""
+				}"></div>
+			</div>
+		`).appendTo(container);
+
+		// Status switch listener
+		node.find('.status-badge').on('click', (e) => {
+			e.stopPropagation();
+			this.showStatusPicker(e, task.name);
+		});
+
+		// Gantt Sync Hover
+		node.find('.task-grid-row').on('mouseenter', () => {
+			$(`.gantt .bar-wrapper[data-id="${task.name}"]`).addClass('highlight');
+		}).on('mouseleave', () => {
+			$(`.gantt .bar-wrapper[data-id="${task.name}"]`).removeClass('highlight');
+		});
+
+		if (task.children && task.children.length > 0) {
+			const childContainer = node.find(".child-tasks-container");
+			task.children.forEach((child) => this.renderTaskNode(child, childContainer, level + 1));
+			if (!isCollapsed) {
+				childContainer.append(this.createQuickAddRow(task.name, level + 1));
+			}
+		} else if (hasChildren && !isCollapsed) {
+			// Loading placeholder for lazy children
+			node.find(".child-tasks-container").html('<div class="p-2 text-muted small"><i class="fa fa-spinner fa-spin mr-1"></i> Loading children...</div>');
+		}
+	}
+
+	fetchChildren(parentTaskId, container, level) {
+		frappe.call({
+			method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_task_children",
+			args: { parent_task: parentTaskId },
+			callback: (r) => {
+				container.empty();
+				if (r.message && r.message.length > 0) {
+					r.message.forEach(child => {
+						this.renderTaskNode(child, container, level);
+					});
+					container.append(this.createQuickAddRow(parentTaskId, level));
+				} else {
+					container.html('<div class="p-2 text-muted small">No subtasks.</div>');
+				}
+				this.initializeTaskSorting();
+			}
+		});
+	}
+
+	createQuickAddRow(parentTask, level) {
+		const indent = level * 20;
+		const row = $(`
+			<div class="task-grid-row quick-add-row" style="background-color: #f9fafb;">
+				<div class="task-grid-cell" style="flex: 5;">
+					<div style="padding-left: ${indent}px; display: flex; align-items: center; width: 100%;">
+						<i class="fa fa-plus-circle text-muted mr-2" style="flex-shrink: 0;"></i>
+						<input type="text" class="form-control input-xs quick-add-input" 
+							placeholder="${parentTask ? 'Add subtask...' : 'Add root task...'}" 
+							style="border: none; background: transparent; box-shadow: none; font-size: 12px; height: 24px; padding: 0;">
+					</div>
+				</div>
+				<div class="task-grid-cell assignee-cell ${this.columnVisibility.owner ? "" : "hidden-column"}" data-column="owner"></div>
+				<div class="task-grid-cell status-cell ${this.columnVisibility.status ? "" : "hidden-column"}" data-column="status"></div>
+				<div class="task-grid-cell ${this.columnVisibility.priority ? "" : "hidden-column"}" data-column="priority"></div>
+				<div class="task-grid-cell ${this.columnVisibility.start_date ? "" : "hidden-column"}" data-column="start_date"></div>
+				<div class="task-grid-cell ${this.columnVisibility.due_date ? "" : "hidden-column"}" data-column="due_date"></div>
+				<div class="task-grid-cell ${this.columnVisibility.progress ? "" : "hidden-column"}" data-column="progress"></div>
+				<div class="task-grid-cell ${this.columnVisibility.duration ? "" : "hidden-column"}" data-column="duration"></div>
+				${!this.readonly ? `<div class="task-grid-cell actions-cell" data-column="actions"></div>` : ''}
+			</div>
+		`);
+
+		const input = row.find('.quick-add-input');
+		input.on('keypress', (e) => {
+			if (e.which === 13 && input.val().trim()) {
+				this.saveInlineTask(input.val().trim(), parentTask);
+				input.val('');
+			}
+		});
+
+		return row;
+	}
+
+	saveInlineTask(subject, parentTask) {
+		frappe.call({
+			method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.create_inline_task",
+			args: {
+				project: this.projectName,
+				subject: subject,
+				parent_task: parentTask
+			},
+			callback: (r) => {
+				if (r.message && r.message.status === "success") {
+					frappe.show_alert({ message: __("Task added: {0}", [subject]), indicator: 'green' });
+					this.fetchData(); // Refresh tree
+				}
+			}
+		});
+	}
+
+	getStatusBadge(status) {
+		const colorMap = {
+			'Open': 'blue',
+			'Working': 'orange',
+			'Completed': 'green',
+			'Cancelled': 'red',
+			'On Hold': 'gray',
+			'Active': 'blue',
+			'Paid': 'green',
+			'Overdue': 'red',
+			'Invoiced': 'purple'
+		};
+		const color = colorMap[status] || 'gray';
+		return `<span class="badge badge-${color} status-badge" style="cursor: pointer; text-transform: uppercase; font-size: 10px; padding: 4px 8px;">${status}</span>`;
+	}
+
+	showStatusPicker(event, taskName) {
+		const statuses = this.taskStatusOptions.length > 0 ? this.taskStatusOptions : ['Open', 'Working', 'Completed', 'Cancelled', 'On Hold'];
+		const $menu = $('<div class="status-picker-menu dropdown-menu show" style="position: fixed; z-index: 1050; display: block;"></div>');
+		
+		statuses.forEach(s => {
+			$('<a class="dropdown-item" href="#">' + s + '</a>')
+				.appendTo($menu)
+				.on('click', (e) => {
+					e.preventDefault();
+					this.updateTaskStatus(taskName, s);
+					$menu.remove();
+				});
+		});
+
+		$('body').append($menu);
+		
+		let top = event.pageY;
+		let left = event.pageX;
+		
+		// Prevent menu from going off-screen
+		if (top + $menu.height() > $(window).height()) top -= $menu.height();
+		if (left + $menu.width() > $(window).width()) left -= $menu.width();
+
+		$menu.css({ top: top, left: left });
+
+		setTimeout(() => {
+			$(document).one('click', () => $menu.remove());
+		}, 10);
+	}
+
+	updateTaskStatus(taskName, newStatus) {
+		frappe.call({
+			method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_status",
+			args: { task_name: taskName, status: newStatus },
+			callback: (r) => {
+				if (r.message && r.message.status === "success") {
+					this.fetchData();
+				}
+			}
+		});
 	}
 
 	initializeTaskSorting() {
@@ -467,20 +609,23 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 			statusFilters.push($(this).val());
 		});
 
-		// Deep copy tasks to avoid mutating state during filtering
+		// Deep copy tasks to avoid mutating state
 		let filteredTasks = JSON.parse(JSON.stringify(this.tasks));
 
 		const filterNode = (task) => {
+			const nameMatch = !nameFilter || task.subject.toLowerCase().includes(nameFilter);
+			const ownerMatch = !ownerFilter || (task.assigned_to || "").toLowerCase().includes(ownerFilter);
+			const statusMatch = statusFilters.length === 0 || statusFilters.includes(task.status);
+			
+			task.is_direct_match = nameMatch && ownerMatch && statusMatch;
+
 			if (task.children && task.children.length > 0) {
 				task.children = task.children.map(filterNode).filter(Boolean);
 			}
+			
 			const hasVisibleChildren = task.children && task.children.length > 0;
-			const nameMatch = !nameFilter || task.subject.toLowerCase().includes(nameFilter);
-			const ownerMatch =
-				!ownerFilter || (task.assigned_to || "").toLowerCase().includes(ownerFilter);
-			const statusMatch = statusFilters.length === 0 || statusFilters.includes(task.status);
 
-			if ((nameMatch && ownerMatch && statusMatch) || hasVisibleChildren) {
+			if (task.is_direct_match || hasVisibleChildren) {
 				return task;
 			}
 			return null;
@@ -520,20 +665,33 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 			me.applyFilters();
 		});
 
-		// Toggle children
+		// Toggle children (Updated for Lazy Loading)
 		this.wrapper.on("click", ".toggle-child-tasks", function () {
 			const $icon = $(this);
 			const $taskNode = $icon.closest(".task-node");
 			const taskId = $taskNode.data("task-id");
 			const $childContainer = $taskNode.find(".child-tasks-container");
+			const isLoaded = $taskNode.data("loaded");
 
-			$icon.toggleClass("fa-caret-down fa-caret-right");
-			$childContainer.slideToggle(200);
-
-			if ($icon.hasClass("fa-caret-right")) {
+			if ($icon.hasClass("fa-caret-down")) {
+				// Collapsing
+				$icon.removeClass("fa-caret-down").addClass("fa-caret-right");
+				$childContainer.hide();
 				me.collapsedTasks.add(taskId);
 			} else {
+				// Expanding
+				$icon.removeClass("fa-caret-right").addClass("fa-caret-down");
+				$childContainer.show();
 				me.collapsedTasks.delete(taskId);
+
+				if (!isLoaded || isLoaded === "false" || isLoaded === false) {
+					// Extract level from padding to maintain indentation
+					const padding = $taskNode.find('.task-grid-row:first .task-grid-cell:first div').css('padding-left') || '0px';
+					const level = parseInt(padding.replace('px', '')) / 20;
+					
+					me.fetchChildren(taskId, $childContainer, level + 1);
+					$taskNode.data("loaded", "true");
+				}
 			}
 			localStorage.setItem(
 				`collapsedTasks_${me.projectName}`,

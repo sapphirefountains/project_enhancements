@@ -2,6 +2,62 @@ frappe.ui.form.on("Project", {
 	refresh: function (frm) {
 		console.log("Project form refreshed - initializing Gantt check");
 		
+		const wrapperField = frm.get_field("custom_gantt_chart_html");
+
+		// Global Health Indicator
+		if (wrapperField && !frm.is_new()) {
+			if (!wrapperField.__health_bound) {
+				wrapperField.render_health_indicator = function(frm) {
+					frappe.call({
+						method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_health_metrics",
+						args: { project_name: frm.doc.name },
+						callback: (r) => {
+							if (r.message && r.message.total_tasks > 0) {
+								const data = r.message;
+								const schedule_color = data.schedule_health > 80 ? 'text-success' : (data.schedule_health > 50 ? 'text-warning' : 'text-danger');
+								
+								const html = `
+									<div class="project-health-dashboard d-flex align-items-center p-3 mb-3 bg-white border rounded shadow-sm">
+										<div class="health-metric mr-4 text-center" style="min-width: 100px;">
+											<div class="h3 mb-0 ${schedule_color}">${data.schedule_health}%</div>
+											<div class="small text-muted text-uppercase font-weight-bold">Schedule Health</div>
+										</div>
+										<div class="health-metric mr-4 border-left pl-4">
+											<div class="d-flex align-items-baseline">
+												<span class="h4 mb-0 mr-2">${data.overdue_count}</span>
+												<span class="small text-muted">Overdue Tasks</span>
+											</div>
+											${data.high_priority_overdue > 0 ? `<div class="small text-danger"><i class="fa fa-exclamation-triangle"></i> ${data.high_priority_overdue} High Priority Overdue</div>` : ''}
+										</div>
+										<div class="health-metric mr-4 border-left pl-4 flex-grow-1">
+											<div class="small d-flex justify-content-between mb-1">
+												<span class="text-muted text-uppercase font-weight-bold">Overall Progress</span>
+												<span class="font-weight-bold">${data.overall_progress}%</span>
+											</div>
+											<div class="progress" style="height: 10px;">
+												<div class="progress-bar bg-success" role="progressbar" style="width: ${data.overall_progress}%"></div>
+											</div>
+										</div>
+										<div class="health-metric border-left pl-4 text-center">
+											<div class="h4 mb-0 text-primary">${data.completed_count}/${data.total_tasks}</div>
+											<div class="small text-muted">Tasks Done</div>
+										</div>
+									</div>
+								`;
+								
+								// Inject at the very top of the form body
+								const $container = frm.$wrapper.find('.form-body');
+								$container.find('.project-health-dashboard').remove();
+								$container.prepend(html);
+							}
+						}
+					});
+				};
+				wrapperField.__health_bound = true;
+			}
+			wrapperField.render_health_indicator(frm);
+		}
+
 		// This function will load CSS and JS from the specified CDN URLs
 		function load_cdn_assets() {
 			return new Promise((resolve, reject) => {
@@ -17,11 +73,26 @@ frappe.ui.form.on("Project", {
 					}).appendTo("head");
 				}
 
-				// Inject custom styling for overdue tasks and popover
+				// Inject custom styling
 				if (!$("#custom-gantt-styles").length) {
 					$("<style id='custom-gantt-styles'>").html(`
 						.gantt .bar-overdue .bar { fill: #e74c3c !important; }
 						.gantt .bar-overdue .bar-progress { fill: #c0392b !important; }
+						.gantt .bar-milestone .bar { 
+							fill: #f1c40f !important; 
+							clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+						}
+						.gantt .bar-milestone .bar-progress { display: none !important; }
+						.gantt .baseline-bar { fill: #d1d8dd; opacity: 0.4; pointer-events: none; }
+						.gantt .bar-wrapper.highlight .bar { stroke: #2980b9; stroke-width: 3 !important; }
+						.heatmap-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+						.heatmap-table th, .heatmap-table td { border: 1px solid #eee; padding: 4px; text-align: center; }
+						.heatmap-table .user-cell { text-align: left; background: #f9f9f9; font-weight: 500; min-width: 120px; }
+						.workload-low { background-color: #d4edda !important; color: #155724; }
+						.workload-med { background-color: #fff3cd !important; color: #856404; }
+						.workload-high { background-color: #f8d7da !important; color: #721c24; }
+						.heatmap-table td:not(.user-cell) { cursor: pointer; }
+						.heatmap-table td:not(.user-cell):hover { filter: brightness(0.9); }
 						.custom-gantt-popup {
 							background: #fff;
 							border-radius: 4px;
@@ -38,26 +109,16 @@ frappe.ui.form.on("Project", {
 					`).appendTo("head");
 				}
 
-				// Load JS using jQuery's getScript, which handles execution
+				// Load JS using jQuery's getScript
 				if (typeof Gantt !== "undefined") {
 					resolve();
 				} else {
-					$.getScript(js_url)
-						.done(function () {
-							resolve();
-						})
-						.fail(function (jqxhr, settings, exception) {
-							reject(exception);
-						});
+					$.getScript(js_url).done(resolve).fail((j, s, e) => reject(e));
 				}
 			});
 		}
 
-		const wrapperField = frm.get_field("custom_gantt_chart_html");
-
 		if (wrapperField) {
-			console.log("Found custom_gantt_chart_html field");
-			
 			if (!wrapperField.__custom_gantt_bound) {
 				const original_refresh = wrapperField.refresh;
 
@@ -66,12 +127,9 @@ frappe.ui.form.on("Project", {
 						original_refresh.call(this);
 					}
 
-					console.log("custom_gantt_chart_html.refresh() called");
-
 					if (this.$wrapper) {
 						const gantt_wrapper = this.$wrapper;
 						
-						// Always ensure we have the container
 						if (gantt_wrapper.find(".gantt-chart-container").length === 0) {
 							gantt_wrapper.css({
 								height: "550px",
@@ -83,155 +141,231 @@ frappe.ui.form.on("Project", {
 								"margin-bottom": "20px"
 							});
 
-							gantt_wrapper
-								.empty()
-								.html(`
-									<div class="gantt-toolbar d-flex justify-content-end p-2 bg-light border-bottom">
-										<div class="btn-group btn-group-sm view-mode-group">
-											<button type="button" class="btn btn-default" data-view="Quarter Day">Quarter Day</button>
-											<button type="button" class="btn btn-default" data-view="Half Day">Half Day</button>
-											<button type="button" class="btn btn-primary active" data-view="Day">Day</button>
-											<button type="button" class="btn btn-default" data-view="Week">Week</button>
-											<button type="button" class="btn btn-default" data-view="Month">Month</button>
+							gantt_wrapper.empty().html(`
+								<div class="gantt-toolbar d-flex justify-content-between p-2 bg-light border-bottom">
+									<div class="export-actions">
+										<button type="button" class="btn btn-default btn-sm btn-export-gantt"><i class="fa fa-camera mr-1"></i> Export PNG</button>
+									</div>
+									<div class="btn-group btn-group-sm view-mode-group">
+										<button type="button" class="btn btn-default" data-view="Quarter Day">Quarter Day</button>
+										<button type="button" class="btn btn-default" data-view="Half Day">Half Day</button>
+										<button type="button" class="btn btn-primary active" data-view="Day">Day</button>
+										<button type="button" class="btn btn-default" data-view="Week">Week</button>
+										<button type="button" class="btn btn-default" data-view="Month">Month</button>
+									</div>
+								</div>
+								<div class="gantt-chart-container" style="flex-grow: 1; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+									<p class="text-muted">Initializing Gantt Chart...</p>
+								</div>
+								<div class="resource-heatmap-container border-top" style="height: 150px; display: none;">
+									<div class="heatmap-header p-2 bg-light d-flex justify-content-between">
+										<span class="small font-weight-bold text-muted">RESOURCE ALLOCATION (HRS/DAY)</span>
+										<div class="heatmap-legend d-flex small align-items-center">
+											<span class="mr-2"><i class="fa fa-square text-success"></i> < 6</span>
+											<span class="mr-2"><i class="fa fa-square text-warning"></i> 6-9</span>
+											<span><i class="fa fa-square text-danger"></i> > 9</span>
 										</div>
 									</div>
-									<div class="gantt-chart-container" style="flex-grow: 1; overflow: hidden; display: flex; align-items: center; justify-content: center;">
-										<p class="text-muted">Initializing Gantt Chart...</p>
-									</div>
-								`);
+									<div class="heatmap-body" style="overflow: auto; height: 110px;"></div>
+								</div>
+							`);
 						} else if (gantt_wrapper.find(".gantt-container").length > 0) {
-							// Already rendered, skip unless we want to force re-render
 							return;
 						}
 
-						load_cdn_assets()
-							.then(() => {
-								const chart_container = gantt_wrapper.find(".gantt-chart-container");
-								chart_container.html('<p class="text-muted">Fetching task data...</p>');
+						load_cdn_assets().then(() => {
+							const chart_container = gantt_wrapper.find(".gantt-chart-container");
+							const heatmap_container = gantt_wrapper.find(".resource-heatmap-container");
+							chart_container.html('<p class="text-muted">Fetching task data...</p>');
 
-								frappe.call({
-									method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_gantt_tasks_for_project",
-									args: { project_name: frm.doc.name },
-									callback: function (r) {
-										if (r.message && !r.message.error && r.message.length > 0) {
-											const tasks = r.message;
-											let clickTimer = null;
+							frappe.call({
+								method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_gantt_tasks_for_project",
+								args: { project_name: frm.doc.name },
+								callback: function (r) {
+									if (r.message && !r.message.error && r.message.length > 0) {
+										const tasks = r.message.map(t => {
+											if (t.is_milestone) t.custom_class = (t.custom_class || "") + " bar-milestone";
+											return t;
+										});
+										
+										wrapperField.render_heatmap(frm, heatmap_container);
 
-											const options = {
-												view_mode: "Day",
-												scroll_to: "today",
-												custom_popup_html: function(task) {
-													return `
-														<div class="custom-gantt-popup">
-															<h5>${task.name}</h5>
-															<p><span class="popup-label">Assignee:</span> ${task.assigned_to || 'Unassigned'}</p>
-															<p><span class="popup-label">Status:</span> ${task.status || 'N/A'}</p>
-															<p><span class="popup-label">Start:</span> ${moment(task.start).format('MMM D, YYYY')}</p>
-															<p><span class="popup-label">End:</span> ${moment(task.end).format('MMM D, YYYY')}</p>
-															<p><span class="popup-label">Progress:</span> ${task.progress}%</p>
-															<p style="font-size: 11px; margin-top: 8px; color: #777;"><em>Double-click bar to open task</em></p>
-														</div>
-													`;
-												},
-												on_click: (task) => {
-													if (clickTimer) {
-														clearTimeout(clickTimer);
-														clickTimer = null;
-														// Double click action
-														frappe.set_route("Form", "Task", task.id);
-													} else {
-														// Single click starts timer
-														clickTimer = setTimeout(() => {
-															clickTimer = null;
-															// Single click just shows popup, no explicit routing
-														}, 250);
+										let clickTimer = null;
+										const options = {
+											view_mode: "Day",
+											scroll_to: "today",
+											custom_popup_html: function(task) {
+												let baseline_info = "";
+												if (task.baseline_start && task.baseline_end) {
+													baseline_info = `<p><span class="popup-label">Baseline:</span> ${moment(task.baseline_start).format('MMM D')} - ${moment(task.baseline_end).format('MMM D')}</p>`;
+												}
+												return `
+													<div class="custom-gantt-popup">
+														<h5>${task.name} ${task.is_milestone ? '<span class="badge badge-warning">Milestone</span>' : ''}</h5>
+														<p><span class="popup-label">Assignee:</span> ${task.assigned_to || 'Unassigned'}</p>
+														<p><span class="popup-label">Status:</span> ${task.status || 'N/A'}</p>
+														<p><span class="popup-label">Start:</span> ${moment(task.start).format('MMM D, YYYY')}</p>
+														<p><span class="popup-label">End:</span> ${moment(task.end).format('MMM D, YYYY')}</p>
+														${baseline_info}
+														<p><span class="popup-label">Progress:</span> ${task.progress}%</p>
+														<p style="font-size: 11px; margin-top: 8px; color: #777;"><em>Double-click bar to open task</em></p>
+													</div>
+												`;
+											},
+											on_click: (task) => {
+												if (clickTimer) {
+													clearTimeout(clickTimer);
+													clickTimer = null;
+													frappe.set_route("Form", "Task", task.id);
+												} else {
+													clickTimer = setTimeout(() => { clickTimer = null; }, 250);
+												}
+											},
+											on_date_change: (task, start, end) => {
+												frappe.call({
+													method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_dates_from_gantt",
+													args: {
+														task_name: task.id,
+														start_date: moment(start).format("YYYY-MM-DD"),
+														end_date: moment(end).format("YYYY-MM-DD"),
+													},
+													callback: (res) => {
+														if (res.message && res.message.status === "success") {
+															wrapperField.refresh();
+															wrapperField.render_health_indicator(frm);
+														}
 													}
-												},
-												on_date_change: (task, start, end) => {
-													frappe.call({
-														method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_dates_from_gantt",
-														args: {
-															task_name: task.id,
-															start_date: moment(start).format("YYYY-MM-DD"),
-															end_date: moment(end).format("YYYY-MM-DD"),
-														},
-													});
-												},
-												on_progress_change: (task, progress) => {
-													frappe.call({
-														method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_progress_from_gantt",
-														args: {
-															task_name: task.id,
-															progress: parseInt(progress),
-														},
-													});
-												},
+												});
+											},
+											on_progress_change: (task, progress) => {
+												frappe.call({
+													method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_progress_from_gantt",
+													args: {
+														task_name: task.id,
+														progress: parseInt(progress),
+													},
+													callback: () => wrapperField.render_health_indicator(frm)
+												});
+											},
+										};
+
+										chart_container.empty();
+										try {
+											const gantt = new Gantt(chart_container[0], tasks, options);
+
+											gantt_wrapper.find('.view-mode-group button').on('click', function() {
+												gantt_wrapper.find('.view-mode-group button').removeClass('active btn-primary').addClass('btn-default');
+												$(this).addClass('active btn-primary').removeClass('btn-default');
+												gantt.change_view_mode($(this).data('view'));
+											});
+
+											gantt_wrapper.find('.btn-export-gantt').on('click', () => {
+												const svg = chart_container.find('svg')[0];
+												if (!svg) return;
+												frappe.require('https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js', () => {
+													domtoimage.toPng(chart_container[0], { bgcolor: '#fff' })
+														.then(function (dataUrl) {
+															const link = document.createElement('a');
+															link.download = `Gantt-${frm.doc.name}-${moment().format('YYYYMMDD')}.png`;
+															link.href = dataUrl;
+															link.click();
+														});
+												});
+											});
+
+											const gantt_container = gantt_wrapper.find(".gantt-container");
+											gantt_container.css({ "overflow-x": "scroll", "overflow-y": "auto", "max-height": "100%" });
+
+											const scroll_to_today = () => {
+												const today_date_class = ".date_" + moment().format("YYYY-MM-DD");
+												let today_highlight = gantt_wrapper.find(today_date_class);
+												if (today_highlight.length === 0) today_highlight = gantt_wrapper.find(".current-date-highlight");
+												if (today_highlight.length > 0) {
+													const container_width = gantt_container.width();
+													const element_left = today_highlight.position().left;
+													const scroll_pos = element_left - (container_width / 2);
+													gantt_container.animate({ scrollLeft: scroll_pos }, 300);
+												}
 											};
-
-											// It is now safe to instantiate the Gantt chart
-											chart_container.empty();
-											try {
-												const gantt = new Gantt(
-													chart_container[0],
-													tasks,
-													options
-												);
-
-												// Bind View Mode Buttons
-												gantt_wrapper.find('.view-mode-group button').on('click', function() {
-													gantt_wrapper.find('.view-mode-group button').removeClass('active btn-primary').addClass('btn-default');
-													$(this).addClass('active btn-primary').removeClass('btn-default');
-													gantt.change_view_mode($(this).data('view'));
-												});
-
-												const gantt_container = gantt_wrapper.find(".gantt-container");
-												gantt_container.css({
-													"overflow-x": "scroll",
-													"overflow-y": "auto",
-													"max-height": "100%",
-												});
-
-												// Adjust scroll to align "Today" to the left
-												setTimeout(() => {
-													const today_date_class = ".date_" + moment().format("YYYY-MM-DD");
-													let today_highlight = gantt_wrapper.find(today_date_class);
-
-													if (today_highlight.length === 0) {
-														today_highlight = gantt_wrapper.find(
-															".current-date-highlight"
-														);
-													}
-
-													if (today_highlight.length > 0) {
-														const scroll_pos = today_highlight.position().left;
-														gantt_container.scrollLeft(scroll_pos - 20);
-													}
-												}, 1000);
-											} catch (e) {
-												console.error("Gantt instantiation error:", e);
-												chart_container.html('<p class="text-danger">Error initializing Gantt chart. See console for details.</p>');
-											}
-										} else {
-											chart_container.html(
-												'<p class="text-muted">No tasks found with dates for this project.</p>'
-											);
+											setTimeout(scroll_to_today, 800);
+										} catch (e) {
+											console.error("Gantt error:", e);
+											chart_container.html('<p class="text-danger">Error initializing Gantt chart.</p>');
 										}
-									},
-								});
-							})
-							.catch((error) => {
-								console.error("Failed to load Gantt chart from CDN:", error);
-								gantt_wrapper
-									.empty()
-									.html(
-										'<p class="text-danger">Error: Could not load Gantt chart library. Check connection.</p>'
-									);
+									} else {
+										chart_container.html('<p class="text-muted text-center p-4">No tasks found with dates for this project.</p>');
+									}
+								},
 							});
+						});
 					}
 				};
-
 				wrapperField.__custom_gantt_bound = true;
 			}
+
+			wrapperField.render_heatmap = function(frm, container) {
+				const body = container.find(".heatmap-body");
+				body.html('<div class="p-4 text-center text-muted small"><i class="fa fa-spinner fa-spin mr-1"></i> Calculating allocation...</div>');
+				
+				frappe.call({
+					method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_resource_allocation_data",
+					args: { project_name: frm.doc.name },
+					callback: (r) => {
+						if (r.message && Object.keys(r.message).length > 0) {
+							container.show();
+							const data = r.message;
+							const users = Object.keys(data);
+							
+							let allDates = [];
+							users.forEach(u => allDates.push(...Object.keys(data[u])));
+							allDates = [...new Set(allDates)].sort();
+							
+							if (allDates.length === 0) { container.hide(); return; }
+
+							let html = `<table class="heatmap-table"><thead><tr><th class="user-cell">Assignee</th>`;
+							allDates.forEach(date => { html += `<th>${moment(date).format('DD MMM')}</th>`; });
+							html += `</tr></thead><tbody>`;
+
+							users.forEach(user => {
+								html += `<tr><td class="user-cell">${user}</td>`;
+								allDates.forEach(date => {
+									const cellData = data[user][date] || { hours: 0, tasks: [] };
+									const hrs = cellData.hours;
+									let cls = "";
+									if (hrs > 0 && hrs < 6) cls = "workload-low";
+									else if (hrs >= 6 && hrs <= 9) cls = "workload-med";
+									else if (hrs > 9) cls = "workload-high";
+									
+									html += `<td class="${cls}" data-user="${user}" data-date="${date}" title="${hrs.toFixed(1)} hrs">${hrs > 0 ? hrs.toFixed(1) : '-'}</td>`;
+								});
+								html += `</tr>`;
+							});
+							html += `</tbody></table>`;
+							body.html(html);
+
+							// Heatmap Click Events
+							body.find('td:not(.user-cell)').on('click', function() {
+								const user = $(this).data('user');
+								const date = $(this).data('date');
+								const cellData = data[user][date];
+								
+								if (cellData && cellData.tasks.length > 0) {
+									$('.gantt .bar-wrapper').removeClass('highlight');
+									cellData.tasks.forEach(t => {
+										$(`.gantt .bar-wrapper[data-id="${t.id}"]`).addClass('highlight');
+									});
+									frappe.show_alert({
+										message: `Highlighting ${cellData.tasks.length} tasks for ${user} on ${date}`,
+										indicator: 'info'
+									});
+								}
+							});
+						} else {
+							container.hide();
+						}
+					}
+				});
+			};
 
 			if (wrapperField.$wrapper) {
 				wrapperField.refresh();
