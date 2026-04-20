@@ -250,10 +250,13 @@ frappe.ui.form.on("Project", {
 						);
 
 						frm.add_custom_button(
-							__("Gantt"),
+							__("Gantt Chart"),
 							function () {
+								console.log("View Tasks > Gantt Chart clicked");
 								if (frm.fields_dict.custom_gantt_chart_html) {
 									frm.scroll_to_field("custom_gantt_chart_html");
+								} else {
+									console.error("Field custom_gantt_chart_html not found in frm.fields_dict");
 								}
 							},
 							__("View Tasks")

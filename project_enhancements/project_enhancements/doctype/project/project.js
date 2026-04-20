@@ -1,11 +1,12 @@
 frappe.ui.form.on("Project", {
 	refresh: function (frm) {
+		console.log("Project form refreshed - initializing Gantt check");
+		
 		// This function will load CSS and JS from the specified CDN URLs
 		function load_cdn_assets() {
 			return new Promise((resolve, reject) => {
 				const css_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css";
-				const js_url =
-					"https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js";
+				const js_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js";
 
 				// Load CSS
 				if (!$(`link[href="${css_url}"]`).length) {
@@ -17,19 +18,25 @@ frappe.ui.form.on("Project", {
 				}
 
 				// Load JS using jQuery's getScript, which handles execution
-				$.getScript(js_url)
-					.done(function (script, textStatus) {
-						resolve();
-					})
-					.fail(function (jqxhr, settings, exception) {
-						reject(exception);
-					});
+				if (typeof Gantt !== "undefined") {
+					resolve();
+				} else {
+					$.getScript(js_url)
+						.done(function () {
+							resolve();
+						})
+						.fail(function (jqxhr, settings, exception) {
+							reject(exception);
+						});
+				}
 			});
 		}
 
 		const wrapperField = frm.get_field("custom_gantt_chart_html");
 
 		if (wrapperField) {
+			console.log("Found custom_gantt_chart_html field");
+			
 			if (!wrapperField.__custom_gantt_bound) {
 				const original_refresh = wrapperField.refresh;
 
@@ -38,21 +45,34 @@ frappe.ui.form.on("Project", {
 						original_refresh.call(this);
 					}
 
-					if (this.$wrapper && this.$wrapper.children().length === 0) {
-						const gantt_wrapper = this.$wrapper;
-						gantt_wrapper.css({
-							height: "500px",
-							overflow: "hidden",
-						});
+					console.log("custom_gantt_chart_html.refresh() called");
 
-						gantt_wrapper
-							.empty()
-							.html('<div class="gantt-chart-container" style="height: 100%;"></div>');
+					if (this.$wrapper) {
+						const gantt_wrapper = this.$wrapper;
+						
+						// Always ensure we have the container
+						if (gantt_wrapper.find(".gantt-chart-container").length === 0) {
+							gantt_wrapper.css({
+								height: "500px",
+								overflow: "hidden",
+								border: "1px solid #d1d8dd",
+								"border-radius": "4px",
+								"background-color": "#f8f9fa",
+								"margin-bottom": "20px"
+							});
+
+							gantt_wrapper
+								.empty()
+								.html('<div class="gantt-chart-container" style="height: 100%; display: flex; align-items: center; justify-content: center;"><p class="text-muted">Initializing Gantt Chart...</p></div>');
+						} else if (gantt_wrapper.find(".gantt-container").length > 0) {
+							// Already rendered, skip unless we want to force re-render
+							return;
+						}
 
 						load_cdn_assets()
 							.then(() => {
 								const chart_container = gantt_wrapper.find(".gantt-chart-container");
-								chart_container.html('<p class="text-muted">Loading chart data...</p>');
+								chart_container.html('<p class="text-muted">Fetching task data...</p>');
 
 								frappe.call({
 									method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_gantt_tasks_for_project",
@@ -87,49 +107,44 @@ frappe.ui.form.on("Project", {
 											};
 
 											// It is now safe to instantiate the Gantt chart
-											gantt_wrapper.find(".gantt-chart-container").empty();
-											const gantt = new Gantt(
-												gantt_wrapper.find(".gantt-chart-container")[0],
-												tasks,
-												options
-											);
+											chart_container.empty();
+											try {
+												const gantt = new Gantt(
+													chart_container[0],
+													tasks,
+													options
+												);
 
-											const gantt_container = gantt_wrapper.find(".gantt-container");
-											gantt_container.css({
-												"overflow-x": "scroll",
-												"overflow-y": "auto",
-												"max-height": "100%",
-											});
+												const gantt_container = gantt_wrapper.find(".gantt-container");
+												gantt_container.css({
+													"overflow-x": "scroll",
+													"overflow-y": "auto",
+													"max-height": "100%",
+												});
 
-											// Adjust scroll to align "Today" to the left
-											setTimeout(() => {
-												// Calculate dynamic class for today, e.g., .date_2023-10-27
-												const today_date_class = ".date_" + moment().format("YYYY-MM-DD");
-												let today_highlight = gantt_wrapper.find(today_date_class);
+												// Adjust scroll to align "Today" to the left
+												setTimeout(() => {
+													const today_date_class = ".date_" + moment().format("YYYY-MM-DD");
+													let today_highlight = gantt_wrapper.find(today_date_class);
 
-												if (today_highlight.length === 0) {
-													today_highlight = gantt_wrapper.find(
-														".current-date-highlight"
-													);
-												}
+													if (today_highlight.length === 0) {
+														today_highlight = gantt_wrapper.find(
+															".current-date-highlight"
+														);
+													}
 
-												if (today_highlight.length > 0) {
-													// If the element exists, scroll to it directly
-													// position().left is relative to the scrollable container content
-													const scroll_pos = today_highlight.position().left;
-													gantt_container.scrollLeft(scroll_pos - 20); // 20px padding
-												} else {
-													// Fallback: assumes scroll_to: 'today' centered the view
-													const gantt_width = gantt_container.width();
-													const current_scroll = gantt_container.scrollLeft();
-													gantt_container.scrollLeft(
-														current_scroll + gantt_width / 2 - 50
-													);
-												}
-											}, 1000);
+													if (today_highlight.length > 0) {
+														const scroll_pos = today_highlight.position().left;
+														gantt_container.scrollLeft(scroll_pos - 20);
+													}
+												}, 1000);
+											} catch (e) {
+												console.error("Gantt instantiation error:", e);
+												chart_container.html('<p class="text-danger">Error initializing Gantt chart. See console for details.</p>');
+											}
 										} else {
-											gantt_wrapper.html(
-												'<p class="text-muted">No tasks found for this project.</p>'
+											chart_container.html(
+												'<p class="text-muted">No tasks found with dates for this project.</p>'
 											);
 										}
 									},
@@ -140,7 +155,7 @@ frappe.ui.form.on("Project", {
 								gantt_wrapper
 									.empty()
 									.html(
-										'<p class="text-danger">Error: Could not load Gantt chart library from CDN. Check browser console for details.</p>'
+										'<p class="text-danger">Error: Could not load Gantt chart library. Check connection.</p>'
 									);
 							});
 					}
@@ -156,6 +171,7 @@ frappe.ui.form.on("Project", {
 	},
 });
 
+// Original logic for reminders
 frappe.ui.form.on("Project", {
 	refresh: function (frm) {
 		if (!frm.is_new()) {
