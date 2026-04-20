@@ -13,7 +13,7 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 		this.projectName = projectName;
 		this.readonly = readonly;
 		this.tasks = [];
-		this.collapsedTasks = new Set();
+		this.expandedTasks = new Set(); // Changed from collapsedTasks for "collapsed by default"
 		this.pendingChanges = {};
 		// Default options, will be updated from server
 		this.taskStatusOptions = taskStatusOptions || [
@@ -27,10 +27,10 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 		// Pre-fetched data from a unified view or parent component
 		this.preFetchedData = preFetchedData;
 
-		// Load collapsed state from local storage
-		const savedState = localStorage.getItem(`collapsedTasks_${this.projectName}`);
+		// Load expanded state from local storage
+		const savedState = localStorage.getItem(`expandedTasks_${this.projectName}`);
 		if (savedState) {
-			this.collapsedTasks = new Set(JSON.parse(savedState));
+			this.expandedTasks = new Set(JSON.parse(savedState));
 		}
 
 		// Load column visibility state from local storage
@@ -97,109 +97,106 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
                                 </div>
                             </div>
                             <button class="btn btn-sm btn-success mr-2 save-order-btn" style="display: none;">Save Order</button>
-                            ${
-								!this.readonly
-									? `<a href="/app/task/new-task?project=${this.projectName}" class="btn btn-primary btn-sm">Add Task</a>`
-									: ""
-							}
+                            <button class="btn btn-sm btn-primary add-task-btn">Add Task</button>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="dropdown mr-2">
+                                <button class="btn btn-sm btn-default dropdown-toggle" type="button" id="columnToggleDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <i class="fa fa-columns"></i>
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-right p-3" aria-labelledby="columnToggleDropdown" style="min-width: 200px;">
+                                    <h6 class="dropdown-header px-0">Visible Columns</h6>
+                                    <div class="form-check mb-1">
+                                        <input class="form-check-input column-toggle-cb" type="checkbox" value="owner" id="cb-col-owner" ${
+											this.columnVisibility.owner ? "checked" : ""
+										}>
+                                        <label class="form-check-label" for="cb-col-owner">Assigned To</label>
+                                    </div>
+                                    <div class="form-check mb-1">
+                                        <input class="form-check-input column-toggle-cb" type="checkbox" value="status" id="cb-col-status" ${
+											this.columnVisibility.status ? "checked" : ""
+										}>
+                                        <label class="form-check-label" for="cb-col-status">Status</label>
+                                    </div>
+                                    <div class="form-check mb-1">
+                                        <input class="form-check-input column-toggle-cb" type="checkbox" value="priority" id="cb-col-priority" ${
+											this.columnVisibility.priority ? "checked" : ""
+										}>
+                                        <label class="form-check-label" for="cb-col-priority">Priority</label>
+                                    </div>
+                                    <div class="form-check mb-1">
+                                        <input class="form-check-input column-toggle-cb" type="checkbox" value="start_date" id="cb-col-start-date" ${
+											this.columnVisibility.start_date ? "checked" : ""
+										}>
+                                        <label class="form-check-label" for="cb-col-start-date">Start Date</label>
+                                    </div>
+                                    <div class="form-check mb-1">
+                                        <input class="form-check-input column-toggle-cb" type="checkbox" value="due_date" id="cb-col-due-date" ${
+											this.columnVisibility.due_date ? "checked" : ""
+										}>
+                                        <label class="form-check-label" for="cb-col-due-date">Due Date</label>
+                                    </div>
+                                    <div class="form-check mb-1">
+                                        <input class="form-check-input column-toggle-cb" type="checkbox" value="progress" id="cb-col-progress" ${
+											this.columnVisibility.progress ? "checked" : ""
+										}>
+                                        <label class="form-check-label" for="cb-col-progress">% Complete</label>
+                                    </div>
+                                    <div class="form-check mb-1">
+                                        <input class="form-check-input column-toggle-cb" type="checkbox" value="duration" id="cb-col-duration" ${
+											this.columnVisibility.duration ? "checked" : ""
+										}>
+                                        <label class="form-check-label" for="cb-col-duration">Expected Time</label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="task-filters p-2 rounded-sm bg-light border">
-                        <div class="row">
-                            <div class="col-md-4"><input type="text" class="form-control form-control-sm task-name-filter" placeholder="Filter by task name..."></div>
-                            <div class="col-md-3"><input type="text" class="form-control form-control-sm task-owner-filter" placeholder="Filter by owner..."></div>
-                            <div class="col-md-3">
-                                <div class="dropdown">
-                                    <button class="btn btn-sm btn-default dropdown-toggle w-100 text-left" type="button" id="statusFilterMenu" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Filter by Status" style="background-color: white; border: 1px solid #d1d8dd; color: #36414c;">
-                                        Statuses
-                                    </button>
-                                    <div class="dropdown-menu p-2" aria-labelledby="statusFilterMenu" style="min-width: 200px; max-height: 300px; overflow-y: auto;" id="status-filter-container">
-                                        <!-- Checkboxes will be injected here -->
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-2 d-flex">
-                                <button class="btn btn-sm btn-default clear-filters-btn mr-2 flex-grow-1">Clear</button>
-                                <div class="dropdown">
-                                    <button class="btn btn-sm btn-default dropdown-toggle" type="button" id="columnToggleMenu" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Toggle Columns">
-                                        <i class="fa fa-columns"></i>
-                                    </button>
-                                    <div class="dropdown-menu dropdown-menu-right p-2" aria-labelledby="columnToggleMenu" style="min-width: 150px;">
-                                        <div class="form-check mb-1">
-                                            <input class="form-check-input column-toggle-cb" type="checkbox" value="owner" id="cb-col-owner" ${
-												this.columnVisibility.owner ? "checked" : ""
-											}>
-                                            <label class="form-check-label" for="cb-col-owner">Owner</label>
-                                        </div>
-                                        <div class="form-check mb-1">
-                                            <input class="form-check-input column-toggle-cb" type="checkbox" value="status" id="cb-col-status" ${
-												this.columnVisibility.status ? "checked" : ""
-											}>
-                                            <label class="form-check-label" for="cb-col-status">Status</label>
-                                        </div>
-                                        <div class="form-check mb-1">
-                                            <input class="form-check-input column-toggle-cb" type="checkbox" value="priority" id="cb-col-priority" ${
-												this.columnVisibility.priority ? "checked" : ""
-											}>
-                                            <label class="form-check-label" for="cb-col-priority">Priority</label>
-                                        </div>
-                                        <div class="form-check mb-1">
-                                            <input class="form-check-input column-toggle-cb" type="checkbox" value="start_date" id="cb-col-start-date" ${
-												this.columnVisibility.start_date ? "checked" : ""
-											}>
-                                            <label class="form-check-label" for="cb-col-start-date">Start Date</label>
-                                        </div>
-                                        <div class="form-check mb-1">
-                                            <input class="form-check-input column-toggle-cb" type="checkbox" value="due_date" id="cb-col-due-date" ${
-												this.columnVisibility.due_date ? "checked" : ""
-											}>
-                                            <label class="form-check-label" for="cb-col-due-date">Due Date</label>
-                                        </div>
-                                        <div class="form-check mb-1">
-                                            <input class="form-check-input column-toggle-cb" type="checkbox" value="progress" id="cb-col-progress" ${
-												this.columnVisibility.progress ? "checked" : ""
-											}>
-                                            <label class="form-check-label" for="cb-col-progress">% Complete</label>
-                                        </div>
-                                        <div class="form-check mb-1">
-                                            <input class="form-check-input column-toggle-cb" type="checkbox" value="duration" id="cb-col-duration" ${
-												this.columnVisibility.duration ? "checked" : ""
-											}>
-                                            <label class="form-check-label" for="cb-col-duration">Duration</label>
-                                        </div>
-                                    </div>
-                                </div>
+                    <div class="d-flex align-items-center mb-2 task-filters-row">
+                        <input type="text" class="form-control form-control-sm task-name-filter mr-2" placeholder="Filter by task name...">
+                        <input type="text" class="form-control form-control-sm task-owner-filter mr-2" placeholder="Filter by owner...">
+                        <div class="dropdown mr-2">
+                            <button class="btn btn-sm btn-default dropdown-toggle" type="button" id="statusFilterMenu" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                Statuses
+                            </button>
+                            <div class="dropdown-menu p-3 status-filter-dropdown" aria-labelledby="statusFilterMenu" style="min-width: 150px;">
+                                <!-- Dynamic status checkboxes -->
                             </div>
                         </div>
+                        <button class="btn btn-sm btn-default clear-filters-btn">Clear</button>
                     </div>
                 </div>
+
                 <div class="task-grid">
-                    <div class="task-grid-header">
-                        <div class="task-grid-cell" data-column="task">Task</div>
-                        <div class="task-grid-cell ${
+                    <div class="task-grid-header d-flex bg-light font-weight-bold border-bottom py-2">
+                        <div class="task-grid-cell" style="flex: 5;">Task</div>
+                        <div class="task-grid-cell assignee-cell ${
 							this.columnVisibility.owner ? "" : "hidden-column"
-						}" data-column="owner">Owner</div>
-                        <div class="task-grid-cell ${
+						}" data-column="owner" style="flex: 1.5;">Assigned To</div>
+                        <div class="task-grid-cell status-cell ${
 							this.columnVisibility.status ? "" : "hidden-column"
-						}" data-column="status">Status</div>
-                        <div class="task-grid-cell ${
+						}" data-column="status" style="flex: 1.5;">Status</div>
+                        <div class="task-grid-cell priority-cell ${
 							this.columnVisibility.priority ? "" : "hidden-column"
-						}" data-column="priority">Priority</div>
-                        <div class="task-grid-cell ${
+						}" data-column="priority" style="flex: 1;">Priority</div>
+                        <div class="task-grid-cell date-cell ${
 							this.columnVisibility.start_date ? "" : "hidden-column"
-						}" data-column="start_date">Start Date</div>
-                        <div class="task-grid-cell ${
+						}" data-column="start_date" style="flex: 1;">Start Date</div>
+                        <div class="task-grid-cell date-cell ${
 							this.columnVisibility.due_date ? "" : "hidden-column"
-						}" data-column="due_date">Due Date</div>
-                        <div class="task-grid-cell ${
+						}" data-column="due_date" style="flex: 1;">Due Date</div>
+                        <div class="task-grid-cell progress-cell ${
 							this.columnVisibility.progress ? "" : "hidden-column"
-						}" data-column="progress">% Complete</div>
-                        <div class="task-grid-cell ${
+						}" data-column="progress" style="flex: 1;">% Complete</div>
+                        <div class="task-grid-cell duration-cell ${
 							this.columnVisibility.duration ? "" : "hidden-column"
-						}" data-column="duration">Duration (hrs)</div>
-                        ${!this.readonly ? `<div class="task-grid-cell actions-cell" data-column="actions">Actions</div>` : ''}
+						}" data-column="duration" style="flex: 1;">Expected Time</div>
+                        ${!this.readonly ? `<div class="task-grid-cell actions-cell" data-column="actions" style="flex: 0.5;">Actions</div>` : ''}
                     </div>
-                    <div class="task-grid-body"></div>
+                    <div class="task-grid-body">
+                        <!-- Tasks will be rendered here -->
+                        <div class="p-4 text-center text-muted">Loading tasks...</div>
+                    </div>
                 </div>
             </div>
         `);
@@ -207,77 +204,70 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 		this.bindEvents();
 	}
 
-	fetchData() {
-		// Fallback to standard frappe.call if dashboard_api is not available (e.g. on Task form view)
-		const callApi =
-			window.project_enhancements && project_enhancements.dashboard_api
-				? project_enhancements.dashboard_api.call
-				: (options) =>
-						new Promise((resolve, reject) => {
-							frappe.call({
-								...options,
-								callback: resolve,
-								error: reject,
-							});
-						});
-
-		const fetchStatusOptions = callApi({
-			method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_task_status_options",
-		});
-
-		const fetchTasks = callApi({
-			method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_tasks",
-			args: { project: this.projectName },
-		});
-
-		Promise.all([fetchStatusOptions, fetchTasks])
-			.then((results) => {
-				const statusResult = results[0];
-				const tasksResult = results[1];
-
-				if (statusResult.message) {
-					this.taskStatusOptions = statusResult.message;
-				}
-
-				if (tasksResult.message && !tasksResult.message.error) {
-					this.hydrate(tasksResult.message);
-				} else {
-					this.wrapper
-						.find(".task-grid-body")
-						.html(
-							`<div class="alert alert-danger">Error fetching tasks: ${
-								tasksResult.message ? tasksResult.message.error : "Unknown error"
-							}</div>`
-						);
-				}
-			})
-			.catch((err) => {
-				console.error("TaskTreeManager Error:", err);
-				this.wrapper
-					.find(".task-grid-body")
-					.html(
-						`<div class="alert alert-danger">Error fetching tasks. Please try again later.</div>`
-					);
-			});
-	}
-
 	updateStatusFilterOptions() {
-		const container = this.wrapper.find("#status-filter-container");
-		container.empty();
-		this.taskStatusOptions.forEach((s) => {
-			container.append(`
+		const $dropdown = this.wrapper.find(".status-filter-dropdown");
+		$dropdown.empty();
+		this.taskStatusOptions.forEach((status) => {
+			$dropdown.append(`
                 <div class="form-check mb-1">
-                    <input class="form-check-input task-status-cb" type="checkbox" value="${s}" id="cb-status-${s.replace(
-				/\s+/g,
-				"-"
-			)}">
-                    <label class="form-check-label" style="cursor: pointer;" for="cb-status-${s.replace(
-						/\s+/g,
-						"-"
-					)}">${s}</label>
+                    <input class="form-check-input task-status-cb" type="checkbox" value="${status}" id="filter-status-${status}">
+                    <label class="form-check-label" for="filter-status-${status}">${status}</label>
                 </div>
             `);
 		});
+	}
+
+	fetchData() {
+		frappe.call({
+			method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_project_tasks",
+			args: { project: this.projectName },
+			callback: (r) => {
+				if (r.message && !r.message.error) {
+					this.tasks = r.message;
+					this.updateStatusFilterOptions();
+					this.renderGrid(this.tasks);
+				}
+			},
+		});
+	}
+
+	refresh() {
+		this.fetchData();
+	}
+
+	applyFilters() {
+		const nameFilter = (this.wrapper.find(".task-name-filter").val() || "").toLowerCase();
+		const ownerFilter = (this.wrapper.find(".task-owner-filter").val() || "").toLowerCase();
+
+		const statusFilters = [];
+		this.wrapper.find(".task-status-cb:checked").each(function () {
+			statusFilters.push($(this).val());
+		});
+
+		// Deep copy tasks to avoid mutating state
+		let filteredTasks = JSON.parse(JSON.stringify(this.tasks));
+
+		const filterNode = (task) => {
+			const nameMatch = !nameFilter || task.subject.toLowerCase().includes(nameFilter);
+			const ownerMatch = !ownerFilter || (task.assigned_to || "").toLowerCase().includes(ownerFilter);
+			const statusMatch = statusFilters.length === 0 || statusFilters.includes(task.status);
+			
+			task.is_direct_match = nameMatch && ownerMatch && statusMatch;
+
+			if (task.children && task.children.length > 0) {
+				task.children = task.children.map(filterNode).filter(Boolean);
+			}
+			
+			const hasVisibleChildren = task.children && task.children.length > 0;
+
+			if (task.is_direct_match || hasVisibleChildren) {
+				return task;
+			}
+			return null;
+		};
+
+		filteredTasks = filteredTasks.map(filterNode).filter(Boolean);
+		this.renderGrid(filteredTasks);
 	}
 
 	renderGrid(tasks) {
@@ -296,14 +286,13 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 	}
 
 	renderTaskNode(task, container, level) {
-		const start_date = task.exp_start_date
-			? frappe.datetime.str_to_user(task.exp_start_date)
-			: "Set Date";
-		const end_date = task.exp_end_date
-			? frappe.datetime.str_to_user(task.exp_end_date)
-			: "Set Date";
+		const start_date = task.exp_start_date ? frappe.datetime.str_to_user(task.exp_start_date) : "Set Date";
+		const end_date = task.exp_end_date ? frappe.datetime.str_to_user(task.exp_end_date) : "Set Date";
 		const progress = task.progress || 0;
-		const isCollapsed = this.collapsedTasks.has(task.name);
+		
+		// Inverted logic: items are collapsed if NOT in expandedTasks
+		const isExpanded = this.expandedTasks.has(task.name);
+		const isCollapsed = !isExpanded;
 
 		// Lazy Loading: Check has_children flag from server
 		const hasChildren = task.has_children || (task.children && task.children.length > 0);
@@ -317,70 +306,39 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 			this.pendingChanges[task.name] &&
 			this.pendingChanges[task.name][field] !== undefined;
 
+		const isGhost = (this.wrapper.find(".task-name-filter").val() || this.wrapper.find(".task-owner-filter").val()) && !task.is_direct_match;
+
 		const node = $(`
-			<div class="task-node" data-task-id="${task.name}" data-loaded="${(task.children && task.children.length > 0) || !hasChildren}">
-				<div class="task-grid-row">
+			<div class="task-node ${isGhost ? 'task-ghost-node' : ''}" data-task-id="${task.name}" data-loaded="${(task.children && task.children.length > 0) || !hasChildren}">
+				<div class="task-grid-row ${task.is_direct_match ? 'task-search-match' : ''}">
 					<div class="task-grid-cell">
-						<div style="padding-left: ${
-							level * 20
-						}px; display: flex; align-items: center; width: 100%;">
+						<div style="padding-left: ${level * 20}px; display: flex; align-items: center; width: 100%;">
 							<i class="fa fa-bars task-drag-handle mr-2 text-muted" style="cursor: grab; flex-shrink: 0;"></i>
 							<i class="fa fa-fw ${iconClass}" style="cursor: pointer; flex-shrink: 0; font-size: 10px;"></i>
-							<a href="/app/task/${
-								task.name
-							}" class="task-name-cell-text" title="${task.subject}">${
-			task.subject
-		}</a>
+							<a href="/app/task/${task.name}" class="task-name-cell-text" title="${task.subject}">${task.subject}</a>
 						</div>
 					</div>
-					<div class="task-grid-cell assignee-cell ${
-						this.columnVisibility.owner ? "" : "hidden-column"
-					}" data-column="owner"><a href="#" class="assignee-link">${
-			task.assigned_to || "Unassigned"
-		}</a></div>
-					<div class="task-grid-cell status-cell ${
-						this.columnVisibility.status ? "" : "hidden-column"
-					}" data-column="status">
-						${statusBadge}
-					</div>
-					<div class="task-grid-cell ${
-						this.columnVisibility.priority ? "" : "hidden-column"
-					}" data-column="priority">
-						${task.priority || "Medium"}
-					</div>
-					<div class="task-grid-cell editable-date ${
-						hasPendingChange("exp_start_date") ? "unsaved-change" : ""
-					} ${
-			this.columnVisibility.start_date ? "" : "hidden-column"
-		}" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${
-			task.exp_start_date || ""
-		}" data-column="start_date"><a href="#">${start_date}</a></div>
-					<div class="task-grid-cell editable-date ${
-						hasPendingChange("exp_end_date") ? "unsaved-change" : ""
-					} ${
-			this.columnVisibility.due_date ? "" : "hidden-column"
-		}" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${
-			task.exp_end_date || ""
-		}" data-column="due_date"><a href="#">${end_date}</a></div>
-					<div class="task-grid-cell ${
-						this.columnVisibility.progress ? "" : "hidden-column"
-					}" data-column="progress"><div class="progress" style="height: 15px; width: 100%;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></div>
-					<div class="task-grid-cell editable-time ${
-						hasPendingChange("expected_time") ? "unsaved-change" : ""
-					} ${
-			this.columnVisibility.duration ? "" : "hidden-column"
-		}" data-field="expected_time" data-task-id="${task.name}" data-original-value="${
-			task.expected_time || 0
-		}" data-column="duration"><a href="#">${task.expected_time || 0}</a></div>
-					${!this.readonly ? `<div class="task-grid-cell actions-cell" data-column="actions">
-						<button class="btn btn-xs btn-danger delete-task-btn" title="Delete Task" data-task-name="${task.name}" data-task-subject="${task.subject}"><i class="fa fa-trash"></i></button>
-					</div>` : ''}
+					<div class="task-grid-cell assignee-cell ${this.columnVisibility.owner ? "" : "hidden-column"}" data-column="owner"><a href="#" class="assignee-link">${task.assigned_to || "Unassigned"}</a></div>
+					<div class="task-grid-cell status-cell ${this.columnVisibility.status ? "" : "hidden-column"}" data-column="status">${statusBadge}</div>
+					<div class="task-grid-cell ${this.columnVisibility.priority ? "" : "hidden-column"}" data-column="priority">${task.priority || "Medium"}</div>
+					<div class="task-grid-cell editable-date ${this.columnVisibility.start_date ? "" : "hidden-column"}" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${task.exp_start_date || ""}" data-column="start_date"><a href="#">${start_date}</a></div>
+					<div class="task-grid-cell editable-date ${this.columnVisibility.due_date ? "" : "hidden-column"}" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${task.exp_end_date || ""}" data-column="due_date"><a href="#">${end_date}</a></div>
+					<div class="task-grid-cell ${this.columnVisibility.progress ? "" : "hidden-column"}" data-column="progress"><div class="progress" style="height: 15px; width: 100%;"><div class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress}%</div></div></div>
+					<div class="task-grid-cell editable-time ${this.columnVisibility.duration ? "" : "hidden-column"}" data-field="expected_time" data-task-id="${task.name}" data-original-value="${task.expected_time || 0}" data-column="duration"><a href="#">${task.expected_time || 0}</a></div>
+					${!this.readonly ? `<div class="task-grid-cell actions-cell" data-column="actions"><button class="btn btn-xs btn-danger delete-task-btn" title="Delete Task" data-task-name="${task.name}" data-task-subject="${task.subject}"><i class="fa fa-trash"></i></button></div>` : ''}
 				</div>
-				<div class="child-tasks-container" style="${
-					isCollapsed ? "display: none;" : ""
-				}"></div>
+				<div class="child-tasks-container" style="${isCollapsed ? "display: none;" : ""}"></div>
 			</div>
 		`).appendTo(container);
+
+		// Inject Search/Ghost Styles
+		if (!$("#task-tree-search-styles").length) {
+			$("<style id='task-tree-search-styles'>").html(`
+				.task-search-match { background-color: #fff9c4 !important; }
+				.task-ghost-node { opacity: 0.5; }
+				.task-ghost-node:hover { opacity: 0.8; }
+			`).appendTo("head");
+		}
 
 		// Status switch listener
 		node.find('.status-badge').on('click', (e) => {
@@ -398,11 +356,11 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 		if (task.children && task.children.length > 0) {
 			const childContainer = node.find(".child-tasks-container");
 			task.children.forEach((child) => this.renderTaskNode(child, childContainer, level + 1));
-			if (!isCollapsed) {
+			if (isExpanded) {
 				childContainer.append(this.createQuickAddRow(task.name, level + 1));
 			}
-		} else if (hasChildren && !isCollapsed) {
-			// Loading placeholder for lazy children
+		} else if (hasChildren && isExpanded) {
+			// Loading placeholder for lazy children (only if expanded)
 			node.find(".child-tasks-container").html('<div class="p-2 text-muted small"><i class="fa fa-spinner fa-spin mr-1"></i> Loading children...</div>');
 		}
 	}
@@ -535,106 +493,6 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 		});
 	}
 
-	initializeTaskSorting() {
-		if (this.sortableInstances) {
-			this.sortableInstances.forEach((instance) => instance.destroy());
-		}
-		this.sortableInstances = [];
-
-		if (this.readonly) return;
-
-		const sortableContainers = this.wrapper.find(".task-grid-body, .child-tasks-container");
-		const me = this;
-
-		sortableContainers.each(function () {
-			const instance = new Sortable(this, {
-				group: "nested-tasks",
-				animation: 150,
-				handle: ".task-drag-handle",
-				ghostClass: "sortable-ghost",
-				chosenClass: "sortable-chosen",
-				onEnd: function (evt) {
-					me.wrapper.find(".save-order-btn").show();
-				},
-			});
-			me.sortableInstances.push(instance);
-		});
-	}
-
-	getStatusStyle(status) {
-		let color = "#6c757d"; // Default grey
-		switch (status) {
-			case "Active":
-				color = "#007bff";
-				break;
-			case "Open":
-				color = "#007bff";
-				break;
-			case "Completed":
-				color = "#28a745";
-				break;
-			case "Paid":
-				color = "#28a745";
-				break;
-			case "Overdue":
-				color = "#dc3545";
-				break;
-			case "Cancelled":
-				color = "#dc3545";
-				break;
-			case "Canceled":
-				color = "#dc3545";
-				break;
-			case "Working":
-				color = "#ff9800";
-				break;
-			case "On Hold":
-				color = "#ff9800";
-				break;
-			case "Invoiced":
-				color = "#6f42c1";
-				break;
-			default:
-				color = "#6c757d";
-		}
-		return `background-color: ${color}; color: white;`;
-	}
-
-	applyFilters() {
-		const nameFilter = (this.wrapper.find(".task-name-filter").val() || "").toLowerCase();
-		const ownerFilter = (this.wrapper.find(".task-owner-filter").val() || "").toLowerCase();
-
-		const statusFilters = [];
-		this.wrapper.find(".task-status-cb:checked").each(function () {
-			statusFilters.push($(this).val());
-		});
-
-		// Deep copy tasks to avoid mutating state
-		let filteredTasks = JSON.parse(JSON.stringify(this.tasks));
-
-		const filterNode = (task) => {
-			const nameMatch = !nameFilter || task.subject.toLowerCase().includes(nameFilter);
-			const ownerMatch = !ownerFilter || (task.assigned_to || "").toLowerCase().includes(ownerFilter);
-			const statusMatch = statusFilters.length === 0 || statusFilters.includes(task.status);
-			
-			task.is_direct_match = nameMatch && ownerMatch && statusMatch;
-
-			if (task.children && task.children.length > 0) {
-				task.children = task.children.map(filterNode).filter(Boolean);
-			}
-			
-			const hasVisibleChildren = task.children && task.children.length > 0;
-
-			if (task.is_direct_match || hasVisibleChildren) {
-				return task;
-			}
-			return null;
-		};
-
-		filteredTasks = filteredTasks.map(filterNode).filter(Boolean);
-		this.renderGrid(filteredTasks);
-	}
-
 	bindEvents() {
 		const me = this;
 
@@ -677,12 +535,12 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 				// Collapsing
 				$icon.removeClass("fa-caret-down").addClass("fa-caret-right");
 				$childContainer.hide();
-				me.collapsedTasks.add(taskId);
+				me.expandedTasks.delete(taskId);
 			} else {
 				// Expanding
 				$icon.removeClass("fa-caret-right").addClass("fa-caret-down");
 				$childContainer.show();
-				me.collapsedTasks.delete(taskId);
+				me.expandedTasks.add(taskId);
 
 				if (!isLoaded || isLoaded === "false" || isLoaded === false) {
 					// Extract level from padding to maintain indentation
@@ -694,465 +552,291 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 				}
 			}
 			localStorage.setItem(
-				`collapsedTasks_${me.projectName}`,
-				JSON.stringify(Array.from(me.collapsedTasks))
+				`expandedTasks_${me.projectName}`,
+				JSON.stringify(Array.from(me.expandedTasks))
 			);
 		});
 
-		// Save Order
-		this.wrapper.on("click", ".save-order-btn", function () {
-			me.saveTaskOrder();
-		});
-
-		// Pending Changes
-		this.wrapper.on("click", ".save-changes-btn", () => me.savePendingChanges());
-		this.wrapper.on("click", ".discard-changes-btn", () => me.discardPendingChanges());
-
-		// Inline Editing - Date
-		this.wrapper.on("click", ".editable-date a", function (e) {
-			e.preventDefault();
-			if (me.readonly) return;
-			me.handleDateEdit($(this));
-		});
-
-		// Inline Editing - Time
-		this.wrapper.on("click", ".editable-time a", function (e) {
-			e.preventDefault();
-			if (me.readonly) return;
-			me.handleTimeEdit($(this));
-		});
-
-		// Inline Editing - Status
-		this.wrapper.on("change", ".task-status-select", function () {
-			if (me.readonly) return;
-			me.handleStatusChange($(this));
-		});
-
-		// Assignees
-		this.wrapper.on("click", ".assignee-link", function (e) {
-			e.preventDefault();
-			if (me.readonly) return;
-			me.showAssigneeDialog($(this));
-		});
-
-		// Delete Task
-		this.wrapper.on("click", ".delete-task-btn", function (e) {
-			e.stopPropagation();
-			const btn = $(this);
-			const taskName = btn.data("task-name");
-			const taskSubject = btn.data("task-subject");
-
-			frappe.confirm(
-				`Are you sure you want to delete task ${taskSubject}? This action cannot be undone.`,
-				() => {
-					frappe.call({
-						method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.delete_task",
-						args: { task_name: taskName },
-						callback: (r) => {
-							if (r.message && r.message.status === "success") {
-								frappe.show_alert({ message: "Task deleted successfully.", indicator: "green" });
-
-								// Remove from local array
-								const removeTask = (tasksList, idToRemove) => {
-									for (let i = 0; i < tasksList.length; i++) {
-										if (tasksList[i].name === idToRemove) {
-											tasksList.splice(i, 1);
-											return true;
-										}
-										if (tasksList[i].children && tasksList[i].children.length > 0) {
-											if (removeTask(tasksList[i].children, idToRemove)) {
-												return true;
-											}
-										}
-									}
-									return false;
-								};
-
-
-								removeTask(me.tasks, taskName);
-
-								// Clean up any pending changes
-								if (me.pendingChanges && me.pendingChanges[taskName]) {
-									delete me.pendingChanges[taskName];
-								}
-
-								// Re-render
-								me.applyFilters();
-							} else {
-								frappe.show_alert({ message: r.message.message || "Failed to delete task.", indicator: "red" });
-							}
-						}
-					});
-				}
-			);
-		});
-
-		// Column Toggle
-		this.wrapper.on("change", ".column-toggle-cb", function (e) {
+		// Column toggles
+		this.wrapper.on("change", ".column-toggle-cb", function () {
 			const column = $(this).val();
-			const isChecked = $(this).prop("checked");
-			me.columnVisibility[column] = isChecked;
+			const isVisible = $(this).is(":checked");
+			me.columnVisibility[column] = isVisible;
 			localStorage.setItem(
 				`taskTreeColumns_${frappe.session.user}`,
 				JSON.stringify(me.columnVisibility)
 			);
 
-			if (isChecked) {
-				me.wrapper
-					.find(`.task-grid-cell[data-column="${column}"]`)
-					.removeClass("hidden-column");
+			const $cells = me.wrapper.find(`.task-grid-cell[data-column="${column}"]`);
+			if (isVisible) {
+				$cells.removeClass("hidden-column");
 			} else {
-				me.wrapper
-					.find(`.task-grid-cell[data-column="${column}"]`)
-					.addClass("hidden-column");
+				$cells.addClass("hidden-column");
 			}
 		});
 
-		// Prevent dropdown from closing when clicking inside
-		this.wrapper.on("click", ".dropdown-menu", function (e) {
-			e.stopPropagation();
-		});
-	}
+		// Date editing
+		this.wrapper.on("click", ".editable-date a", function (e) {
+			e.preventDefault();
+			if (me.readonly) return;
 
-	handleDateEdit(link) {
-		const cell = link.closest("td, .task-grid-cell"); // Support both table and grid
-		if (cell.find(".datepicker-input").length > 0) return;
+			const $cell = $(this).parent();
+			const taskId = $cell.data("task-id");
+			const field = $cell.data("field");
+			const originalDate = $cell.data("original-date");
 
-		const taskName = cell.data("task-id");
-		const field = cell.data("field");
-		const originalValue = cell.data("original-date");
-		let hasChanged = false;
-
-		link.hide();
-
-		const control_wrapper = $(
-			'<div class="datepicker-input" style="width: 130px;"></div>'
-		).appendTo(cell);
-		let datepicker = frappe.ui.form.make_control({
-			parent: control_wrapper,
-			df: { fieldtype: "Date", fieldname: field },
-			render_input: true,
-		});
-		datepicker.set_value(originalValue);
-		datepicker.input.focus();
-
-		const cleanup = () => {
-			control_wrapper.remove();
-			link.show();
-		};
-
-		$(datepicker.input).on("change", () => {
-			hasChanged = true;
-			const newValue = datepicker.get_value();
-			const displayValue = newValue ? frappe.datetime.str_to_user(newValue) : "Set Date";
-
-			link.text(displayValue);
-			cell.addClass("unsaved-change");
-
-			if (!this.pendingChanges[taskName]) this.pendingChanges[taskName] = {};
-			this.pendingChanges[taskName][field] = newValue;
-			this.showPendingChangesControls();
-
-			this.updateLocalTaskData(taskName, field, newValue);
-			cleanup();
+			const d = new frappe.ui.Dialog({
+				title: __("Set Date"),
+				fields: [
+					{
+						label: __("Date"),
+						fieldname: "date",
+						fieldtype: "Date",
+						default: originalDate,
+					},
+				],
+				primary_action_label: __("Update"),
+				primary_action(values) {
+					me.updatePendingChange(taskId, field, values.date);
+					$cell.find("a").text(frappe.datetime.str_to_user(values.date));
+					$cell.addClass("unsaved-change");
+					me.showPendingControls();
+					d.hide();
+				},
+			});
+			d.show();
 		});
 
-		$(datepicker.input).on("blur", () => {
-			setTimeout(() => {
-				if (!hasChanged) cleanup();
-			}, 200);
+		// Time editing
+		this.wrapper.on("click", ".editable-time a", function (e) {
+			e.preventDefault();
+			if (me.readonly) return;
+
+			const $cell = $(this).parent();
+			const taskId = $cell.data("task-id");
+			const field = $cell.data("field");
+			const originalValue = $cell.data("original-value");
+
+			const d = new frappe.ui.Dialog({
+				title: __("Set Expected Time"),
+				fields: [
+					{
+						label: __("Hours"),
+						fieldname: "hours",
+						fieldtype: "Float",
+						default: originalValue,
+					},
+				],
+				primary_action_label: __("Update"),
+				primary_action(values) {
+					me.updatePendingChange(taskId, field, values.hours);
+					$cell.find("a").text(values.hours);
+					$cell.addClass("unsaved-change");
+					me.showPendingControls();
+					d.hide();
+				},
+			});
+			d.show();
 		});
-	}
 
-	handleTimeEdit(link) {
-		const cell = link.closest("td, .task-grid-cell");
-		if (cell.find(".time-input").length > 0) return;
-
-		const taskName = cell.data("task-id");
-		const originalValue = cell.data("original-value");
-		link.hide();
-
-		const input = $(
-			`<input type="number" class="form-control form-control-sm time-input" style="width: 80px;" min="0" step="0.5">`
-		)
-			.val(originalValue)
-			.appendTo(cell)
-			.focus();
-
-		const cleanup = () => {
-			input.remove();
-			link.show();
-		};
-
-		const save = () => {
-			const newValue = input.val();
-			if (newValue === "" || isNaN(newValue) || parseFloat(newValue) < 0) {
-				cleanup();
-				return;
-			}
-			const newFloatValue = parseFloat(newValue);
-			link.text(newFloatValue);
-			cell.addClass("unsaved-change");
-
-			if (!this.pendingChanges[taskName]) this.pendingChanges[taskName] = {};
-			this.pendingChanges[taskName]["expected_time"] = newFloatValue;
-			this.showPendingChangesControls();
-
-			this.updateLocalTaskData(taskName, "expected_time", newFloatValue);
-			cleanup();
-		};
-
-		input.on("blur", save).on("keydown", (e) => {
-			if (e.key === "Enter") {
-				e.preventDefault();
-				input.blur();
-			} else if (e.key === "Escape") {
-				e.preventDefault();
-				cleanup();
-			}
+		// Save/Discard changes
+		this.wrapper.on("click", ".save-changes-btn", () => me.savePendingChanges());
+		this.wrapper.on("click", ".discard-changes-btn", () => {
+			me.pendingChanges = {};
+			me.renderGrid(me.tasks);
+			me.hidePendingControls();
 		});
+
+		// Add Task button
+		this.wrapper.on("click", ".add-task-btn", () => {
+			const d = new frappe.ui.Dialog({
+				title: __("New Task"),
+				fields: [
+					{
+						label: __("Subject"),
+						fieldname: "subject",
+						fieldtype: "Data",
+						reqd: 1,
+					},
+					{
+						label: __("Parent Task"),
+						fieldname: "parent_task",
+						fieldtype: "Link",
+						options: "Task",
+						get_query: () => {
+							return { filters: { project: me.projectName } };
+						},
+					},
+				],
+				primary_action_label: __("Create"),
+				primary_action(values) {
+					me.saveInlineTask(values.subject, values.parent_task);
+					d.hide();
+				},
+			});
+			d.show();
+		});
+
+		// Delete task
+		this.wrapper.on("click", ".delete-task-btn", function () {
+			const taskId = $(this).data("task-name");
+			const subject = $(this).data("task-subject");
+
+			frappe.confirm(__("Delete task {0}: {1}?", [taskId, subject]), () => {
+				frappe.call({
+					method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.delete_task",
+					args: { task_name: taskId },
+					callback: (r) => {
+						if (r.message && r.message.status === "success") {
+							frappe.show_alert({
+								message: __("Task deleted successfully"),
+								indicator: "green",
+							});
+							me.fetchData();
+						}
+					},
+				});
+			});
+		});
+
+		// Sorting Save
+		this.wrapper.on("click", ".save-order-btn", () => me.saveTaskOrder());
 	}
 
-	handleStatusChange(select) {
-		const taskName = select.closest(".task-node").data("task-id");
-		const value = select.val();
-
-		select.attr("style", this.getStatusStyle(value));
-
-		if (!this.pendingChanges[taskName]) this.pendingChanges[taskName] = {};
-		this.pendingChanges[taskName]["status"] = value;
-		this.showPendingChangesControls();
-
-		this.updateLocalTaskData(taskName, "status", value);
+	updatePendingChange(taskId, field, value) {
+		if (!this.pendingChanges[taskId]) {
+			this.pendingChanges[taskId] = {};
+		}
+		this.pendingChanges[taskId][field] = value;
 	}
 
-	updateLocalTaskData(taskId, field, value) {
-		const findAndUpdate = (list) => {
-			for (let task of list) {
-				if (task.name === taskId) {
-					task[field] = value;
-					return true;
-				}
-				if (task.children && task.children.length && findAndUpdate(task.children))
-					return true;
-			}
-			return false;
-		};
-		findAndUpdate(this.tasks);
+	showPendingControls() {
+		this.wrapper.find(".task-pending-changes-controls").show();
 	}
 
-	showPendingChangesControls() {
-		this.savePendingChanges();
+	hidePendingControls() {
+		this.wrapper.find(".task-pending-changes-controls").hide();
 	}
 
 	savePendingChanges() {
+		const updates = [];
+		for (const taskId in this.pendingChanges) {
+			updates.push({ name: taskId, ...this.pendingChanges[taskId] });
+		}
+
+		if (updates.length === 0) return;
+
+		this.wrapper.find(".task-saving-indicator").show();
 		frappe.call({
 			method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_multiple_docs",
 			args: {
 				project_updates: "{}",
-				task_updates: JSON.stringify(this.pendingChanges),
+				task_updates: JSON.stringify(
+					updates.reduce((acc, curr) => {
+						const { name, ...rest } = curr;
+						acc[name] = rest;
+						return acc;
+					}, {})
+				),
 			},
 			callback: (r) => {
+				this.wrapper.find(".task-saving-indicator").hide();
 				if (r.message && r.message.status === "success") {
-					frappe.show_alert({ message: "Changes saved!", indicator: "green" });
-					this.pendingChanges = {};
-					this.wrapper.find(".task-pending-changes-controls").hide();
-					this.wrapper.find(".unsaved-change").removeClass("unsaved-change");
-				} else {
 					frappe.show_alert({
-						message: r.message.message || "Error saving changes.",
-						indicator: "red",
+						message: __("Changes saved successfully"),
+						indicator: "green",
 					});
+					this.pendingChanges = {};
+					this.hidePendingControls();
+					this.fetchData();
 				}
 			},
 		});
 	}
 
-	discardPendingChanges() {
-		this.pendingChanges = {};
-		this.wrapper.find(".task-pending-changes-controls").hide();
-		this.fetchData(); // Reload to revert
-		frappe.show_alert({ message: "Changes discarded.", indicator: "info" });
+	initializeTaskSorting() {
+		const me = this;
+		if (this.readonly) return;
+
+		// Clean up existing sortables
+		this.sortableInstances.forEach((s) => s.destroy());
+		this.sortableInstances = [];
+
+		const containers = this.wrapper.find(".task-grid-body, .child-tasks-container");
+		containers.each(function () {
+			const sortable = new Sortable(this, {
+				group: "task-tree",
+				handle: ".task-drag-handle",
+				draggable: ".task-node",
+				animation: 150,
+				fallbackOnBody: true,
+				swapThreshold: 0.65,
+				onEnd: function (evt) {
+					me.wrapper.find(".save-order-btn").show();
+				},
+			});
+			me.sortableInstances.push(sortable);
+		});
 	}
 
 	saveTaskOrder() {
-		const saveButton = this.wrapper.find(".save-order-btn");
-		const indicator = this.wrapper.find(".task-saving-indicator");
+		const me = this;
+		const tasksToUpdate = [];
 
-		indicator.show();
-		saveButton.prop("disabled", true);
+		const processLevel = (container, parentTaskId = null) => {
+			$(container)
+				.children(".task-node")
+				.each(function (index) {
+					const taskId = $(this).data("task-id");
+					tasksToUpdate.push({
+						name: taskId,
+						parent_task: parentTaskId,
+						custom_subtask_order: index + 1,
+					});
 
-		const updates = [];
-		const recurse = (container, parentOrderString) => {
-			const children = $(container).children(".task-node");
-			children.each((index, element) => {
-				const taskNode = $(element);
-				const taskId = taskNode.data("task-id");
-				const parentNode = taskNode.parent().closest(".task-node");
-				const parentId = parentNode.length ? parentNode.data("task-id") : null;
-
-				let currentOrderString = parentOrderString
-					? parentOrderString + (index + 1)
-					: index + 1 + ".0";
-
-				updates.push({
-					name: taskId,
-					parent_task: parentId,
-					custom_subtask_order: parseFloat(currentOrderString),
+					const childContainer = $(this).children(".child-tasks-container");
+					if (childContainer.length > 0) {
+						processLevel(childContainer[0], taskId);
+					}
 				});
-
-				const childContainer = taskNode.children(".child-tasks-container");
-				if (childContainer.children(".task-node").length > 0) {
-					let nextParentOrderString = currentOrderString.endsWith(".0")
-						? currentOrderString.slice(0, -2) + "."
-						: currentOrderString;
-					recurse(childContainer, nextParentOrderString);
-				}
-			});
 		};
 
-		recurse(this.wrapper.find(".task-grid-body"), null);
+		processLevel(this.wrapper.find(".task-grid-body")[0]);
 
+		this.wrapper.find(".task-saving-indicator").show();
 		frappe.call({
 			method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_structure",
-			args: { project_name: this.projectName, tasks: updates },
-			callback: (r) => {
-				if (r.message && r.message.status === "success") {
-					saveButton.hide();
-					this.fetchData();
-				} else {
-					frappe.show_alert({
-						message: r.message.message || "Could not save task order.",
-						indicator: "red",
-					});
-				}
+			args: {
+				project_name: this.projectName,
+				tasks: JSON.stringify(tasksToUpdate),
 			},
-			always: () => {
-				indicator.hide();
-				saveButton.prop("disabled", false);
+			callback: (r) => {
+				this.wrapper.find(".task-saving-indicator").hide();
+				if (r.message && r.message.status === "success") {
+					frappe.show_alert({
+						message: __("Task order saved successfully"),
+						indicator: "green",
+					});
+					this.wrapper.find(".save-order-btn").hide();
+					this.fetchData();
+				}
 			},
 		});
 	}
 
-	showAssigneeDialog(link) {
-		const taskNode = link.closest(".task-node");
-		const taskId = taskNode.data("task-id");
-		const taskSubject = taskNode.find(".task-grid-cell:first a").text();
-
-		let task;
-		const findTask = (list) => {
-			for (let t of list) {
-				if (t.name === taskId) return t;
-				if (t.children) {
-					const found = findTask(t.children);
-					if (found) return found;
-				}
-			}
-			return null;
+	getStatusBadge(status) {
+		const colorMap = {
+			Open: "blue",
+			Working: "orange",
+			Completed: "green",
+			Cancelled: "red",
+			"On Hold": "gray",
+			Active: "blue",
+			Paid: "green",
+			Overdue: "red",
+			Invoiced: "purple",
 		};
-		task = findTask(this.tasks);
-
-		if (!task) return;
-
-		const dialog = new frappe.ui.Dialog({
-			title: `Assignments for: ${taskSubject}`,
-			fields: [
-				{
-					fieldname: "assign_to",
-					fieldtype: "Link",
-					options: "User",
-					label: "Assign a user",
-				},
-				{
-					fieldname: "assignees_html",
-					fieldtype: "HTML",
-					options: '<div class="assignee-list-wrapper mt-3"></div>',
-				},
-			],
-		});
-
-		const assigneeListWrapper = dialog
-			.get_field("assignees_html")
-			.$wrapper.find(".assignee-list-wrapper");
-
-		const renderAssignees = () => {
-			assigneeListWrapper.empty();
-			if (task.assignees && task.assignees.length > 0) {
-				const assigneeItems = task.assignees
-					.map(
-						(a) => `
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        ${a.full_name}
-                        <button class="btn btn-xs btn-danger remove-assignee" data-user-id="${a.email}">Remove</button>
-                    </li>
-                `
-					)
-					.join("");
-				assigneeListWrapper.html(`<ul class="list-group">${assigneeItems}</ul>`);
-			} else {
-				assigneeListWrapper.html('<p class="text-muted">No users assigned.</p>');
-			}
-		};
-
-		const updateLink = () => {
-			const text =
-				task.assignees && task.assignees.length
-					? task.assignees.map((a) => a.full_name).join(", ")
-					: "Unassigned";
-			link.text(text);
-			task.assigned_to = text;
-		};
-
-		dialog.get_field("assign_to").df.onchange = () => {
-			const userId = dialog.get_value("assign_to");
-			if (!userId) return;
-
-			if (task.assignees && task.assignees.find((a) => a.email === userId)) {
-				frappe.show_alert({ message: "User already assigned.", indicator: "info" });
-				dialog.set_value("assign_to", "");
-				return;
-			}
-
-			frappe.call({
-				method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.add_task_assignee",
-				args: { task_name: taskId, user_id: userId },
-				callback: (r) => {
-					if (r.message && r.message.status === "success") {
-						task.assignees = r.message.assignees;
-						renderAssignees();
-						updateLink();
-						dialog.set_value("assign_to", "");
-					} else {
-						frappe.show_alert({
-							message: r.message.message || "Error assigning user.",
-							indicator: "red",
-						});
-					}
-				},
-			});
-		};
-
-		assigneeListWrapper.on("click", ".remove-assignee", function () {
-			const userId = $(this).data("user-id");
-			frappe.call({
-				method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.remove_task_assignee",
-				args: { task_name: taskId, user_id: userId },
-				callback: (r) => {
-					if (r.message && r.message.status === "success") {
-						task.assignees = r.message.assignees;
-						renderAssignees();
-						updateLink();
-					} else {
-						frappe.show_alert({
-							message: r.message.message || "Error removing user.",
-							indicator: "red",
-						});
-					}
-				},
-			});
-		});
-
-		dialog.show();
-		renderAssignees();
+		const color = colorMap[status] || "gray";
+		return `<span class="badge badge-${color} status-badge" style="cursor: pointer; text-transform: uppercase; font-size: 10px; padding: 4px 8px;">${status}</span>`;
 	}
 };
