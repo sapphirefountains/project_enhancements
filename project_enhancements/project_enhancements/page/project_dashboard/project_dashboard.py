@@ -93,7 +93,7 @@ def get_project_data(is_active=None):
 		task_data = frappe.get_all(
 			"Task",
 			filters={"project": ["in", project_names]},
-			fields=["project", "status", "count(name) as count"],
+			fields=["project", "status", {"count": "*"}],
 			group_by="project, status"
 		)
 		
