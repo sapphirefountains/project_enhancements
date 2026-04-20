@@ -133,19 +133,31 @@ frappe.ui.form.on("Project", {
 		$(window).on("hashchange", checkAndSwitchToScopeTab);
 
 		// =========================================================================
-		// 4.5. AUTO-LOAD TREE VIEW ON NATIVE TAB CLICK
+		// 4.5. ROBUST TAB RENDERING (Tree & Gantt)
 		// =========================================================================
-		frm.$wrapper.find('.form-tabs').on('click', '.nav-item[data-fieldname="custom_scope"], .nav-item[data-label="Scope"]', function () {
-			// A slight timeout ensures Frappe has finished rendering the tab pane's DOM visibility
-			setTimeout(() => {
-				const wrapperField = frm.get_field("custom_tasks_html");
+		// Use Bootstrap's native event which fires AFTER the tab is fully visible
+		// This guarantees that elements have height/width for charts and trees to calculate correctly.
+		frm.$wrapper.on('shown.bs.tab', 'a[data-toggle="tab"]', function (e) {
+			const tabLabel = $(e.target).closest('.nav-item').attr('data-label') || '';
+			const tabFieldname = $(e.target).closest('.nav-item').attr('data-fieldname') || '';
 
-				// Only force the refresh if the wrapper exists and hasn't been populated yet
-				if (wrapperField && wrapperField.$wrapper && wrapperField.$wrapper.children().length === 0) {
-					console.log("Scope tab opened natively - triggering Tree View render.");
-					wrapperField.refresh();
-				}
-			}, 150);
+			if (tabLabel === "Scope" || tabFieldname === "custom_scope") {
+				setTimeout(() => {
+					const treeField = frm.get_field("custom_tasks_html");
+					if (treeField && treeField.$wrapper && treeField.$wrapper.children().length === 0) {
+						console.log("Scope tab fully visible - triggering Tree View render.");
+						treeField.refresh();
+					}
+				}, 100);
+			} else if (tabLabel === "Schedule" || tabFieldname === "custom_schedule") {
+				setTimeout(() => {
+					const ganttField = frm.get_field("custom_gantt_chart_html");
+					if (ganttField && ganttField.$wrapper && ganttField.$wrapper.children().length === 0) {
+						console.log("Schedule tab fully visible - triggering Gantt render.");
+						ganttField.refresh();
+					}
+				}, 100);
+			}
 		});
 
 		// =========================================================================
@@ -250,14 +262,29 @@ frappe.ui.form.on("Project", {
 						);
 
 						frm.add_custom_button(
-							__("Gantt Chart"),
+							__("Gantt"),
 							function () {
-								console.log("View Tasks > Gantt Chart clicked");
-								if (frm.fields_dict.custom_gantt_chart_html) {
-									frm.scroll_to_field("custom_gantt_chart_html");
-								} else {
-									console.error("Field custom_gantt_chart_html not found in frm.fields_dict");
-								}
+								console.log("View Tasks > Gantt clicked - routing to tab.");
+								// Go to Schedule tab specifically
+								window.location.hash = "#custom_schedule";
+								setTimeout(() => {
+									const scheduleTab = frm.$wrapper.find(
+										'.form-tabs .nav-item[data-label="Schedule"], .form-tabs .nav-item[data-fieldname="custom_schedule"]'
+									);
+									if (scheduleTab.length) {
+										const tabLink = scheduleTab.find("a.nav-link");
+										if (tabLink.length) {
+											tabLink.click();
+										} else {
+											scheduleTab.click();
+										}
+									}
+									
+									// Scroll down to the chart section after tab transition
+									setTimeout(() => {
+										frm.scroll_to_field("custom_gantt_chart_section");
+									}, 200);
+								}, 100);
 							},
 							__("View Tasks")
 						);

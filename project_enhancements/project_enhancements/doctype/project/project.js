@@ -53,8 +53,9 @@ frappe.ui.form.on("Project", {
 						// Always ensure we have the container
 						if (gantt_wrapper.find(".gantt-chart-container").length === 0) {
 							gantt_wrapper.css({
-								height: "500px",
-								overflow: "hidden",
+								height: "550px",
+								display: "flex",
+								"flex-direction": "column",
 								border: "1px solid #d1d8dd",
 								"border-radius": "4px",
 								"background-color": "#f8f9fa",
@@ -63,7 +64,20 @@ frappe.ui.form.on("Project", {
 
 							gantt_wrapper
 								.empty()
-								.html('<div class="gantt-chart-container" style="height: 100%; display: flex; align-items: center; justify-content: center;"><p class="text-muted">Initializing Gantt Chart...</p></div>');
+								.html(`
+									<div class="gantt-toolbar d-flex justify-content-end p-2 bg-light border-bottom">
+										<div class="btn-group btn-group-sm view-mode-group">
+											<button type="button" class="btn btn-default" data-view="Quarter Day">Quarter Day</button>
+											<button type="button" class="btn btn-default" data-view="Half Day">Half Day</button>
+											<button type="button" class="btn btn-primary active" data-view="Day">Day</button>
+											<button type="button" class="btn btn-default" data-view="Week">Week</button>
+											<button type="button" class="btn btn-default" data-view="Month">Month</button>
+										</div>
+									</div>
+									<div class="gantt-chart-container" style="flex-grow: 1; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+										<p class="text-muted">Initializing Gantt Chart...</p>
+									</div>
+								`);
 						} else if (gantt_wrapper.find(".gantt-container").length > 0) {
 							// Already rendered, skip unless we want to force re-render
 							return;
@@ -114,6 +128,13 @@ frappe.ui.form.on("Project", {
 													tasks,
 													options
 												);
+
+												// Bind View Mode Buttons
+												gantt_wrapper.find('.view-mode-group button').on('click', function() {
+													gantt_wrapper.find('.view-mode-group button').removeClass('active btn-primary').addClass('btn-default');
+													$(this).addClass('active btn-primary').removeClass('btn-default');
+													gantt.change_view_mode($(this).data('view'));
+												});
 
 												const gantt_container = gantt_wrapper.find(".gantt-container");
 												gantt_container.css({
