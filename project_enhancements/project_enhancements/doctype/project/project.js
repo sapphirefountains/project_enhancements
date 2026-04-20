@@ -17,6 +17,27 @@ frappe.ui.form.on("Project", {
 					}).appendTo("head");
 				}
 
+				// Inject custom styling for overdue tasks and popover
+				if (!$("#custom-gantt-styles").length) {
+					$("<style id='custom-gantt-styles'>").html(`
+						.gantt .bar-overdue .bar { fill: #e74c3c !important; }
+						.gantt .bar-overdue .bar-progress { fill: #c0392b !important; }
+						.custom-gantt-popup {
+							background: #fff;
+							border-radius: 4px;
+							padding: 12px;
+							box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+							font-size: 13px;
+							color: #333;
+							min-width: 200px;
+							border: 1px solid #e0e0e0;
+						}
+						.custom-gantt-popup h5 { margin: 0 0 8px; font-weight: 600; font-size: 14px; }
+						.custom-gantt-popup p { margin: 0 0 4px; }
+						.custom-gantt-popup .popup-label { font-weight: bold; color: #555; }
+					`).appendTo("head");
+				}
+
 				// Load JS using jQuery's getScript, which handles execution
 				if (typeof Gantt !== "undefined") {
 					resolve();
@@ -94,11 +115,38 @@ frappe.ui.form.on("Project", {
 									callback: function (r) {
 										if (r.message && !r.message.error && r.message.length > 0) {
 											const tasks = r.message;
+											let clickTimer = null;
 
 											const options = {
 												view_mode: "Day",
 												scroll_to: "today",
-												on_click: (task) => frappe.set_route("Form", "Task", task.id),
+												custom_popup_html: function(task) {
+													return `
+														<div class="custom-gantt-popup">
+															<h5>${task.name}</h5>
+															<p><span class="popup-label">Assignee:</span> ${task.assigned_to || 'Unassigned'}</p>
+															<p><span class="popup-label">Status:</span> ${task.status || 'N/A'}</p>
+															<p><span class="popup-label">Start:</span> ${moment(task.start).format('MMM D, YYYY')}</p>
+															<p><span class="popup-label">End:</span> ${moment(task.end).format('MMM D, YYYY')}</p>
+															<p><span class="popup-label">Progress:</span> ${task.progress}%</p>
+															<p style="font-size: 11px; margin-top: 8px; color: #777;"><em>Double-click bar to open task</em></p>
+														</div>
+													`;
+												},
+												on_click: (task) => {
+													if (clickTimer) {
+														clearTimeout(clickTimer);
+														clickTimer = null;
+														// Double click action
+														frappe.set_route("Form", "Task", task.id);
+													} else {
+														// Single click starts timer
+														clickTimer = setTimeout(() => {
+															clickTimer = null;
+															// Single click just shows popup, no explicit routing
+														}, 250);
+													}
+												},
 												on_date_change: (task, start, end) => {
 													frappe.call({
 														method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_dates_from_gantt",

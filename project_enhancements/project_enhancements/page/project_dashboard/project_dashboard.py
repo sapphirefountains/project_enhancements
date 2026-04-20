@@ -879,6 +879,7 @@ def get_gantt_tasks_for_project(project_name):
 	"""
 	Fetches all tasks for a specific project, formatted for the frappe-gantt library.
 	If tasks are missing start or end dates, it provides sensible defaults.
+	Includes overdue logic and assignee data for enhanced tooltips.
 	"""
 	if not project_name:
 		return {"error": "Project name is required."}
@@ -886,7 +887,7 @@ def get_gantt_tasks_for_project(project_name):
 	try:
 		tasks = frappe.get_all(
 			"Task",
-			fields=["name", "subject", "exp_start_date", "exp_end_date", "progress"],
+			fields=["name", "subject", "exp_start_date", "exp_end_date", "progress", "status"],
 			filters={"project": project_name},
 		)
 
@@ -916,14 +917,28 @@ def get_gantt_tasks_for_project(project_name):
 				end_date = start_date + timedelta(days=3)
 
 			task_dependencies = dependency_map.get(task.name, [])
+			
+			# Overdue logic
+			progress = task.progress or 0
+			custom_class = ""
+			if end_date < today and progress < 100 and task.status not in ["Completed", "Cancelled"]:
+				custom_class = "bar-overdue"
+
+			# Fetch assignees
+			assignees = _get_assignee_names("Task", task.name)
+			assigned_to_str = ", ".join([d["full_name"] for d in assignees]) if assignees else "Unassigned"
+
 			gantt_tasks.append(
 				{
 					"id": task.name,
 					"name": task.subject,
 					"start": start_date.strftime("%Y-%m-%d"),
 					"end": end_date.strftime("%Y-%m-%d"),
-					"progress": task.progress or 0,
+					"progress": progress,
 					"dependencies": ",".join([d for d in task_dependencies if d]),
+					"custom_class": custom_class,
+					"assigned_to": assigned_to_str,
+					"status": task.status
 				}
 			)
 
