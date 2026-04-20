@@ -251,19 +251,9 @@ frappe.ui.form.on("Project", {
 
 						frm.add_custom_button(
 							__("Gantt"),
-							async function () {
-								frappe.dom.freeze(__("Navigating to Gantt Chart..."));
-								try {
-									frappe.route_options = { project: frm.doc.name };
-									await frappe.set_route("List", "Task", "Gantt");
-								} catch (error) {
-									frappe.msgprint({
-										title: __("Error"),
-										message: __("Failed to navigate to Gantt Chart."),
-										indicator: "red",
-									});
-								} finally {
-									frappe.dom.unfreeze();
+							function () {
+								if (frm.fields_dict.custom_gantt_chart_html) {
+									frm.scroll_to_field("custom_gantt_chart_html");
 								}
 							},
 							__("View Tasks")
