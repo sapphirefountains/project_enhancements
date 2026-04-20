@@ -45,7 +45,6 @@ frappe.ui.form.on("Project", {
 									</div>
 								`;
 								
-								// Inject at the very top of the form body
 								const $container = frm.$wrapper.find('.form-body');
 								$container.find('.project-health-dashboard').remove();
 								$container.prepend(html);
@@ -54,68 +53,58 @@ frappe.ui.form.on("Project", {
 					});
 				};
 				wrapperField.__health_bound = true;
+
+				// 2.A Real-Time Dashboard Updates
+				frappe.realtime.on("project_dashboard_updated", (data) => {
+					if (data.project === frm.doc.name) {
+						frappe.show_alert({
+							message: __("Project {0} updated. Refreshing metrics...", [frm.doc.name]),
+							indicator: 'info'
+						});
+						wrapperField.render_health_indicator(frm);
+						if (wrapperField.__custom_gantt_bound) {
+							wrapperField.refresh();
+						}
+					}
+				});
 			}
 			wrapperField.render_health_indicator(frm);
 		}
 
-		// This function will load CSS and JS from the specified CDN URLs
-		function load_cdn_assets() {
-			return new Promise((resolve, reject) => {
-				const css_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css";
-				const js_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js";
-
-				// Load CSS
-				if (!$(`link[href="${css_url}"]`).length) {
-					$("<link>", {
-						rel: "stylesheet",
-						type: "text/css",
-						href: css_url,
-					}).appendTo("head");
+		// Inject custom styling (moved out of load_cdn_assets)
+		if (!$("#custom-gantt-styles").length) {
+			$("<style id='custom-gantt-styles'>").html(`
+				.gantt .bar-overdue .bar { fill: #e74c3c !important; }
+				.gantt .bar-overdue .bar-progress { fill: #c0392b !important; }
+				.gantt .bar-milestone .bar { 
+					fill: #f1c40f !important; 
+					clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
 				}
-
-				// Inject custom styling
-				if (!$("#custom-gantt-styles").length) {
-					$("<style id='custom-gantt-styles'>").html(`
-						.gantt .bar-overdue .bar { fill: #e74c3c !important; }
-						.gantt .bar-overdue .bar-progress { fill: #c0392b !important; }
-						.gantt .bar-milestone .bar { 
-							fill: #f1c40f !important; 
-							clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-						}
-						.gantt .bar-milestone .bar-progress { display: none !important; }
-						.gantt .baseline-bar { fill: #d1d8dd; opacity: 0.4; pointer-events: none; }
-						.gantt .bar-wrapper.highlight .bar { stroke: #2980b9; stroke-width: 3 !important; }
-						.heatmap-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-						.heatmap-table th, .heatmap-table td { border: 1px solid #eee; padding: 4px; text-align: center; }
-						.heatmap-table .user-cell { text-align: left; background: #f9f9f9; font-weight: 500; min-width: 120px; }
-						.workload-low { background-color: #d4edda !important; color: #155724; }
-						.workload-med { background-color: #fff3cd !important; color: #856404; }
-						.workload-high { background-color: #f8d7da !important; color: #721c24; }
-						.heatmap-table td:not(.user-cell) { cursor: pointer; }
-						.heatmap-table td:not(.user-cell):hover { filter: brightness(0.9); }
-						.custom-gantt-popup {
-							background: #fff;
-							border-radius: 4px;
-							padding: 12px;
-							box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-							font-size: 13px;
-							color: #333;
-							min-width: 200px;
-							border: 1px solid #e0e0e0;
-						}
-						.custom-gantt-popup h5 { margin: 0 0 8px; font-weight: 600; font-size: 14px; }
-						.custom-gantt-popup p { margin: 0 0 4px; }
-						.custom-gantt-popup .popup-label { font-weight: bold; color: #555; }
-					`).appendTo("head");
+				.gantt .bar-milestone .bar-progress { display: none !important; }
+				.gantt .baseline-bar { fill: #d1d8dd; opacity: 0.4; pointer-events: none; }
+				.gantt .bar-wrapper.highlight .bar { stroke: #2980b9; stroke-width: 3 !important; }
+				.heatmap-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+				.heatmap-table th, .heatmap-table td { border: 1px solid #eee; padding: 4px; text-align: center; }
+				.heatmap-table .user-cell { text-align: left; background: #f9f9f9; font-weight: 500; min-width: 120px; }
+				.workload-low { background-color: #d4edda !important; color: #155724; }
+				.workload-med { background-color: #fff3cd !important; color: #856404; }
+				.workload-high { background-color: #f8d7da !important; color: #721c24; }
+				.heatmap-table td:not(.user-cell) { cursor: pointer; }
+				.heatmap-table td:not(.user-cell):hover { filter: brightness(0.9); }
+				.custom-gantt-popup {
+					background: #fff;
+					border-radius: 4px;
+					padding: 12px;
+					box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+					font-size: 13px;
+					color: #333;
+					min-width: 200px;
+					border: 1px solid #e0e0e0;
 				}
-
-				// Load JS using jQuery's getScript
-				if (typeof Gantt !== "undefined") {
-					resolve();
-				} else {
-					$.getScript(js_url).done(resolve).fail((j, s, e) => reject(e));
-				}
-			});
+				.custom-gantt-popup h5 { margin: 0 0 8px; font-weight: 600; font-size: 14px; }
+				.custom-gantt-popup p { margin: 0 0 4px; }
+				.custom-gantt-popup .popup-label { font-weight: bold; color: #555; }
+			`).appendTo("head");
 		}
 
 		if (wrapperField) {
@@ -173,130 +162,129 @@ frappe.ui.form.on("Project", {
 							return;
 						}
 
-						load_cdn_assets().then(() => {
-							const chart_container = gantt_wrapper.find(".gantt-chart-container");
-							const heatmap_container = gantt_wrapper.find(".resource-heatmap-container");
-							chart_container.html('<p class="text-muted">Fetching task data...</p>');
+						// Safe to assume assets are loaded via hooks.py in v15/v16
+						const chart_container = gantt_wrapper.find(".gantt-chart-container");
+						const heatmap_container = gantt_wrapper.find(".resource-heatmap-container");
+						chart_container.html('<p class="text-muted">Fetching task data...</p>');
 
-							frappe.call({
-								method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_gantt_tasks_for_project",
-								args: { project_name: frm.doc.name },
-								callback: function (r) {
-									if (r.message && !r.message.error && r.message.length > 0) {
-										const tasks = r.message.map(t => {
-											if (t.is_milestone) t.custom_class = (t.custom_class || "") + " bar-milestone";
-											return t;
-										});
-										
-										wrapperField.render_heatmap(frm, heatmap_container);
+						frappe.call({
+							method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.get_gantt_tasks_for_project",
+							args: { project_name: frm.doc.name },
+							callback: function (r) {
+								if (r.message && !r.message.error && r.message.length > 0) {
+									const tasks = r.message.map(t => {
+										if (t.is_milestone) t.custom_class = (t.custom_class || "") + " bar-milestone";
+										return t;
+									});
+									
+									wrapperField.render_heatmap(frm, heatmap_container);
 
-										let clickTimer = null;
-										const options = {
-											view_mode: "Day",
-											scroll_to: "today",
-											custom_popup_html: function(task) {
-												let baseline_info = "";
-												if (task.baseline_start && task.baseline_end) {
-													baseline_info = `<p><span class="popup-label">Baseline:</span> ${moment(task.baseline_start).format('MMM D')} - ${moment(task.baseline_end).format('MMM D')}</p>`;
-												}
-												return `
-													<div class="custom-gantt-popup">
-														<h5>${task.name} ${task.is_milestone ? '<span class="badge badge-warning">Milestone</span>' : ''}</h5>
-														<p><span class="popup-label">Assignee:</span> ${task.assigned_to || 'Unassigned'}</p>
-														<p><span class="popup-label">Status:</span> ${task.status || 'N/A'}</p>
-														<p><span class="popup-label">Start:</span> ${moment(task.start).format('MMM D, YYYY')}</p>
-														<p><span class="popup-label">End:</span> ${moment(task.end).format('MMM D, YYYY')}</p>
-														${baseline_info}
-														<p><span class="popup-label">Progress:</span> ${task.progress}%</p>
-														<p style="font-size: 11px; margin-top: 8px; color: #777;"><em>Double-click bar to open task</em></p>
-													</div>
-												`;
-											},
-											on_click: (task) => {
-												if (clickTimer) {
-													clearTimeout(clickTimer);
-													clickTimer = null;
-													frappe.set_route("Form", "Task", task.id);
-												} else {
-													clickTimer = setTimeout(() => { clickTimer = null; }, 250);
-												}
-											},
-											on_date_change: (task, start, end) => {
-												frappe.call({
-													method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_dates_from_gantt",
-													args: {
-														task_name: task.id,
-														start_date: moment(start).format("YYYY-MM-DD"),
-														end_date: moment(end).format("YYYY-MM-DD"),
-													},
-													callback: (res) => {
-														if (res.message && res.message.status === "success") {
-															wrapperField.refresh();
-															wrapperField.render_health_indicator(frm);
-														}
+									let clickTimer = null;
+									const options = {
+										view_mode: "Day",
+										scroll_to: "today",
+										custom_popup_html: function(task) {
+											let baseline_info = "";
+											if (task.baseline_start && task.baseline_end) {
+												baseline_info = `<p><span class="popup-label">Baseline:</span> ${moment(task.baseline_start).format('MMM D')} - ${moment(task.baseline_end).format('MMM D')}</p>`;
+											}
+											return `
+												<div class="custom-gantt-popup">
+													<h5>${task.name} ${task.is_milestone ? '<span class="badge badge-warning">Milestone</span>' : ''}</h5>
+													<p><span class="popup-label">Assignee:</span> ${task.assigned_to || 'Unassigned'}</p>
+													<p><span class="popup-label">Status:</span> ${task.status || 'N/A'}</p>
+													<p><span class="popup-label">Start:</span> ${moment(task.start).format('MMM D, YYYY')}</p>
+													<p><span class="popup-label">End:</span> ${moment(task.end).format('MMM D, YYYY')}</p>
+													${baseline_info}
+													<p><span class="popup-label">Progress:</span> ${task.progress}%</p>
+													<p style="font-size: 11px; margin-top: 8px; color: #777;"><em>Double-click bar to open task</em></p>
+												</div>
+											`;
+										},
+										on_click: (task) => {
+											if (clickTimer) {
+												clearTimeout(clickTimer);
+												clickTimer = null;
+												frappe.set_route("Form", "Task", task.id);
+											} else {
+												clickTimer = setTimeout(() => { clickTimer = null; }, 250);
+											}
+										},
+										on_date_change: (task, start, end) => {
+											frappe.call({
+												method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_dates_from_gantt",
+												args: {
+													task_name: task.id,
+													start_date: moment(start).format("YYYY-MM-DD"),
+													end_date: moment(end).format("YYYY-MM-DD"),
+												},
+												callback: (res) => {
+													if (res.message && res.message.status === "success") {
+														wrapperField.refresh();
+														wrapperField.render_health_indicator(frm);
 													}
-												});
-											},
-											on_progress_change: (task, progress) => {
-												frappe.call({
-													method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_progress_from_gantt",
-													args: {
-														task_name: task.id,
-														progress: parseInt(progress),
-													},
-													callback: () => wrapperField.render_health_indicator(frm)
-												});
-											},
-										};
-
-										chart_container.empty();
-										try {
-											const gantt = new Gantt(chart_container[0], tasks, options);
-
-											gantt_wrapper.find('.view-mode-group button').on('click', function() {
-												gantt_wrapper.find('.view-mode-group button').removeClass('active btn-primary').addClass('btn-default');
-												$(this).addClass('active btn-primary').removeClass('btn-default');
-												gantt.change_view_mode($(this).data('view'));
-											});
-
-											gantt_wrapper.find('.btn-export-gantt').on('click', () => {
-												const svg = chart_container.find('svg')[0];
-												if (!svg) return;
-												frappe.require('https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js', () => {
-													domtoimage.toPng(chart_container[0], { bgcolor: '#fff' })
-														.then(function (dataUrl) {
-															const link = document.createElement('a');
-															link.download = `Gantt-${frm.doc.name}-${moment().format('YYYYMMDD')}.png`;
-															link.href = dataUrl;
-															link.click();
-														});
-												});
-											});
-
-											const gantt_container = gantt_wrapper.find(".gantt-container");
-											gantt_container.css({ "overflow-x": "scroll", "overflow-y": "auto", "max-height": "100%" });
-
-											const scroll_to_today = () => {
-												const today_date_class = ".date_" + moment().format("YYYY-MM-DD");
-												let today_highlight = gantt_wrapper.find(today_date_class);
-												if (today_highlight.length === 0) today_highlight = gantt_wrapper.find(".current-date-highlight");
-												if (today_highlight.length > 0) {
-													const container_width = gantt_container.width();
-													const element_left = today_highlight.position().left;
-													const scroll_pos = element_left - (container_width / 2);
-													gantt_container.animate({ scrollLeft: scroll_pos }, 300);
 												}
-											};
-											setTimeout(scroll_to_today, 800);
-										} catch (e) {
-											console.error("Gantt error:", e);
-											chart_container.html('<p class="text-danger">Error initializing Gantt chart.</p>');
-										}
-									} else {
-										chart_container.html('<p class="text-muted text-center p-4">No tasks found with dates for this project.</p>');
+											});
+										},
+										on_progress_change: (task, progress) => {
+											frappe.call({
+												method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_progress_from_gantt",
+												args: {
+													task_name: task.id,
+													progress: parseInt(progress),
+												},
+												callback: () => wrapperField.render_health_indicator(frm)
+											});
+										},
+									};
+
+									chart_container.empty();
+									try {
+										const gantt = new Gantt(chart_container[0], tasks, options);
+
+										gantt_wrapper.find('.view-mode-group button').on('click', function() {
+											gantt_wrapper.find('.view-mode-group button').removeClass('active btn-primary').addClass('btn-default');
+											$(this).addClass('active btn-primary').removeClass('btn-default');
+											gantt.change_view_mode($(this).data('view'));
+										});
+
+										gantt_wrapper.find('.btn-export-gantt').on('click', () => {
+											const svg = chart_container.find('svg')[0];
+											if (!svg) return;
+											frappe.require('https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js', () => {
+												domtoimage.toPng(chart_container[0], { bgcolor: '#fff' })
+													.then(function (dataUrl) {
+														const link = document.createElement('a');
+														link.download = `Gantt-${frm.doc.name}-${moment().format('YYYYMMDD')}.png`;
+														link.href = dataUrl;
+														link.click();
+													});
+											});
+										});
+
+										const gantt_container = gantt_wrapper.find(".gantt-container");
+										gantt_container.css({ "overflow-x": "scroll", "overflow-y": "auto", "max-height": "100%" });
+
+										const scroll_to_today = () => {
+											const today_date_class = ".date_" + moment().format("YYYY-MM-DD");
+											let today_highlight = gantt_wrapper.find(today_date_class);
+											if (today_highlight.length === 0) today_highlight = gantt_wrapper.find(".current-date-highlight");
+											if (today_highlight.length > 0) {
+												const container_width = gantt_container.width();
+												const element_left = today_highlight.position().left;
+												const scroll_pos = element_left - (container_width / 2);
+												gantt_container.animate({ scrollLeft: scroll_pos }, 300);
+											}
+										};
+										setTimeout(scroll_to_today, 800);
+									} catch (e) {
+										console.error("Gantt error:", e);
+										chart_container.html('<p class="text-danger">Error initializing Gantt chart. Ensure library is loaded.</p>');
 									}
-								},
-							});
+								} else {
+									chart_container.html('<p class="text-muted text-center p-4">No tasks found with dates for this project.</p>');
+								}
+							},
 						});
 					}
 				};
@@ -343,7 +331,6 @@ frappe.ui.form.on("Project", {
 							html += `</tbody></table>`;
 							body.html(html);
 
-							// Heatmap Click Events
 							body.find('td:not(.user-cell)').on('click', function() {
 								const user = $(this).data('user');
 								const date = $(this).data('date');

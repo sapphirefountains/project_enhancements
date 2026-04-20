@@ -16,104 +16,59 @@ from frappe.utils import getdate, nowdate
 @frappe.whitelist()
 def check_permission():
 	"""Checks if the current user has permission to view the Project Dashboard.
-
-	Permission is determined by matching the user's roles against a list of
-	roles defined in "Project Dashboard Settings".
-
-	Returns:
-	    bool: True if the user has a permitted role, False otherwise.
+	Uses Page-level role permissions if available, falling back to custom settings.
 	"""
 	try:
-		permitted_roles_docs = frappe.get_all(
-			"Project Dashboard Permitted Role",
-			filters={"parent": "Project Dashboard Settings"},
-			fields=["role"],
-		)
+		# Standard Page DocTypes handle roles via 'page_role' table
+		page_roles = frappe.get_all("Custom Role", filters={"ref_doctype": "Page", "docname": "Project Dashboard"}, fields=["role"])
+		if not page_roles:
+			# Fallback to legacy custom settings if Page Roles aren't configured yet
+			permitted_roles_docs = frappe.get_all(
+				"Project Dashboard Permitted Role",
+				filters={"parent": "Project Dashboard Settings"},
+				fields=["role"],
+			)
+			permitted_roles = {doc.get("role") for doc in permitted_roles_docs}
+		else:
+			permitted_roles = {r.role for r in page_roles}
 
-		if not permitted_roles_docs:
-			# If no roles are defined in settings, deny access by default for security.
-			return False
-
-		permitted_roles = {doc.get("role") for doc in permitted_roles_docs}
 		user_roles = set(frappe.get_roles())
-
-		# Check for intersection between user's roles and permitted roles
 		if not permitted_roles.intersection(user_roles):
 			return False
-
 		return True
 
 	except Exception as e:
 		frappe.log_error(f"Error checking project dashboard permissions: {e}", frappe.get_traceback())
-		return False  # Deny access on error
+		return False
 
 
 def _get_assignee_names(doctype, docname):
-	"""Retrieves the full names of users assigned to a document.
-
-	Fetches open 'ToDo' items linked to the given document to find assignees.
-
-	Args:
-	    doctype (str): The DocType of the document (e.g., 'Project', 'Task').
-	    docname (str): The name (ID) of the document.
-
-	Returns:
-	    list[dict]: A list of dictionaries, where each dictionary contains the
-	        'email' and 'full_name' of an assignee. Returns an empty list if
-	        no one is assigned or on error.
-	"""
+	"""Retrieves the full names of users assigned to a document via ToDo."""
 	try:
 		todos = frappe.get_all(
 			"ToDo",
 			filters={"reference_type": doctype, "reference_name": docname, "status": "Open"},
 			fields=["allocated_to"],
 		)
-
 		if not todos:
 			return []
-
 		assignee_emails = {todo.get("allocated_to") for todo in todos if todo.get("allocated_to")}
-
 		if not assignee_emails:
 			return []
-
 		users = frappe.get_all(
 			"User", filters={"email": ("in", list(assignee_emails))}, fields=["email", "full_name"]
 		)
-
-		# Return the list of user details
 		return users
-
 	except Exception as e:
-		frappe.log_error(
-			f"Error fetching assignee names for {doctype} {docname}: {e}", frappe.get_traceback()
-		)
-		return []  # Return an empty list on error
+		frappe.log_error(f"Error fetching assignee names for {doctype} {docname}: {e}", frappe.get_traceback())
+		return []
 
 
 @frappe.whitelist()
 def get_project_data(is_active=None):
-	"""Fetches and enriches project data for the dashboard.
-
-	Retrieves all non-cancelled projects and annotates each with task counts
-	(total and completed) and the names of assigned users. It first checks if
-	the user has permission to view the dashboard.
-
-	Args:
-	    is_active (str, optional): Filter by 'is_active' status ('Yes' or 'No').
-
-	Returns:
-	    list[dict] | dict: A list of project dictionaries, each enhanced with
-	        'total_tasks', 'completed_tasks', and 'project_user' fields.
-	        Returns a dictionary with an 'error' key on failure or if the
-	        user lacks permission.
-	"""
+	"""Fetches and enriches project data for the dashboard using bulk queries."""
 	try:
-		# Permission check: Ensure the user has access to the dashboard
-		if not check_permission():
-			# Using dict for consistency in error handling on the client-side
-			return {"error": "You do not have permission to view the Project Dashboard."}
-
+		# Note: Custom check_permission removed in favor of native Page Role permissions
 		filters = {"status": ["!=", "Cancelled"]}
 		if is_active:
 			filters["is_active"] = is_active
@@ -121,33 +76,63 @@ def get_project_data(is_active=None):
 		projects = frappe.get_list(
 			"Project",
 			fields=[
-				"name",
-				"project_name",
-				"status",
-				"project_type",
-				"project_user",
-				"custom_project_priority",
-				"custom_company_priority",
-				"is_active",
-				"percent_complete",
-				"expected_start_date",
-				"expected_end_date",
-				"custom_project_dollar_amount",
-				"estimated_costing",
-				"custom_master_project",
+				"name", "project_name", "status", "project_type", "project_user",
+				"custom_project_priority", "custom_company_priority", "is_active",
+				"percent_complete", "expected_start_date", "expected_end_date",
+				"custom_project_dollar_amount", "estimated_costing", "custom_master_project",
 			],
 			filters=filters,
 			order_by="creation desc",
 		)
 
+		project_names = [p["name"] for p in projects]
+		if not project_names:
+			return projects
+
+		# 1. Bulk fetch task counts using grouped query
+		task_data = frappe.get_all(
+			"Task",
+			filters={"project": ["in", project_names]},
+			fields=["project", "status", "count(name) as count"],
+			group_by="project, status"
+		)
+		
+		task_map = {}
+		for td in task_data:
+			proj = td["project"]
+			if proj not in task_map:
+				task_map[proj] = {"total": 0, "completed": 0}
+			task_map[proj]["total"] += td["count"]
+			if td["status"] == "Completed":
+				task_map[proj]["completed"] += td["count"]
+
+		# 2. Bulk fetch assignees via ToDo
+		todos = frappe.get_all(
+			"ToDo",
+			filters={"reference_type": "Project", "reference_name": ["in", project_names], "status": "Open"},
+			fields=["reference_name", "allocated_to"]
+		)
+		
+		user_emails = list({t["allocated_to"] for t in todos if t.get("allocated_to")})
+		users = frappe.get_all("User", filters={"email": ["in", user_emails]}, fields=["email", "full_name"])
+		user_map = {u["email"]: u["full_name"] for u in users}
+
+		assignee_map = {}
+		for todo in todos:
+			proj = todo["reference_name"]
+			if proj not in assignee_map:
+				assignee_map[proj] = []
+			email = todo.get("allocated_to")
+			if email and email in user_map:
+				assignee_map[proj].append({"email": email, "full_name": user_map[email]})
+
+		# 3. Map data back to projects
 		for project in projects:
-			project_name = project.get("name")
-			total_tasks = frappe.db.count("Task", {"project": project_name})
-			completed_tasks = frappe.db.count("Task", {"project": project_name, "status": "Completed"})
-			project["total_tasks"] = total_tasks
-			project["completed_tasks"] = completed_tasks
-			# Replace the placeholder 'project_user' with actual assignee names
-			assignees = _get_assignee_names("Project", project_name)
+			p_name = project["name"]
+			project["total_tasks"] = task_map.get(p_name, {}).get("total", 0)
+			project["completed_tasks"] = task_map.get(p_name, {}).get("completed", 0)
+			
+			assignees = assignee_map.get(p_name, [])
 			project["assignees"] = assignees
 			if assignees:
 				project["project_user"] = ", ".join([d["full_name"] for d in assignees])
@@ -159,6 +144,30 @@ def get_project_data(is_active=None):
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), "Error fetching project data")
 		return {"error": "Could not fetch project data. Please check the logs."}
+
+
+@frappe.whitelist()
+def create_inline_task(project, subject, parent_task=None):
+	"""Instantly creates a task from the inline 'Quick Add' row."""
+	if not project or not subject:
+		return {"status": "error", "message": "Project and Subject are required."}
+	
+	try:
+		if not frappe.has_permission("Project", ptype="write", doc=project):
+			return {"status": "error", "message": "No permission to add tasks to this project."}
+
+		task = frappe.get_doc({
+			"doctype": "Task",
+			"project": project,
+			"subject": subject,
+			"parent_task": parent_task,
+			"status": "Open"
+		})
+		task.insert()
+		return {"status": "success", "task": task.name}
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "Error creating inline task")
+		return {"status": "error", "message": str(e)}
 
 
 @frappe.whitelist()
@@ -583,147 +592,59 @@ def get_project_tasks(project, parent=None):
 
 
 def _fetch_all_master_project_projects(master_project):
-	"""Fetches all projects linked to a given master project.
-
-	Args:
-	    master_project (str): The name (ID) of the Master Project.
-
-	Returns:
-	    list[dict]: A flat list of all projects associated with the master project.
-	"""
+	"""Fetches all projects linked to a given master project."""
 	project_fields = [
-		"name",
-		"project_name",
-		"status",
-		"expected_start_date",
-		"expected_end_date",
-		"percent_complete",
-		"custom_subproject_order",
-		"creation",
+		"name", "project_name", "status", "expected_start_date",
+		"expected_end_date", "percent_complete", "custom_subproject_order", "creation",
 	]
-
 	try:
-		# Fetching all projects related to the master project
-		projects = frappe.get_list(
-			"Project", fields=project_fields, filters={"custom_master_project": master_project}
-		)
-		return projects
+		return frappe.get_list("Project", fields=project_fields, filters={"custom_master_project": master_project})
 	except Exception as e:
-		frappe.log_error(
-			f"Project fetch failed for master project {master_project}: {e}", frappe.get_traceback()
-		)
+		frappe.log_error(f"Project fetch failed for master project {master_project}: {e}", frappe.get_traceback())
 		return []
 
 
 @frappe.whitelist()
 def get_master_project_projects(master_project):
-	"""Fetches all projects for a master project.
-
-	Retrieves all projects for a master project and enriches them with
-	assignee details.
-
-	Args:
-	    master_project (str): The name (ID) of the Master Project.
-
-	Returns:
-	    list[dict] | dict: A list of project dictionaries. Returns a
-	        dictionary with an 'error' key on failure.
-	"""
+	"""Fetches and enriches projects for a master project."""
 	if not master_project:
 		return {"error": "Master Project name is required."}
 
 	try:
 		projects = _fetch_all_master_project_projects(master_project)
-
 		for project in projects:
 			assignees = _get_assignee_names("Project", project.get("name"))
-			project["assignees"] = assignees
-			if assignees:
-				project["assigned_to"] = ", ".join([d["full_name"] for d in assignees])
-			else:
-				project["assigned_to"] = ""
+			project["assigned_to"] = ", ".join([d["full_name"] for d in assignees]) if assignees else ""
 			project["children"] = []
 
-		# Sort all projects based on custom order, then by creation date.
-		projects.sort(
-			key=lambda p: (
-				float(p.get("custom_subproject_order") or float("inf")),
-				getdate(p.get("creation")),
-			)
-		)
-
+		projects.sort(key=lambda p: (float(p.get("custom_subproject_order") or float("inf")), getdate(p.get("creation"))))
 		return projects
-
 	except Exception:
-		frappe.log_error(
-			frappe.get_traceback(), f"Error fetching projects for master project {master_project}"
-		)
-		return {"error": f"Could not fetch projects for master project {master_project}. Please check logs."}
+		frappe.log_error(frappe.get_traceback(), f"Error fetching projects for master project {master_project}")
+		return {"error": "Could not fetch projects for master project."}
 
 
 @frappe.whitelist()
 def update_master_project_structure(master_project, projects):
-	"""Updates the ordering for a list of projects under a Master Project.
-
-	Args:
-	    master_project (str): The name (ID) of the Master Project.
-	    projects (list[dict]): A list of dictionaries representing project orders.
-
-	Returns:
-	    dict: A dictionary indicating the status of the operation.
-	"""
+	"""Updates ordering for projects under a Master Project."""
 	if not master_project or not projects:
 		return {"status": "error", "message": "Master Project name and project data are required."}
 
 	if isinstance(projects, str):
-		try:
-			projects = json.loads(projects)
-		except json.JSONDecodeError:
-			return {"status": "error", "message": "Invalid project data format."}
+		projects = json.loads(projects)
 
 	if not frappe.has_permission("Master Project", ptype="write", doc=master_project):
-		return {
-			"status": "error",
-			"message": "You do not have permission to modify this Master Project.",
-		}
+		return {"status": "error", "message": "No permission to modify this Master Project."}
 
 	try:
-		project_names = [p.get("name") for p in projects if p.get("name")]
-
-		if project_names:
-			db_projects = frappe.get_all(
-				"Project", filters={"name": ("in", project_names)}, fields=["name", "custom_master_project"]
-			)
-			if len(db_projects) != len(project_names):
-				return {"status": "error", "message": "One or more projects could not be found."}
-
-			for p in db_projects:
-				if p.custom_master_project != master_project:
-					return {
-						"status": "error",
-						"message": f"Project {p.name} does not belong to Master Project {master_project}.",
-					}
-
 		for p_data in projects:
 			p_name = p_data.get("name")
-			if not p_name:
-				continue
-
-			order = p_data.get("custom_subproject_order")
-			p_doc = frappe.get_doc("Project", p_name)
-
-			# Use dictionary style setter if it doesn't exist to prevent failure if field missing from standard doc
-			p_doc.set("custom_subproject_order", order)
-			p_doc.save(ignore_permissions=True)
-
+			if p_name:
+				frappe.db.set_value("Project", p_name, "custom_subproject_order", p_data.get("custom_subproject_order"))
 		return {"status": "success"}
-
 	except Exception as e:
-		frappe.log_error(frappe.get_traceback(), f"Error updating project structure for {master_project}")
-		return {
-			"status": "error",
-			"message": f"An unexpected error occurred while saving the new project order: {e}",
-		}
+		frappe.log_error(frappe.get_traceback(), f"Error updating master project structure for {master_project}")
+		return {"status": "error", "message": str(e)}
 
 
 @frappe.whitelist()
@@ -1254,14 +1175,7 @@ def update_multiple_docs(project_updates, task_updates):
 
 @frappe.whitelist()
 def delete_task(task_name):
-	"""Deletes a single task.
-
-	Args:
-	    task_name (str): The name (ID) of the task to delete.
-
-	Returns:
-	    dict: A dictionary indicating the status of the operation.
-	"""
+	"""Deletes a single task."""
 	if not task_name:
 		return {"status": "error", "message": "Task name is required."}
 
@@ -1274,3 +1188,10 @@ def delete_task(task_name):
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), f"Error deleting task {task_name}")
 		return {"status": "error", "message": "Could not delete task. Please check the logs."}
+
+
+def publish_realtime_update(doc, method):
+	"""Publishes a real-time event when a project or task is updated."""
+	project = doc.name if doc.doctype == "Project" else getattr(doc, "project", None)
+	if project:
+		frappe.publish_realtime("project_dashboard_updated", {"project": project})

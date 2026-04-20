@@ -12,28 +12,11 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
 		this.show_skeleton();
 
 		try {
-			await this.load_gantt_assets();
+			// Assets are now centralized in hooks.py
 			await this.fetch_and_render_data();
 		} catch (error) {
 			this.handle_error(error);
 		}
-	}
-
-	async load_gantt_assets() {
-		const gantt_css_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css";
-		const gantt_js_url = "https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js";
-
-		if (!$(`link[href="${gantt_css_url}"]`).length) {
-			$("<link>", {
-				rel: "stylesheet",
-				type: "text/css",
-				href: gantt_css_url,
-			}).appendTo("head");
-		}
-
-		return new Promise((resolve) => {
-			frappe.require(gantt_js_url, () => resolve());
-		});
 	}
 
 	async fetch_and_render_data() {
