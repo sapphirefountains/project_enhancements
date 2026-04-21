@@ -377,11 +377,37 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 	}
 
 	updateTaskStatus(taskName, newStatus) {
-		frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_status", args: { task_name: taskName, status: newStatus }, callback: (r) => { if (r.message && r.message.status === "success") this.fetchData(); } });
+		frappe.call({ 
+			method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_status", 
+			args: { task_name: taskName, status: newStatus }, 
+			callback: (r) => { 
+				if (r.message && r.message.status === "success") {
+					frappe.show_alert({ message: __("Task status updated successfully"), indicator: "green" });
+					this.fetchData(); 
+				} else if (r.message && r.message.status === "error") {
+					frappe.show_alert({ message: __(r.message.message || "Failed to update task status"), indicator: "red" });
+				} else {
+					frappe.show_alert({ message: __("Failed to update task status"), indicator: "red" });
+				}
+			} 
+		});
 	}
 
 	updateTaskPriority(taskName, newPriority) {
-		frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_priority", args: { task_name: taskName, priority: newPriority }, callback: (r) => { if (r.message && r.message.status === "success") this.fetchData(); } });
+		frappe.call({ 
+			method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_priority", 
+			args: { task_name: taskName, priority: newPriority }, 
+			callback: (r) => { 
+				if (r.message && r.message.status === "success") {
+					frappe.show_alert({ message: __("Task priority updated successfully"), indicator: "green" });
+					this.fetchData(); 
+				} else if (r.message && r.message.status === "error") {
+					frappe.show_alert({ message: __(r.message.message || "Failed to update task priority"), indicator: "red" });
+				} else {
+					frappe.show_alert({ message: __("Failed to update task priority"), indicator: "red" });
+				}
+			} 
+		});
 	}
 
 	bindEvents() {
@@ -490,7 +516,19 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 		frappe.call({
 			method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_multiple_docs",
 			args: { project_updates: "{}", task_updates: JSON.stringify(updates.reduce((acc, curr) => { const { name, ...rest } = curr; acc[name] = rest; return acc; }, {})) },
-			callback: (r) => { this.wrapper.find(".task-saving-indicator").hide(); if (r.message && r.message.status === "success") { frappe.show_alert({ message: __("Changes saved successfully"), indicator: "green" }); this.pendingChanges = {}; this.hidePendingControls(); this.fetchData(); } }
+			callback: (r) => { 
+				this.wrapper.find(".task-saving-indicator").hide(); 
+				if (r.message && r.message.status === "success") { 
+					frappe.show_alert({ message: __("Changes saved successfully"), indicator: "green" }); 
+					this.pendingChanges = {}; 
+					this.hidePendingControls(); 
+					this.fetchData(); 
+				} else if (r.message && r.message.status === "error") {
+					frappe.show_alert({ message: __(r.message.message || "Failed to save changes"), indicator: "red" });
+				} else {
+					frappe.show_alert({ message: __("Failed to save changes"), indicator: "red" });
+				}
+			}
 		});
 	}
 

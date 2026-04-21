@@ -30,8 +30,12 @@ class TestProjectDashboardPermissions(unittest.TestCase):
 	@patch(
 		"project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.get_all"
 	)
-	def test_check_permission_allowed(self, mock_get_all, mock_get_roles):
+	@patch(
+		"project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.db.get_value"
+	)
+	def test_check_permission_allowed(self, mock_get_value, mock_get_all, mock_get_roles):
 		"""Test that permission is granted when user has a permitted role."""
+		mock_get_value.return_value = "Custom Role 1"
 		mock_get_all.return_value = [{"role": "Project Manager"}]
 		mock_get_roles.return_value = ["Project Manager", "System User"]
 		self.assertTrue(check_permission())
@@ -42,8 +46,12 @@ class TestProjectDashboardPermissions(unittest.TestCase):
 	@patch(
 		"project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.get_all"
 	)
-	def test_check_permission_denied(self, mock_get_all, mock_get_roles):
+	@patch(
+		"project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.db.get_value"
+	)
+	def test_check_permission_denied(self, mock_get_value, mock_get_all, mock_get_roles):
 		"""Test that permission is denied when user lacks a permitted role."""
+		mock_get_value.return_value = "Custom Role 1"
 		mock_get_all.return_value = [{"role": "Project Manager"}]
 		mock_get_roles.return_value = ["Project User", "System User"]
 		self.assertFalse(check_permission())
@@ -51,8 +59,12 @@ class TestProjectDashboardPermissions(unittest.TestCase):
 	@patch(
 		"project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.get_all"
 	)
-	def test_check_permission_no_roles_configured(self, mock_get_all):
+	@patch(
+		"project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.db.get_value"
+	)
+	def test_check_permission_no_roles_configured(self, mock_get_value, mock_get_all):
 		"""Test that permission is denied if no roles are set in settings."""
+		mock_get_value.return_value = None
 		mock_get_all.return_value = []
 		self.assertFalse(check_permission())
 
@@ -62,9 +74,12 @@ class TestProjectDashboardPermissions(unittest.TestCase):
 	@patch(
 		"project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.get_all"
 	)
-	def test_check_permission_exception(self, mock_get_all, mock_log_error):
+	@patch(
+		"project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.frappe.db.get_value"
+	)
+	def test_check_permission_exception(self, mock_get_value, mock_get_all, mock_log_error):
 		"""Test that permission is denied when an exception occurs."""
-		mock_get_all.side_effect = Exception("DB Error")
+		mock_get_value.side_effect = Exception("DB Error")
 		self.assertFalse(check_permission())
 		mock_log_error.assert_called_once()
 

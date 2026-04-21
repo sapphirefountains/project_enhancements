@@ -19,8 +19,13 @@ def check_permission():
 	Uses Page-level role permissions if available, falling back to custom settings.
 	"""
 	try:
-		# Standard Page DocTypes handle roles via 'page_role' table
-		page_roles = frappe.get_all("Custom Role", filters={"ref_doctype": "Page", "docname": "Project Dashboard"}, fields=["role"])
+		# Standard Page DocTypes handle roles via 'Custom Role' and 'Has Role'
+		custom_role = frappe.db.get_value("Custom Role", {"page": "Project Dashboard"}, "name")
+		if custom_role:
+			page_roles = frappe.get_all("Has Role", filters={"parent": custom_role, "parenttype": "Custom Role"}, fields=["role"])
+		else:
+			page_roles = []
+
 		if not page_roles:
 			# Fallback to legacy custom settings if Page Roles aren't configured yet
 			permitted_roles_docs = frappe.get_all(
