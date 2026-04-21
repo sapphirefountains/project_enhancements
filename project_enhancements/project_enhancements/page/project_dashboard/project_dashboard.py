@@ -991,13 +991,20 @@ def get_gantt_tasks_for_project(project_name):
 		return {"error": "Project name is required."}
 
 	try:
+		# Check if baseline fields exist in Task doctype to avoid DB errors
+		task_meta = frappe.get_meta("Task")
+		fields = [
+			"name", "subject", "exp_start_date", "exp_end_date", 
+			"progress", "status", "is_milestone"
+		]
+		
+		has_baseline = task_meta.has_field("baseline_start_date") and task_meta.has_field("baseline_end_date")
+		if has_baseline:
+			fields.extend(["baseline_start_date", "baseline_end_date"])
+
 		tasks = frappe.get_all(
 			"Task",
-			fields=[
-				"name", "subject", "exp_start_date", "exp_end_date", 
-				"progress", "status", "is_milestone",
-				"baseline_start_date", "baseline_end_date"
-			],
+			fields=fields,
 			filters={"project": project_name},
 			limit_page_length=None # Ensure all tasks are fetched
 		)
@@ -1075,8 +1082,8 @@ def get_gantt_tasks_for_project(project_name):
 					"assigned_to": assigned_to_str,
 					"status": task.status,
 					"is_milestone": task.is_milestone,
-					"baseline_start": task.baseline_start_date,
-					"baseline_end": task.baseline_end_date
+					"baseline_start": task.get("baseline_start_date"),
+					"baseline_end": task.get("baseline_end_date")
 				}
 			)
 
