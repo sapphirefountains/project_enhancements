@@ -58,8 +58,15 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
 		}
 
 		const gantt_container = $(
-			'<div class="gantt-container" style="overflow-x: auto;"></div>'
+			'<div class="gantt-container" style="overflow-x: auto; overflow-y: auto;"></div>'
 		).appendTo(this.wrapper);
+
+		// Prevent horizontal scroll when only vertical scrolling is intended
+		gantt_container.on("wheel", function (e) {
+			if (e.originalEvent.deltaY !== 0 && !e.originalEvent.shiftKey) {
+				e.stopPropagation();
+			}
+		});
 
 		const today = new Date();
 		today.setHours(0, 0, 0, 0);

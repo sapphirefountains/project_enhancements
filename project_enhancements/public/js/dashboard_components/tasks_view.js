@@ -302,8 +302,16 @@ project_enhancements.dashboard_components.TasksView = class TasksView {
 	render_gantt_view(projectName, container) {
 		// Create an inner wrapper for the gantt chart to handle auto-scrolling
 		const ganttWrapper = $(
-			'<div class="gantt-scroll-wrapper" style="overflow-x: auto; overflow-y: hidden; height: 100%;"></div>'
+			'<div class="gantt-scroll-wrapper" style="overflow-x: auto; overflow-y: auto; height: 100%;"></div>'
 		).appendTo(container);
+
+		// Prevent horizontal scroll when only vertical scrolling is intended
+		ganttWrapper.on("wheel", function (e) {
+			if (e.originalEvent.deltaY !== 0 && !e.originalEvent.shiftKey) {
+				e.stopPropagation();
+			}
+		});
+
 		const ganttTarget = $('<svg id="gantt-target"></svg>').appendTo(ganttWrapper);
 
 		// Required Frappe Gantt JS/CSS assets

@@ -47,7 +47,7 @@ frappe.ui.form.on("Project", {
 						const gantt_wrapper = this.$wrapper;
 						if (gantt_wrapper.find(".gantt-chart-container").length === 0) {
 							gantt_wrapper.css({ height: "550px", display: "flex", "flex-direction": "column", border: "1px solid #d1d8dd", "border-radius": "4px", "background-color": "#f8f9fa", "margin-bottom": "20px" });
-							gantt_wrapper.empty().html(`<div class="gantt-toolbar d-flex justify-content-between p-2 bg-light border-bottom"><div class="export-actions"><button type="button" class="btn btn-default btn-sm btn-export-gantt"><i class="fa fa-camera mr-1"></i> Export PNG</button></div><div class="btn-group btn-group-sm view-mode-group"><button type="button" class="btn btn-default" data-view="Quarter Day">Quarter Day</button><button type="button" class="btn btn-default" data-view="Half Day">Half Day</button><button type="button" class="btn btn-primary active" data-view="Day">Day</button><button type="button" class="btn btn-default" data-view="Week">Week</button><button type="button" class="btn btn-default" data-view="Month">Month</button></div></div><div class="gantt-chart-container" style="flex-grow: 1; overflow: hidden; display: flex; align-items: center; justify-content: center;"><p class="text-muted">Initializing Gantt Chart...</p></div><div class="resource-heatmap-container border-top" style="height: 150px; display: none;"><div class="heatmap-header p-2 bg-light d-flex justify-content-between"><span class="small font-weight-bold text-muted">RESOURCE ALLOCATION (HRS/DAY)</span><div class="heatmap-legend d-flex small align-items-center"><span class="mr-2"><i class="fa fa-square text-success"></i> < 6</span><span class="mr-2"><i class="fa fa-square text-warning"></i> 6-9</span><span><i class="fa fa-square text-danger"></i> > 9</span></div></div><div class="heatmap-body" style="overflow: auto; height: 110px;"></div></div>`);
+							gantt_wrapper.empty().html(`<div class="gantt-toolbar d-flex justify-content-between p-2 bg-light border-bottom"><div class="export-actions"><button type="button" class="btn btn-default btn-sm btn-export-gantt"><i class="fa fa-camera mr-1"></i> Export PNG</button></div><div class="btn-group btn-group-sm view-mode-group"><button type="button" class="btn btn-default" data-view="Quarter Day">Quarter Day</button><button type="button" class="btn btn-default" data-view="Half Day">Half Day</button><button type="button" class="btn btn-primary active" data-view="Day">Day</button><button type="button" class="btn btn-default" data-view="Week">Week</button><button type="button" class="btn btn-default" data-view="Month">Month</button></div></div><div class="gantt-chart-container" style="flex-grow: 1; overflow: hidden;"><p class="text-muted">Initializing Gantt Chart...</p></div><div class="resource-heatmap-container border-top" style="height: 150px; display: none;"><div class="heatmap-header p-2 bg-light d-flex justify-content-between"><span class="small font-weight-bold text-muted">RESOURCE ALLOCATION (HRS/DAY)</span><div class="heatmap-legend d-flex small align-items-center"><span class="mr-2"><i class="fa fa-square text-success"></i> < 6</span><span class="mr-2"><i class="fa fa-square text-warning"></i> 6-9</span><span><i class="fa fa-square text-danger"></i> > 9</span></div></div><div class="heatmap-body" style="overflow: auto; height: 110px;"></div></div>`);
 						}
 						const chart_container = gantt_wrapper.find(".gantt-chart-container");
 						const heatmap_container = gantt_wrapper.find(".resource-heatmap-container");
@@ -73,11 +73,54 @@ frappe.ui.form.on("Project", {
 									try {
 										const gantt = new Gantt(chart_container[0], tasks, options);
 										gantt_wrapper.find('.view-mode-group button').off('click').on('click', function() { gantt_wrapper.find('.view-mode-group button').removeClass('active btn-primary').addClass('btn-default'); $(this).addClass('active btn-primary').removeClass('btn-default'); gantt.change_view_mode($(this).data('view')); });
-										gantt_wrapper.find('.btn-export-gantt').off('click').on('click', () => { frappe.require('https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js', () => { domtoimage.toPng(chart_container[0], { bgcolor: '#fff' }).then(url => { const link = document.createElement('a'); link.download = `Gantt-${frm.doc.name}-${moment().format('YYYYMMDD')}.png`; link.href = url; link.click(); }); }); });
 										const g_cont = gantt_wrapper.find(".gantt-container");
-										g_cont.css({ "overflow-x": "scroll", "overflow-y": "auto", "max-height": "100%" });
-										const scroll_to_today = () => { const highlight = gantt_wrapper.find(".date_" + moment().format("YYYY-MM-DD")).add(gantt_wrapper.find(".current-date-highlight")).first(); if (highlight.length) { const scroll_pos = highlight.position().left - (g_cont.width() / 2); g_cont.animate({ scrollLeft: scroll_pos }, 300); } };
-										setTimeout(scroll_to_today, 800);
+										g_cont.css({ "overflow-x": "scroll", "overflow-y": "auto", "max-height": "100%", "position": "relative" });
+										
+										g_cont.on('wheel', function(e) {
+											if (e.originalEvent.deltaY !== 0 && !e.originalEvent.shiftKey) {
+												e.stopPropagation();
+											}
+										});
+
+										gantt_wrapper.find('.btn-export-gantt').off('click').on('click', () => {
+											frappe.require('https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js', () => {
+												const node = g_cont[0];
+												const scale = 2; // Better resolution
+												domtoimage.toPng(node, {
+													bgcolor: '#fff',
+													width: node.clientWidth * scale,
+													height: node.clientHeight * scale,
+													style: {
+														transform: `scale(${scale}) translate(-${node.scrollLeft}px, -${node.scrollTop}px)`,
+														'transform-origin': 'top left',
+														width: node.offsetWidth + 'px',
+														height: node.offsetHeight + 'px'
+													}
+												}).then(url => {
+													const link = document.createElement('a');
+													link.download = `Gantt-${frm.doc.name}-${moment().format('YYYYMMDD')}.png`;
+													link.href = url;
+													link.click();
+												});
+											});
+										});
+
+										const scroll_to_today = () => {
+											const today_el = g_cont.find(".today-highlight").get(0);
+											let scroll_pos = 0;
+											if (today_el) {
+												scroll_pos = today_el.getBBox().x - (g_cont.width() / 2);
+											} else {
+												const highlight = gantt_wrapper.find(".date_" + moment().format("YYYY-MM-DD")).add(gantt_wrapper.find(".current-date-highlight")).first();
+												if (highlight.length) {
+													scroll_pos = highlight.position().left - (g_cont.width() / 2);
+												}
+											}
+											if (scroll_pos !== 0) {
+												g_cont.animate({ scrollLeft: scroll_pos }, 400);
+											}
+										};
+										setTimeout(scroll_to_today, 500);
 									} catch (e) { console.error("Gantt error:", e); chart_container.html('<p class="text-danger">Error initializing Gantt chart.</p>'); }
 								} else { chart_container.html('<p class="text-muted text-center p-4">Error fetching data or no tasks found.</p>'); }
 							},
