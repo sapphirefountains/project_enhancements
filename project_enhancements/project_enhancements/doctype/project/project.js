@@ -85,22 +85,44 @@ frappe.ui.form.on("Project", {
 										gantt_wrapper.find('.btn-export-gantt').off('click').on('click', () => {
 											frappe.require('https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js', () => {
 												const node = g_cont[0];
+												if (!node) return;
+
+												// Use total scrollable area to capture full Gantt chart
+												const width = node.scrollWidth;
+												const height = node.scrollHeight;
 												const scale = 2; // Better resolution
+
+												// Show loading indicator
+												const $btn = gantt_wrapper.find('.btn-export-gantt');
+												const original_html = $btn.html();
+												$btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin mr-1"></i> Exporting...');
+
 												domtoimage.toPng(node, {
 													bgcolor: '#fff',
-													width: node.clientWidth * scale,
-													height: node.clientHeight * scale,
+													width: width * scale,
+													height: height * scale,
 													style: {
-														transform: `scale(${scale}) translate(-${node.scrollLeft}px, -${node.scrollTop}px)`,
+														transform: `scale(${scale})`,
 														'transform-origin': 'top left',
-														width: node.offsetWidth + 'px',
-														height: node.offsetHeight + 'px'
+														width: width + 'px',
+														height: height + 'px',
+														overflow: 'visible'
+													},
+													filter: (el) => {
+														// Exclude popups from the export
+														if (el.classList && (el.classList.contains('popup-wrapper') || el.classList.contains('custom-gantt-popup'))) return false;
+														return true;
 													}
 												}).then(url => {
 													const link = document.createElement('a');
 													link.download = `Gantt-${frm.doc.name}-${moment().format('YYYYMMDD')}.png`;
 													link.href = url;
 													link.click();
+													$btn.prop('disabled', false).html(original_html);
+												}).catch(err => {
+													console.error("Gantt Export Error:", err);
+													frappe.show_alert({ message: __("Gantt export failed: {0}", [err.message]), indicator: 'red' });
+													$btn.prop('disabled', false).html(original_html);
 												});
 											});
 										});
