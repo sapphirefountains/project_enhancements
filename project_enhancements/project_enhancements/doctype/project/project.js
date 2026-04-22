@@ -82,19 +82,17 @@ frappe.ui.form.on("Project", {
 											}
 										});
 
-										gantt_wrapper.find('.btn-export-gantt').off('click').on('click', () => {
-											frappe.require('https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js', () => {
-												const node = g_cont[0];
+										gantt_wrapper.find('.btn-export-gantt').off('click').on('click', function() {
+											frappe.require('https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js', function() {
+												var node = g_cont[0];
 												if (!node) return;
 
-												// Use total scrollable area to capture full Gantt chart
-												const width = node.scrollWidth;
-												const height = node.scrollHeight;
-												const scale = 2; // Better resolution
+												var width = node.scrollWidth;
+												var height = node.scrollHeight;
+												var scale = 2;
 
-												// Show loading indicator
-												const $btn = gantt_wrapper.find('.btn-export-gantt');
-												const original_html = $btn.html();
+												var $btn = gantt_wrapper.find('.btn-export-gantt');
+												var original_html = $btn.html();
 												$btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin mr-1"></i> Exporting...');
 
 												domtoimage.toPng(node, {
@@ -102,26 +100,27 @@ frappe.ui.form.on("Project", {
 													width: width * scale,
 													height: height * scale,
 													style: {
-														transform: `scale(${scale})`,
+														transform: 'scale(' + scale + ')',
 														'transform-origin': 'top left',
 														width: width + 'px',
 														height: height + 'px',
 														overflow: 'visible'
 													},
-													filter: (el) => {
-														// Exclude popups from the export
-														if (el.classList && (el.classList.contains('popup-wrapper') || el.classList.contains('custom-gantt-popup'))) return false;
+													filter: function(el) {
+														if (el.classList && (el.classList.contains('popup-wrapper') || el.classList.contains('custom-gantt-popup'))) {
+															return false;
+														}
 														return true;
 													}
-												}).then(url => {
-													const link = document.createElement('a');
-													link.download = `Gantt-${frm.doc.name}-${moment().format('YYYYMMDD')}.png`;
+												}).then(function(url) {
+													var link = document.createElement('a');
+													link.download = 'Gantt-' + frm.doc.name + '-' + moment().format('YYYYMMDD') + '.png';
 													link.href = url;
 													link.click();
 													$btn.prop('disabled', false).html(original_html);
-												}).catch(err => {
+												}).catch(function(err) {
 													console.error("Gantt Export Error:", err);
-													frappe.show_alert({ message: __("Gantt export failed: {0}", [err.message]), indicator: 'red' });
+													frappe.show_alert({ message: __("Gantt export failed"), indicator: 'red' });
 													$btn.prop('disabled', false).html(original_html);
 												});
 											});
