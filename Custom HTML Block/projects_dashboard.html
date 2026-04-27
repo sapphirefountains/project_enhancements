@@ -1,0 +1,60 @@
+<div class="project-dashboard-container">
+    <div class="dashboard-tabs p-3 pb-0 border-bottom">
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" href="javascript:void(0)" data-route="priority-overview">Priority Overview</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="javascript:void(0)" data-route="active-internal-projects">Active Internal Projects</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="javascript:void(0)" data-route="completed-projects">Completed Projects</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="javascript:void(0)" data-route="portfolio-gantt">Portfolio Gantt</a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="dashboard-controls p-2 border-bottom bg-light">
+        <div class="row align-items-center m-0">
+            
+            <div class="col-12 col-md-6 p-0" id="standard-controls">
+                <div class="input-group input-group-sm" style="max-width: 300px;">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text"><i class="fa fa-search"></i></span>
+                    </div>
+                    <input type="text" class="form-control" id="global-project-search" placeholder="Search projects...">
+                </div>
+            </div>
+
+            <div class="col-12 p-0" id="gantt-controls" style="display: none;">
+                <div class="d-flex align-items-center flex-wrap">
+                    <div class="custom-control custom-checkbox mr-4">
+                        <input type="checkbox" class="custom-control-input" id="gantt-detailed-view">
+                        <label class="custom-control-label font-weight-bold" for="gantt-detailed-view" style="cursor: pointer; padding-top: 2px;">Detailed View (Show Tasks)</label>
+                    </div>
+                    
+                    <div class="d-flex align-items-center">
+                        <label class="mr-2 mb-0 font-weight-bold text-muted" style="font-size: 13px;">Status Filter:</label>
+                        <div class="dropdown check-dropdown">
+                            <button class="btn btn-sm btn-white border dropdown-toggle bg-white" type="button" id="ganttStatusDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="min-width: 180px; text-align: left;">
+                                Selected (3)
+                            </button>
+                            <div class="dropdown-menu p-2 shadow-sm" aria-labelledby="ganttStatusDropdown" id="gantt-status-menu" style="min-width: 220px;">
+                                <div id="gantt-status-checkboxes">
+                                    </div>
+                                <div class="dropdown-divider"></div>
+                                <button class="btn btn-sm btn-primary w-100" id="apply-gantt-filters">Apply Filters</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="dashboard-content p-3 bg-white" id="dashboard-content">
+    </div>
+</div>

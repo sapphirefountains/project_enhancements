@@ -1,0 +1,65 @@
+.project-dashboard-container {
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.dashboard-tabs .nav-link { font-weight: 600; color: #4d4d4d; }
+.dashboard-tabs .nav-link.active { color: #007bff; border-bottom: 2px solid #007bff; }
+
+/* Skeleton Loader */
+.skeleton-list { animation: pulse-bg 1.5s infinite; }
+.skeleton-line { background-color: #e2e8f0; border-radius: 4px; }
+@keyframes pulse-bg { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+/* Status Badges */
+.badge-primary { background-color: #007bff; color: #fff; }
+.badge-success { background-color: #28a745; color: #fff; }
+.badge-danger { background-color: #dc3545; color: #fff; }
+.badge-warning { background-color: #ffc107; color: #212529; }
+.badge-info { background-color: #17a2b8; color: #fff; }
+.badge-secondary { background-color: #6c757d; color: #fff; }
+
+/* Editable Cells & Hover Effects */
+.editable-cell { position: relative; min-width: 140px; transition: background-color 0.2s; }
+.editable-cell:hover { background-color: #f1f8ff; }
+.editable-cell .static-view { padding: 4px; display: block; }
+.saving-overlay { opacity: 0.5; pointer-events: none; }
+
+/* Clickable Table Headers */
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s;
+}
+.sortable-header:hover {
+    background-color: #d1d8dd !important; 
+}
+.sortable-header.active-sort {
+    background-color: #e2e8f0 !important;
+    color: #007bff;
+}
+.sortable-header.active-sort.sort-asc::after {
+    content: " \f0de"; /* FontAwesome caret up */
+    font-family: "FontAwesome";
+    margin-left: 6px;
+}
+.sortable-header.active-sort.sort-desc::after {
+    content: " \f0dd"; /* FontAwesome caret down */
+    font-family: "FontAwesome";
+    margin-left: 6px;
+}
+
+/* Portfolio Gantt Color Differentiations */
+.gantt .gantt-master-project .bar { fill: #34495e !important; }
+.gantt .gantt-master-project .bar-progress { fill: #2c3e50 !important; }
+
+.gantt .gantt-project .bar { fill: #3498db !important; }
+.gantt .gantt-project .bar-progress { fill: #2980b9 !important; }
+
+.gantt .gantt-task .bar { fill: #95a5a6 !important; height: 14px; transform: translateY(3px); }
+.gantt .gantt-task .bar-progress { fill: #7f8c8d !important; height: 14px; transform: translateY(3px); }
+
+.gantt .bar-label.master-label { font-weight: bold; fill: #fff; }
+.gantt .bar-label.project-label { font-weight: bold; fill: #fff; }
+.gantt .bar-label.task-label { font-size: 11px; fill: #333; }
