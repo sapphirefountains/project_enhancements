@@ -50,16 +50,15 @@
     margin-left: 6px;
 }
 
-/* Portfolio Gantt Color Differentiations */
+/* Portfolio Gantt Color Differentiations (Fixes DOMTokenList error) */
 .gantt .gantt-master-project .bar { fill: #34495e !important; }
 .gantt .gantt-master-project .bar-progress { fill: #2c3e50 !important; }
+.gantt .gantt-master-project .bar-label { font-weight: bold; fill: #fff; }
 
 .gantt .gantt-project .bar { fill: #3498db !important; }
 .gantt .gantt-project .bar-progress { fill: #2980b9 !important; }
+.gantt .gantt-project .bar-label { font-weight: bold; fill: #fff; }
 
 .gantt .gantt-task .bar { fill: #95a5a6 !important; height: 14px; transform: translateY(3px); }
 .gantt .gantt-task .bar-progress { fill: #7f8c8d !important; height: 14px; transform: translateY(3px); }
-
-.gantt .bar-label.master-label { font-weight: bold; fill: #fff; }
-.gantt .bar-label.project-label { font-weight: bold; fill: #fff; }
-.gantt .bar-label.task-label { font-size: 11px; fill: #333; }
+.gantt .gantt-task .bar-label { font-size: 11px; fill: #333; }

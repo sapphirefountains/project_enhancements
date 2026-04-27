@@ -102,10 +102,7 @@
             gantt_status_filters = selected;
             
             $root.find('#ganttStatusDropdown').text(`Selected (${selected.length})`);
-            
-            // Programmatically close the Bootstrap dropdown
             $root.find('#ganttStatusDropdown').dropdown('toggle');
-            
             render_portfolio_gantt();
         });
     }
@@ -128,8 +125,6 @@
             const data = res.message;
             let mappedItems = [];
             let masterGroups = {};
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
 
             // Group by Master Project
             data.projects.forEach(p => {
@@ -138,7 +133,7 @@
                 masterGroups[master].push(p);
             });
 
-            // Flatten into Frappe Gantt array
+            // Flatten into Frappe Gantt array with robust date safety
             Object.keys(masterGroups).sort().forEach(master => {
                 let projects = masterGroups[master];
                 let masterStart = null;
@@ -147,11 +142,18 @@
 
                 projects.forEach(p => {
                     let pStart = new Date(p.expected_start_date);
-                    let pEnd = new Date(p.expected_end_date);
+                    let pEnd = p.expected_end_date ? new Date(p.expected_end_date) : new Date(pStart.getTime() + (3*24*60*60*1000));
+                    
                     if (!masterStart || pStart < masterStart) masterStart = pStart;
                     if (!masterEnd || pEnd > masterEnd) masterEnd = pEnd;
                     totalProgress += (p.percent_complete || 0);
                 });
+
+                // Safety: Master fallback dates
+                if (!masterStart) masterStart = new Date();
+                if (!masterEnd || masterEnd < masterStart) {
+                    masterEnd = new Date(masterStart.getTime() + (24*60*60*1000)); // Default 1 day length
+                }
 
                 let avgProgress = projects.length > 0 ? (totalProgress / projects.length) : 0;
 
@@ -162,20 +164,26 @@
                     start: moment(masterStart).format("YYYY-MM-DD"),
                     end: moment(masterEnd).format("YYYY-MM-DD"),
                     progress: avgProgress,
-                    custom_class: 'gantt-master-project master-label',
+                    custom_class: 'gantt-master-project',
                     isMaster: true
                 });
 
                 // Push Child Projects
                 projects.forEach(p => {
-                    const helperStartDate = new Date(p.expected_start_date) < today ? today : new Date(p.expected_start_date);
+                    let pStart = new Date(p.expected_start_date);
+                    let pEnd = p.expected_end_date ? new Date(p.expected_end_date) : new Date(pStart.getTime() + (3*24*60*60*1000));
+                    
+                    if (pEnd < pStart) {
+                        pEnd = new Date(pStart.getTime() + (24*60*60*1000));
+                    }
+
                     mappedItems.push({
                         id: 'project_' + p.name,
                         name: '  ↳ ' + (p.project_name || p.name),
-                        start: moment(helperStartDate).format("YYYY-MM-DD"),
-                        end: moment(p.expected_end_date).format("YYYY-MM-DD"),
+                        start: moment(pStart).format("YYYY-MM-DD"),
+                        end: moment(pEnd).format("YYYY-MM-DD"),
                         progress: p.percent_complete || 0,
-                        custom_class: 'gantt-project project-label',
+                        custom_class: 'gantt-project',
                         custom_start_date: p.expected_start_date,
                         isProject: true,
                         project_docname: p.name
@@ -185,18 +193,22 @@
                     if (gantt_detailed_view && data.tasks) {
                         let tasks = data.tasks.filter(t => t.project === p.name);
                         tasks.forEach(t => {
-                            let tStart = t.exp_start_date || p.expected_start_date;
-                            let tEnd = t.exp_end_date || p.expected_end_date;
-                            let helperTaskStart = new Date(tStart) < today ? today : new Date(tStart);
+                            let tStart = t.exp_start_date ? new Date(t.exp_start_date) : new Date(pStart);
+                            let tEnd = t.exp_end_date ? new Date(t.exp_end_date) : new Date(tStart.getTime() + (3*24*60*60*1000));
+                            
+                            if (tEnd < tStart) {
+                                tEnd = new Date(tStart.getTime() + (24*60*60*1000));
+                            }
+
                             mappedItems.push({
                                 id: 'task_' + t.name,
                                 name: '      • ' + (t.subject || t.name),
-                                start: moment(helperTaskStart).format("YYYY-MM-DD"),
+                                start: moment(tStart).format("YYYY-MM-DD"),
                                 end: moment(tEnd).format("YYYY-MM-DD"),
                                 progress: t.progress || 0,
                                 dependencies: 'project_' + p.name,
-                                custom_class: 'gantt-task task-label',
-                                custom_start_date: tStart,
+                                custom_class: 'gantt-task',
+                                custom_start_date: t.exp_start_date || p.expected_start_date,
                                 isTask: true,
                                 task_docname: t.name
                             });
@@ -213,8 +225,11 @@
                 if (e.originalEvent.deltaY !== 0 && !e.originalEvent.shiftKey) e.stopPropagation();
             });
 
-            // Ensure Gantt assets exist
-            frappe.require(["frappe-gantt.css", "frappe-gantt.js"], () => {
+            // Use absolute paths so Frappe resolves it relative to your app folder
+            frappe.require([
+                "/assets/project_enhancements/css/frappe-gantt.css", 
+                "/assets/project_enhancements/js/lib/frappe-gantt.umd.js"
+            ], () => {
                 new Gantt(gantt_container[0], mappedItems, {
                     view_mode: "Month",
                     on_click: (item) => {
