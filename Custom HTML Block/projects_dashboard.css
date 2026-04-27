@@ -24,7 +24,6 @@
 .editable-cell { position: relative; min-width: 140px; transition: background-color 0.2s; }
 .editable-cell:hover { background-color: #f1f8ff; }
 .editable-cell .static-view { padding: 4px; display: block; }
-.saving-overlay { opacity: 0.5; pointer-events: none; }
 
 /* Clickable Table Headers */
 .sortable-header {
@@ -50,7 +49,7 @@
     margin-left: 6px;
 }
 
-/* Portfolio Gantt Color Differentiations (Fixes DOMTokenList error) */
+/* Portfolio Gantt Color Differentiations */
 .gantt .gantt-master-project .bar { fill: #34495e !important; }
 .gantt .gantt-master-project .bar-progress { fill: #2c3e50 !important; }
 .gantt .gantt-master-project .bar-label { font-weight: bold; fill: #fff; }
@@ -62,3 +61,25 @@
 .gantt .gantt-task .bar { fill: #95a5a6 !important; height: 14px; transform: translateY(3px); }
 .gantt .gantt-task .bar-progress { fill: #7f8c8d !important; height: 14px; transform: translateY(3px); }
 .gantt .gantt-task .bar-label { font-size: 11px; fill: #333; }
+
+/* BASE SVG RULES TO PREVENT BLACK BOX RENDERING */
+.gantt { user-select: none; }
+.gantt .grid-background { fill: none; }
+.gantt .grid-row { fill: #ffffff; }
+.gantt .grid-row:nth-child(even) { fill: #f8f9fa; }
+.gantt .row-line { stroke: #ebeff2; }
+.gantt .tick { stroke: #e0e0e0; stroke-width: 0.2; }
+.gantt .tick.thick { stroke-width: 0.4; }
+.gantt .today-highlight { fill: #fcf8e3; opacity: 0.5; }
+.gantt .arrow { fill: none; stroke: #666; stroke-width: 1.4; }
+.gantt .bar { fill: #b8c2cc; stroke: #8D99A6; stroke-width: 0; rx: 3; ry: 3; }
+.gantt .bar-progress { fill: #a3a3ff; }
+.gantt .bar-invalid { fill: transparent; stroke: #8D99A6; stroke-width: 1; stroke-dasharray: 5; }
+.gantt .bar-label { fill: #333; dominant-baseline: central; text-anchor: middle; font-size: 13px; font-weight: normal; }
+.gantt .bar-label.big { fill: #555; text-anchor: start; }
+.gantt .handle { fill: #ddd; cursor: ew-resize; opacity: 0; transition: opacity 0.3s ease; }
+.gantt .bar-wrapper:hover .handle { opacity: 1; }
+.gantt .lower-text, .gantt .upper-text { font-size: 12px; text-anchor: middle; fill: #333; }
+.gantt .upper-text { font-weight: bold; }
+.gantt .hide { display: none; }
+.gantt-container { overflow: auto; position: relative; }
