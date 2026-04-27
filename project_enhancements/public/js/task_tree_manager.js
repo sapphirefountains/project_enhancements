@@ -252,7 +252,7 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 					<div class="task-grid-cell assignee-cell ${this.columnVisibility.owner ? "" : "hidden-column"}" data-column="owner"><a href="#" class="assignee-link">${task.assigned_to || "Unassigned"}</a></div>
 					<div class="task-grid-cell status-cell ${this.columnVisibility.status ? "" : "hidden-column"}" data-column="status">${statusBadge}</div>
 					<div class="task-grid-cell priority-cell ${this.columnVisibility.priority ? "" : "hidden-column"}" data-column="priority">
-						<span class="priority-badge badge badge-${this.getPriorityColor(task.priority)}" style="cursor: pointer; text-transform: uppercase; font-size: 10px; padding: 4px 8px;">${task.priority || "Medium"}</span>
+						<span class="priority-badge badge badge-pill badge-${this.getPriorityColor(task.priority)}" style="cursor: pointer; text-transform: uppercase; font-size: 10px; padding: 4px 8px;">${task.priority || "Medium"}</span>
 					</div>
 					<div class="task-grid-cell editable-date ${this.columnVisibility.start_date ? "" : "hidden-column"}" data-field="exp_start_date" data-task-id="${task.name}" data-original-date="${task.exp_start_date || ""}" data-column="start_date"><a href="#">${start_date}</a></div>
 					<div class="task-grid-cell editable-date ${this.columnVisibility.due_date ? "" : "hidden-column"}" data-field="exp_end_date" data-task-id="${task.name}" data-original-date="${task.exp_end_date || ""}" data-column="due_date"><a href="#">${end_date}</a></div>
@@ -338,16 +338,16 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 	}
 
 	getStatusBadge(task) {
-		const colorMap = { 'Open': 'blue', 'Working': 'orange', 'Completed': 'green', 'Canceled': 'red', 'On Hold': 'gray', 'Active': 'blue', 'Paid': 'green', 'Invoiced': 'purple' };
+		const colorMap = { 'Open': 'primary', 'Working': 'warning', 'Completed': 'success', 'Canceled': 'danger', 'On Hold': 'secondary', 'Active': 'primary', 'Paid': 'success', 'Invoiced': 'info' };
 		let status = task.status;
-		let color = colorMap[status] || 'gray';
-		if (task.is_overdue) { status = "OVERDUE"; color = "red"; }
-		return `<span class="badge badge-${color} status-badge" style="cursor: pointer; text-transform: uppercase; font-size: 10px; padding: 4px 8px;">${status}</span>`;
+		let color = colorMap[status] || 'secondary';
+		if (task.is_overdue) { status = "OVERDUE"; color = "danger"; }
+		return `<span class="badge badge-pill badge-${color} status-badge" style="cursor: pointer; text-transform: uppercase; font-size: 10px; padding: 4px 8px;">${status}</span>`;
 	}
 
 	getPriorityColor(priority) {
-		const map = { 'Low': 'gray', 'Medium': 'blue', 'High': 'orange', 'Urgent': 'red' };
-		return map[priority] || 'gray';
+		const map = { 'Low': 'secondary', 'Medium': 'primary', 'High': 'warning', 'Urgent': 'danger' };
+		return map[priority] || 'secondary';
 	}
 
 	showStatusPicker(event, taskName) {
