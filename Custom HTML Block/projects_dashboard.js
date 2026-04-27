@@ -9,6 +9,7 @@
     // Gantt State tracking
     let gantt_detailed_view = false;
     let gantt_status_filters = ["Active", "Working", "Client Hold"]; 
+    let portfolio_gantt_instance = null; 
     const all_gantt_statuses = ["Active", "Working", "Client Hold", "Parked", "Completed", "Invoiced", "Paid", "Canceled"];
 
     let sort_state = {
@@ -83,29 +84,36 @@
             `);
         });
 
-        // Checkbox detailed view toggle
         $root.find('#gantt-detailed-view').on('change', function() {
             gantt_detailed_view = $(this).is(':checked');
             render_portfolio_gantt();
         });
 
-        // Pill click logic
         $root.find('.gantt-filter-pill').on('click', function() {
             let $btn = $(this);
             let status = $btn.data('status');
             
             if ($btn.hasClass('btn-primary')) {
-                // Turn off
                 $btn.removeClass('btn-primary').addClass('btn-default');
                 gantt_status_filters = gantt_status_filters.filter(f => f !== status);
             } else {
-                // Turn on
                 $btn.removeClass('btn-default').addClass('btn-primary');
                 if (!gantt_status_filters.includes(status)) {
                     gantt_status_filters.push(status);
                 }
             }
             render_portfolio_gantt();
+        });
+
+        // View Mode Toggle Logic
+        $root.find('.view-mode-group button').on('click', function() {
+            $root.find('.view-mode-group button').removeClass('active btn-secondary').addClass('btn-outline-secondary');
+            $(this).addClass('active btn-secondary').removeClass('btn-outline-secondary');
+            
+            let mode = $(this).data('view');
+            if (portfolio_gantt_instance) {
+                portfolio_gantt_instance.change_view_mode(mode);
+            }
         });
     }
 
@@ -121,6 +129,7 @@
 
             if (!res.message || res.message.error || res.message.projects.length === 0) {
                 container.html('<div class="alert alert-info">No projects match the current filters.</div>');
+                portfolio_gantt_instance = null;
                 return;
             }
 
@@ -146,9 +155,7 @@
                     let pStart = p.expected_start_date ? new Date(p.expected_start_date) : new Date();
                     let pEnd = p.expected_end_date ? new Date(p.expected_end_date) : new Date(pStart.getTime() + (3*24*60*60*1000));
                     
-                    if (pEnd < pStart) {
-                        pEnd = new Date(pStart.getTime() + (24*60*60*1000));
-                    }
+                    if (pEnd < pStart) pEnd = new Date(pStart.getTime() + (24*60*60*1000));
                     
                     if (!masterStart || pStart < masterStart) masterStart = pStart;
                     if (!masterEnd || pEnd > masterEnd) masterEnd = pEnd;
@@ -162,25 +169,20 @@
 
                 let avgProgress = projects.length > 0 ? (totalProgress / projects.length) : 0;
 
-                // Push Master Item
                 mappedItems.push({
                     id: 'master_' + frappe.utils.get_random(5),
                     name: master.toUpperCase(),
                     start: moment(masterStart).format("YYYY-MM-DD"),
                     end: moment(masterEnd).format("YYYY-MM-DD"),
                     progress: avgProgress,
-                    custom_class: 'gantt-master-project', // SINGLE CLASS! No spaces.
+                    custom_class: 'gantt-master-project', 
                     isMaster: true
                 });
 
-                // Push Child Projects
                 projects.forEach(p => {
                     let pStart = p.expected_start_date ? new Date(p.expected_start_date) : new Date();
                     let pEnd = p.expected_end_date ? new Date(p.expected_end_date) : new Date(pStart.getTime() + (3*24*60*60*1000));
-                    
-                    if (pEnd < pStart) {
-                        pEnd = new Date(pStart.getTime() + (24*60*60*1000));
-                    }
+                    if (pEnd < pStart) pEnd = new Date(pStart.getTime() + (24*60*60*1000));
 
                     mappedItems.push({
                         id: 'project_' + p.name,
@@ -188,22 +190,18 @@
                         start: moment(pStart).format("YYYY-MM-DD"),
                         end: moment(pEnd).format("YYYY-MM-DD"),
                         progress: p.percent_complete || 0,
-                        custom_class: 'gantt-project', // SINGLE CLASS! No spaces.
+                        custom_class: 'gantt-project', 
                         custom_start_date: p.expected_start_date,
                         isProject: true,
                         project_docname: p.name
                     });
 
-                    // Push Grandchild Tasks (if toggled)
                     if (gantt_detailed_view && data.tasks) {
                         let tasks = data.tasks.filter(t => t.project === p.name);
                         tasks.forEach(t => {
                             let tStart = t.exp_start_date ? new Date(t.exp_start_date) : new Date(pStart);
                             let tEnd = t.exp_end_date ? new Date(t.exp_end_date) : new Date(tStart.getTime() + (3*24*60*60*1000));
-                            
-                            if (tEnd < tStart) {
-                                tEnd = new Date(tStart.getTime() + (24*60*60*1000));
-                            }
+                            if (tEnd < tStart) tEnd = new Date(tStart.getTime() + (24*60*60*1000));
 
                             mappedItems.push({
                                 id: 'task_' + t.name,
@@ -212,7 +210,7 @@
                                 end: moment(tEnd).format("YYYY-MM-DD"),
                                 progress: t.progress || 0,
                                 dependencies: 'project_' + p.name,
-                                custom_class: 'gantt-task', // SINGLE CLASS! No spaces.
+                                custom_class: 'gantt-task', 
                                 custom_start_date: t.exp_start_date || p.expected_start_date,
                                 isTask: true,
                                 task_docname: t.name
@@ -222,62 +220,64 @@
                 });
             });
 
-            container.empty().append('<div class="gantt-container gantt-scroll-wrapper" style="overflow-x: auto; overflow-y: auto;"></div>');
-            const gantt_container = container.find('.gantt-container');
+            // Create the wrapper and save the DOM node directly
+            let $chartWrapper = $('<div id="gantt-chart-target" style="width: 100%; height: 600px;"></div>');
+            container.empty().append($chartWrapper);
 
-            gantt_container.on("wheel", function (e) {
-                if (e.originalEvent.deltaY !== 0 && !e.originalEvent.shiftKey) e.stopPropagation();
-            });
+            // Fetch Library
+            frappe.require(["/assets/project_enhancements/js/lib/frappe-gantt.umd.js"], () => {
+                
+                let activeViewMode = $root.find('.view-mode-group button.active').data('view') || "Month";
 
-            // Verify Gantt library exists (Hooks.py should load this globally)
-            if (typeof Gantt === 'undefined') {
-                container.html('<div class="alert alert-danger">Gantt library is missing. Please clear site cache and reload.</div>');
-                return;
-            }
+                // Pass the raw DOM Node [0] instead of a string selector to guarantee it mounts safely
+                portfolio_gantt_instance = new Gantt($chartWrapper[0], mappedItems, {
+                    view_mode: activeViewMode,
+                    auto_move_label: true, 
+                    on_click: (item) => {
+                        if (item.isProject) frappe.set_route("Form", "Project", item.project_docname);
+                        else if (item.isTask) frappe.set_route("Form", "Task", item.task_docname);
+                    },
+                    custom_popup_html: function (item) {
+                        if (item.isMaster) {
+                            return `<div class="gantt-popup" style="padding: 10px; background: white; border: 1px solid #ccc; border-radius: 4px;">
+                                        <h5 class="mb-1">${item.name}</h5>
+                                        <p class="mb-0 text-muted"><strong>Overall Progress:</strong> ${Math.round(item.progress)}%</p>
+                                    </div>`;
+                        }
+                        const startDate = frappe.datetime.str_to_user(item.custom_start_date);
+                        const endDate = frappe.datetime.str_to_user(item.end);
+                        const titlePrefix = item.isTask ? "Task" : "Project";
+                        const cleanName = item.name.replace(/[↳•]/g, '').trim();
 
-            new Gantt(gantt_container[0], mappedItems, {
-                view_mode: "Month",
-                on_click: (item) => {
-                    if (item.isProject) frappe.set_route("Form", "Project", item.project_docname);
-                    else if (item.isTask) frappe.set_route("Form", "Task", item.task_docname);
-                },
-                custom_popup_html: function (item) {
-                    if (item.isMaster) {
-                        return `<div class="gantt-popup" style="padding: 10px; background: white; border: 1px solid #ccc; border-radius: 4px;">
-                                    <h5 class="mb-1">${item.name}</h5>
-                                    <p class="mb-0 text-muted"><strong>Overall Progress:</strong> ${Math.round(item.progress)}%</p>
-                                </div>`;
+                        return `
+                            <div class="gantt-popup" style="padding: 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; position: absolute; min-width: 200px;">
+                                <h6 style="margin: 0 0 8px 0; color: #333;">${titlePrefix}: ${cleanName}</h6>
+                                <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>Start:</strong> ${startDate}</p>
+                                <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>End:</strong> ${endDate}</p>
+                                <p style="margin: 0; font-size: 12px;"><strong>Progress:</strong> ${Math.round(item.progress)}%</p>
+                            </div>
+                        `;
                     }
-                    const startDate = frappe.datetime.str_to_user(item.custom_start_date);
-                    const endDate = frappe.datetime.str_to_user(item.end);
-                    const titlePrefix = item.isTask ? "Task" : "Project";
-                    const cleanName = item.name.replace(/[↳•]/g, '').trim();
+                });
 
-                    return `
-                        <div class="gantt-popup" style="padding: 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; position: absolute; min-width: 200px;">
-                            <h6 style="margin: 0 0 8px 0; color: #333;">${titlePrefix}: ${cleanName}</h6>
-                            <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>Start:</strong> ${startDate}</p>
-                            <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>End:</strong> ${endDate}</p>
-                            <p style="margin: 0; font-size: 12px;"><strong>Progress:</strong> ${Math.round(item.progress)}%</p>
-                        </div>
-                    `;
-                }
+                // Auto Centering the Gantt chart
+                setTimeout(() => {
+                    // Grab the auto-generated inner container
+                    const real_container = $chartWrapper.find(".gantt-container")[0];
+                    if (!real_container) return;
+                    
+                    const today_el = real_container.querySelector(".today-highlight");
+                    if (today_el) {
+                        const container_width = real_container.clientWidth;
+                        const element_rect = today_el.getBoundingClientRect();
+                        const container_rect = real_container.getBoundingClientRect();
+                        const element_left_relative = element_rect.left - container_rect.left;
+                        const element_width = element_rect.width;
+                        const scroll_to_position = real_container.scrollLeft + element_left_relative - container_width / 2 + element_width / 2;
+                        real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
+                    }
+                }, 300);
             });
-
-            // Auto Centering the Gantt chart
-            setTimeout(() => {
-                const today_el = gantt_container[0].querySelector(".today-highlight");
-                if (today_el) {
-                    const scroll_container = gantt_container[0];
-                    const container_width = scroll_container.clientWidth;
-                    const element_rect = today_el.getBoundingClientRect();
-                    const container_rect = scroll_container.getBoundingClientRect();
-                    const element_left_relative = element_rect.left - container_rect.left;
-                    const element_width = element_rect.width;
-                    const scroll_to_position = scroll_container.scrollLeft + element_left_relative - container_width / 2 + element_width / 2;
-                    scroll_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
-                }
-            }, 300);
 
         } catch (err) {
             console.error(err);

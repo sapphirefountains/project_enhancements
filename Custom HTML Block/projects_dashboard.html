@@ -29,17 +29,27 @@
             </div>
 
             <div class="col-12 p-0" id="gantt-controls" style="display: none;">
-                <div class="d-flex align-items-center flex-wrap">
+                <div class="d-flex align-items-center justify-content-between flex-wrap w-100">
                     
-                    <div class="mr-4 d-flex align-items-center border-right pr-4">
-                        <input type="checkbox" id="gantt-detailed-view" style="margin-right: 8px; width: 16px; height: 16px;">
-                        <label for="gantt-detailed-view" class="mb-0 font-weight-bold" style="cursor: pointer; font-size: 13px;">Show Tasks</label>
+                    <div class="d-flex align-items-center flex-wrap mb-2 mb-md-0">
+                        <div class="mr-4 d-flex align-items-center border-right pr-4">
+                            <input type="checkbox" id="gantt-detailed-view" style="margin-right: 8px; width: 16px; height: 16px;">
+                            <label for="gantt-detailed-view" class="mb-0 font-weight-bold" style="cursor: pointer; font-size: 13px;">Show Tasks</label>
+                        </div>
+                        
+                        <div class="d-flex align-items-center">
+                            <label class="mr-2 mb-0 font-weight-bold text-muted small">STATUS FILTERS:</label>
+                            <div id="gantt-status-pills" class="btn-group btn-group-sm" role="group">
+                                </div>
+                        </div>
                     </div>
-                    
-                    <div class="d-flex align-items-center">
-                        <label class="mr-2 mb-0 font-weight-bold text-muted small">STATUS FILTERS:</label>
-                        <div id="gantt-status-pills" class="btn-group btn-group-sm" role="group">
-                            </div>
+
+                    <div class="btn-group btn-group-sm view-mode-group" role="group">
+                        <button type="button" class="btn btn-outline-secondary" data-view="Quarter Day">Quarter Day</button>
+                        <button type="button" class="btn btn-outline-secondary" data-view="Half Day">Half Day</button>
+                        <button type="button" class="btn btn-outline-secondary" data-view="Day">Day</button>
+                        <button type="button" class="btn btn-outline-secondary" data-view="Week">Week</button>
+                        <button type="button" class="btn btn-secondary active" data-view="Month">Month</button>
                     </div>
 
                 </div>
