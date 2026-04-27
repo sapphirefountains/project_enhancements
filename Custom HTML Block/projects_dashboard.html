@@ -32,19 +32,43 @@
                 <div class="d-flex align-items-center justify-content-between flex-wrap w-100">
                     
                     <div class="d-flex align-items-center flex-wrap mb-2 mb-md-0">
-                        <div class="mr-4 d-flex align-items-center border-right pr-4">
+                        
+                        <div class="dropdown check-dropdown mr-3">
+                            <button class="btn btn-sm btn-white border dropdown-toggle bg-white font-weight-bold" type="button" id="ganttProjectDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="min-width: 160px; text-align: left;">
+                                All Projects
+                            </button>
+                            <div class="dropdown-menu p-2 shadow-sm" aria-labelledby="ganttProjectDropdown" id="gantt-project-menu" style="min-width: 250px; max-height: 400px; overflow-y: auto;">
+                                <input type="text" class="form-control form-control-sm mb-2" id="gantt-project-search" placeholder="Search projects...">
+                                <div class="custom-control custom-checkbox mb-2 border-bottom pb-2">
+                                    <input type="checkbox" class="custom-control-input" id="gantt-select-all-projects" checked>
+                                    <label class="custom-control-label font-weight-bold" for="gantt-select-all-projects">Select All</label>
+                                </div>
+                                <div id="gantt-project-checkboxes">
+                                    </div>
+                                <div class="dropdown-divider"></div>
+                                <button class="btn btn-sm btn-primary w-100" id="apply-gantt-project-filters">Apply Filter</button>
+                            </div>
+                        </div>
+
+                        <div class="dropdown check-dropdown mr-3">
+                            <button class="btn btn-sm btn-white border dropdown-toggle bg-white font-weight-bold" type="button" id="ganttStatusDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="min-width: 140px; text-align: left;">
+                                Selected (3)
+                            </button>
+                            <div class="dropdown-menu p-2 shadow-sm" aria-labelledby="ganttStatusDropdown" id="gantt-status-menu" style="min-width: 200px;">
+                                <div id="gantt-status-checkboxes">
+                                    </div>
+                                <div class="dropdown-divider"></div>
+                                <button class="btn btn-sm btn-primary w-100" id="apply-gantt-status-filters">Apply Filters</button>
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-center border-left pl-3">
                             <input type="checkbox" id="gantt-detailed-view" style="margin-right: 8px; width: 16px; height: 16px;">
                             <label for="gantt-detailed-view" class="mb-0 font-weight-bold" style="cursor: pointer; font-size: 13px;">Show Tasks</label>
                         </div>
-                        
-                        <div class="d-flex align-items-center">
-                            <label class="mr-2 mb-0 font-weight-bold text-muted small">STATUS FILTERS:</label>
-                            <div id="gantt-status-pills" class="btn-group btn-group-sm" role="group">
-                                </div>
-                        </div>
                     </div>
 
-                    <div class="btn-group btn-group-sm view-mode-group" role="group">
+                    <div class="btn-group btn-group-sm view-mode-group mt-2 mt-md-0" role="group">
                         <button type="button" class="btn btn-outline-secondary" data-view="Quarter Day">Quarter Day</button>
                         <button type="button" class="btn btn-outline-secondary" data-view="Half Day">Half Day</button>
                         <button type="button" class="btn btn-outline-secondary" data-view="Day">Day</button>

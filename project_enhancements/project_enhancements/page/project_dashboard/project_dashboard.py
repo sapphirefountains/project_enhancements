@@ -1285,6 +1285,55 @@ def get_all_projects_for_gantt(include_tasks=0, statuses=None):
 			project_names = [p.name for p in projects]
 			tasks = frappe.get_all(
 				"Task",
+				# Ensure parent_task is queried so the frontend can build the hierarchical tree!
+				fields=["name", "subject", "exp_start_date", "exp_end_date", "progress", "project", "status", "parent_task"],
+				filters={"project": ["in", project_names], "status": ["not in", ["Completed", "Canceled"]]}
+			)
+
+		return {
+			"projects": projects,
+			"tasks": tasks
+		}
+
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "Error fetching all projects for Gantt view")
+		return {"error": "Could not fetch project data for the Gantt chart. Please check logs."}
+	"""
+	Fetches all active projects (and optionally child tasks) for the Gantt view.
+	Supports status filtering and detailed view expansion.
+	"""
+	if not check_permission():
+		return {"error": "You do not have permission to view the Project Dashboard."}
+
+	try:
+		include_tasks = int(include_tasks)
+		
+		# Default filters (Added project_type constraints here!)
+		filters = {
+			"is_active": "Yes",
+			"status": ["!=", "Canceled"],
+			"expected_start_date": ["is", "set"],
+			"project_type": ["in", ["Build", "Design", "Rent", "Service"]]
+		}
+
+		# Parse dynamic status filters if provided from the front end
+		if statuses:
+			status_list = json.loads(statuses)
+			if status_list:
+				filters["status"] = ["in", status_list]
+
+		projects = frappe.get_all(
+			"Project",
+			fields=["name", "project_name", "expected_start_date", "expected_end_date", "percent_complete", "status", "custom_master_project", "project_type"],
+			filters=filters,
+		)
+
+		tasks = []
+		# Only fetch task data if Detailed View is toggled on to save backend memory
+		if include_tasks and projects:
+			project_names = [p.name for p in projects]
+			tasks = frappe.get_all(
+				"Task",
 				fields=["name", "subject", "exp_start_date", "exp_end_date", "progress", "project", "status"],
 				filters={"project": ["in", project_names], "status": ["not in", ["Completed", "Canceled"]]}
 			)
