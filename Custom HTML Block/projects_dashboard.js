@@ -139,10 +139,16 @@
             if (portfolio_gantt_instance) portfolio_gantt_instance.change_view_mode(mode);
         });
 
-        $root.find('#gantt-today-btn').off('click').on('click', function(e) {
-            e.preventDefault();
-            if (portfolio_gantt_instance) {
-                portfolio_gantt_instance.set_scroll_position('today');
+        $root.find('#gantt-today-btn').on('click', function() {
+            if (!portfolio_gantt_instance) return;
+            const real_container = $root.find(".gantt-container")[0];
+            if (!real_container) return;
+            const today_el = real_container.querySelector(".today-highlight");
+            if (today_el) {
+                const container_width = real_container.clientWidth;
+                const today_x = parseFloat(today_el.getAttribute("x")); 
+                const scroll_to_position = today_x - (container_width / 2);
+                real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
             }
         });
 
@@ -300,10 +306,9 @@
             let master_id = 'master_' + sanitizeId(master);
             let is_m_collapsed = gantt_collapsed_nodes.has(master_id);
 
-            // RENDER MASTER BAR
             if (!is_independent) {
                 let m_prefix = projects.length > 0 ? (is_m_collapsed ? '<tspan class="gantt-toggle-btn">▶</tspan> ' : '<tspan class="gantt-toggle-btn">▼</tspan> ') : '';
-                let m_hue = baseHues[project_hue_counter % baseHues.length]; // Use first project hue for master
+                let m_hue = baseHues[project_hue_counter % baseHues.length]; 
                 let m_color = `hsl(${m_hue}, 75%, 35%)`;
 
                 mappedItems.push({
@@ -326,7 +331,6 @@
             if (!is_independent && is_m_collapsed) return; 
 
             projects.forEach(p => {
-                // --- DYNAMIC PROJECT COLOR ASSIGNMENT ---
                 let p_hue = baseHues[project_hue_counter % baseHues.length];
                 project_hue_counter++;
 
@@ -366,7 +370,6 @@
                     tasks.forEach((t, t_idx) => {
                         let tColor;
                         if (indentLevel === 0) {
-                            // DISTINCT SHADE FOR EVERY PARENT TASK FAMILY
                             const lightnesses = [55, 35, 65, 40, 50, 30];
                             const saturations = [80, 60, 95, 70, 85, 65];
                             let l = lightnesses[t_idx % lightnesses.length];
@@ -376,7 +379,6 @@
                                 prog: `hsl(${p_hue}, ${s}%, ${Math.max(10, l - 10)}%)`
                             };
                         } else {
-                            // SUBTASKS INHERIT PARENT SHADE
                             tColor = inheritedColorObj;
                         }
 
@@ -406,9 +408,11 @@
                             task_color: tColor.bar
                         });
 
+                        // FIX: Explicitly applying the same 3px translation to the .bar-label as the bar itself
                         dynamicStyles += `
                             svg.gantt [data-id="${t_id}"] .bar { fill: ${tColor.bar} !important; height: 14px !important; transform: translateY(3px) !important; opacity: 1 !important; }
                             svg.gantt [data-id="${t_id}"] .bar-progress { fill: ${tColor.prog} !important; height: 14px !important; transform: translateY(3px) !important; }
+                            svg.gantt [data-id="${t_id}"] .bar-label { transform: translateY(3px) !important; }
                             svg.gantt path[data-from="${t_id}"], svg.gantt path[data-to="${t_id}"] { stroke: ${tColor.bar} !important; stroke-width: 1.5px !important; opacity: 1 !important;}
                         `;
 

@@ -41,8 +41,9 @@
 .gantt .gantt-master-project .bar-label { font-weight: bold !important; fill: #fff !important; }
 .gantt .gantt-project .bar-label { font-weight: bold !important; fill: #fff !important; }
 
-/* Let dynamic JS colors handle the task fill, just define heights and typography here */
-.gantt .gantt-task .bar, .gantt .gantt-task .bar-progress { height: 14px; transform: translateY(3px); }
+/* FIX: Align text vertically with shrunk task bars */
+.gantt .gantt-task .bar, .gantt .gantt-task .bar-progress, .gantt .gantt-task .bar-label { transform: translateY(3px) !important; }
+.gantt .gantt-task .bar, .gantt .gantt-task .bar-progress { height: 14px !important; }
 .gantt .gantt-task .bar-label { font-size: 11px !important; fill: #333 !important; }
 
 /* Fix overlapping labels */
