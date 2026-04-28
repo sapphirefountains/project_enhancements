@@ -16,7 +16,6 @@
     let gantt_selected_projects = new Set(); 
     let gantt_collapsed_nodes = new Set(); 
 
-    // Stop propagation flag so clicking the arrow doesn't route to the task
     let is_toggling_gantt_node = false;
 
     let sort_state = {
@@ -78,7 +77,6 @@
     // ----- GANTT CHART LOGIC -----
     
     function init_gantt_filters() {
-        // Manual Dropdown Logic (Bypassing Bootstrap issues)
         $root.find('.custom-dropdown-toggle').on('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
@@ -88,19 +86,16 @@
             if (!isShown) $menu.addClass('show');
         });
 
-        // Close dropdowns if clicking outside
         $(document).on('click', function(e) {
             if (!$(e.target).closest('.check-dropdown').length) {
                 $root.find('.dropdown-menu').removeClass('show');
             }
         });
 
-        // Prevent dropdowns from closing when clicking inside them
         $root.find('.check-dropdown .dropdown-menu').on('click', function(e) { 
             e.stopPropagation(); 
         });
 
-        // Build Status Checkboxes
         const statusContainer = $root.find('#gantt-status-checkboxes');
         statusContainer.empty();
         all_gantt_statuses.forEach(s => {
@@ -119,25 +114,20 @@
             gantt_status_filters = selected;
             $root.find('#ganttStatusDropdown').text(`Selected (${selected.length})`);
             $root.find('#gantt-status-menu').removeClass('show');
-            fetch_and_render_portfolio_gantt(); // Refetch because statuses change the data payload
+            fetch_and_render_portfolio_gantt(); 
         });
 
-        // Detailed view toggle
         $root.find('#gantt-detailed-view').on('change', function() {
             gantt_detailed_view = $(this).is(':checked');
-            
-            // By default, collapse all Master and Project nodes when turning on detailed view to prevent massive lag
             if (gantt_detailed_view && gantt_current_data) {
                 gantt_collapsed_nodes.clear();
                 gantt_current_data.projects.forEach(p => {
                     gantt_collapsed_nodes.add('project_' + p.name);
                 });
             }
-            
             fetch_and_render_portfolio_gantt();
         });
 
-        // View Mode Toggle Logic
         $root.find('.view-mode-group button').on('click', function() {
             $root.find('.view-mode-group button').removeClass('active btn-secondary').addClass('btn-outline-secondary');
             $(this).addClass('active btn-secondary').removeClass('btn-outline-secondary');
@@ -145,23 +135,31 @@
             if (portfolio_gantt_instance) portfolio_gantt_instance.change_view_mode(mode);
         });
 
-        // Today Button Logic
+        // --- FIX 1: TODAY BUTTON RELIABILITY ---
         $root.find('#gantt-today-btn').on('click', function() {
             if (!portfolio_gantt_instance) return;
             const real_container = $root.find(".gantt-container")[0];
+            if (!real_container) return;
             const today_el = real_container.querySelector(".today-highlight");
             if (today_el) {
                 const container_width = real_container.clientWidth;
-                const element_left_relative = today_el.getBoundingClientRect().left - real_container.getBoundingClientRect().left;
-                const scroll_to_position = real_container.scrollLeft + element_left_relative - container_width / 2;
+                // Using SVG coordinate 'x' instead of viewport bounds guarantees it never gets lost!
+                const today_x = parseFloat(today_el.getAttribute("x")); 
+                const scroll_to_position = today_x - (container_width / 2);
                 real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
             }
         });
 
-        // Projects Filter logic (UI listeners)
         $root.find('#gantt-select-all-projects').on('change', function() {
             let isChecked = $(this).is(':checked');
             $root.find('.gantt-proj-cb').prop('checked', isChecked);
+        });
+
+        // --- FIX 2: AWESOMEBAR SEARCH HIJACKING ---
+        // By forcing stopPropagation, we stop Frappe from shifting focus to the global top-nav search bar
+        $root.find('#gantt-project-search, #global-project-search').on('keydown keyup keypress input', function(e) {
+            e.stopPropagation();
+            if (e.key === 'Enter') e.preventDefault();
         });
 
         $root.find('#gantt-project-search').on('input', function() {
@@ -184,12 +182,11 @@
                 $root.find('#ganttProjectDropdown').text('All Projects');
             }
             $root.find('#gantt-project-menu').removeClass('show');
-            build_gantt_chart(false); // Rebuild chart from cache, no network call
+            build_gantt_chart(false); 
         });
     }
 
     function populate_projects_dropdown(projects) {
-        // Only run once or if project count changes drastically to prevent wiping selections
         const container = $root.find('#gantt-project-checkboxes');
         container.empty();
         
@@ -205,7 +202,6 @@
             `);
         });
 
-        // Update top checkbox state
         let total = sorted.length;
         let checked = $root.find('.gantt-proj-cb:checked').length;
         $root.find('#gantt-select-all-projects').prop('checked', total > 0 && checked === total);
@@ -243,7 +239,6 @@
         let container = $root.find('#dashboard-content');
         let data = gantt_current_data;
 
-        // Apply Project Filters
         let filtered_projects = data.projects;
         if (gantt_selected_projects.size > 0) {
             filtered_projects = data.projects.filter(p => gantt_selected_projects.has(p.name));
@@ -255,14 +250,10 @@
             return;
         }
 
-        // Build Nested Task Dictionary
         let taskMap = {};
         let projectTaskRoots = {};
         if (gantt_detailed_view && data.tasks) {
-            data.tasks.forEach(t => {
-                t.children = [];
-                taskMap[t.name] = t;
-            });
+            data.tasks.forEach(t => { t.children = []; taskMap[t.name] = t; });
             data.tasks.forEach(t => {
                 if (t.parent_task && taskMap[t.parent_task]) {
                     taskMap[t.parent_task].children.push(t);
@@ -282,17 +273,13 @@
             masterGroups[master].push(p);
         });
 
-        // Helper to safely clamp missing dates to ensure Gantt doesn't crash
         const getSafeDates = (startStr, endStr, fallbackStartStr = null) => {
             let start = startStr ? new Date(startStr) : (fallbackStartStr ? new Date(fallbackStartStr) : new Date());
             let end = endStr ? new Date(endStr) : new Date(start.getTime() + (3*24*60*60*1000));
-            if (end < start) {
-                end = new Date(start.getTime() + (24*60*60*1000));
-            }
+            if (end < start) end = new Date(start.getTime() + (24*60*60*1000));
             return { start, end };
         };
 
-        // Traverse Tree and build flat Array
         Object.keys(masterGroups).sort().forEach(master => {
             let projects = masterGroups[master];
             let is_independent = (master === "Independent Projects");
@@ -312,11 +299,8 @@
             let master_id = 'master_' + master;
             let is_m_collapsed = gantt_collapsed_nodes.has(master_id);
             
-            // --- FIX: Wrap arrows in an SVG <tspan> so we can target them separately ---
-            let m_prefix = projects.length > 0 ? (is_m_collapsed ? '<tspan class="gantt-toggle-btn">▶</tspan> ' : '<tspan class="gantt-toggle-btn">▼</tspan> ') : '';
-
-            // Only render Master Project if it's an actual Master Project
             if (!is_independent) {
+                let m_prefix = projects.length > 0 ? (is_m_collapsed ? '<tspan class="gantt-toggle-btn">▶</tspan> ' : '<tspan class="gantt-toggle-btn">▼</tspan> ') : '';
                 mappedItems.push({
                     id: master_id,
                     name: m_prefix + master.toUpperCase(),
@@ -329,7 +313,7 @@
                 });
             }
 
-            if (!is_independent && is_m_collapsed) return; // Hide children
+            if (!is_independent && is_m_collapsed) return; 
 
             projects.forEach(p => {
                 let pDates = getSafeDates(p.expected_start_date, p.expected_end_date);
@@ -354,7 +338,7 @@
                     hasChildren: has_tasks
                 });
 
-                if (!has_tasks || is_p_collapsed) return; // Hide children
+                if (!has_tasks || is_p_collapsed) return;
 
                 const pushTasks = (tasks, indentLevel) => {
                     tasks.forEach(t => {
@@ -391,7 +375,6 @@
             });
         });
 
-        // Save scroll position before tearing down
         let scroll_left = 0, scroll_top = 0;
         if (preserve_scroll && container.find(".gantt-container").length) {
             scroll_left = container.find(".gantt-container")[0].scrollLeft;
@@ -408,25 +391,21 @@
                 view_mode: activeViewMode,
                 auto_move_label: true, 
                 on_click: (item) => {
-                    // Intercept routing if the user clicked the expand arrow!
                     if (is_toggling_gantt_node) return; 
-                    
                     if (item.isProject) frappe.set_route("Form", "Project", item.project_docname);
                     else if (item.isTask) frappe.set_route("Form", "Task", item.task_docname);
                 },
                 custom_popup_html: function (item) {
-                    // Strip our injected <tspan> tags and symbols for the tooltip title
-                    const cleanName = item.name.replace(/<[^>]*>?/gm, '').replace(/[↳•▼▶]/g, '').trim();
-
                     if (item.isMaster) {
                         return `<div class="gantt-popup" style="padding: 10px; background: white; border: 1px solid #ccc; border-radius: 4px;">
-                                    <h5 class="mb-1">${cleanName}</h5>
+                                    <h5 class="mb-1">${item.name.replace(/[▼▶]/g, '').trim()}</h5>
                                     <p class="mb-0 text-muted"><strong>Overall Progress:</strong> ${Math.round(item.progress)}%</p>
                                 </div>`;
                     }
                     const startDate = frappe.datetime.str_to_user(item.custom_start_date);
                     const endDate = frappe.datetime.str_to_user(item.end);
                     const titlePrefix = item.isTask ? "Task" : "Project";
+                    const cleanName = item.name.replace(/[↳•▼▶]/g, '').trim();
 
                     return `
                         <div class="gantt-popup" style="padding: 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; position: absolute; min-width: 200px;">
@@ -439,30 +418,22 @@
                 }
             });
 
-            // Capture mousedown specifically on the arrow to trigger the intercept flag instantly
-            $chartWrapper.on('mousedown', '.gantt-toggle-btn', function(e) {
-                is_toggling_gantt_node = true;
-            });
-
-            // Bind click listeners ONLY to our injected <tspan> arrows
-            $chartWrapper.on('click', '.gantt-toggle-btn', function(e) {
+            $chartWrapper.find('.gantt-container').off('click', '.gantt-toggle-btn').on('click', '.gantt-toggle-btn', function(e) {
                 e.stopPropagation(); 
                 is_toggling_gantt_node = true;
-                setTimeout(() => is_toggling_gantt_node = false, 300); // Clear flag shortly after
+                setTimeout(() => is_toggling_gantt_node = false, 300); 
                 
                 let wrapper = $(this).closest('.bar-wrapper');
                 let id = wrapper.attr('data-id');
                 let item = mappedItems.find(i => i.id === id);
                 
-                // Only toggle if it actually has children!
                 if (item && item.hasChildren) {
                     if (gantt_collapsed_nodes.has(id)) gantt_collapsed_nodes.delete(id);
                     else gantt_collapsed_nodes.add(id);
-                    build_gantt_chart(true); // true = restore scroll position
+                    build_gantt_chart(true); 
                 }
             });
 
-            // Restore Scroll or center to today
             setTimeout(() => {
                 const real_container = $chartWrapper.find(".gantt-container")[0];
                 if (!real_container) return;
@@ -473,12 +444,13 @@
                     const today_el = real_container.querySelector(".today-highlight");
                     if (today_el) {
                         const container_width = real_container.clientWidth;
-                        const element_left_relative = today_el.getBoundingClientRect().left - real_container.getBoundingClientRect().left;
-                        const scroll_to_position = real_container.scrollLeft + element_left_relative - container_width / 2;
+                        // Use exact SVG X pos to prevent screen-resize drifting
+                        const today_x = parseFloat(today_el.getAttribute("x"));
+                        const scroll_to_position = today_x - (container_width / 2);
                         real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
                     }
                 }
-            }, 50); // fast timeout so it feels instant
+            }, 50); 
         });
     }
 
@@ -871,8 +843,6 @@
         }
     }
 
-    // ----- SEARCH FILTER LOGIC -----
-
     function apply_search_filter() {
         let search_term = $root.find('#global-project-search').val().toLowerCase();
         let rows = $root.find('#dashboard-content table tbody tr');
@@ -886,20 +856,22 @@
         });
     }
 
-    // ----- EVENT LISTENERS -----
-
-    $root.find('#global-project-search').on('input', function() {
-        apply_search_filter();
-    });
-
     $root.find('.nav-link').click(function(e) {
         e.preventDefault();
         $root.find('.nav-link').removeClass('active');
         $(this).addClass('active');
         current_tab = $(this).data('route');
+        
+        if (current_tab === "portfolio-gantt") {
+            $root.find('#gantt-controls').show();
+            $root.find('#standard-controls').hide();
+        } else {
+            $root.find('#gantt-controls').hide();
+            $root.find('#standard-controls').show();
+        }
+        
         render_current_tab();
     });
 
-    // Init
     fetch_initial_data();
 })();
