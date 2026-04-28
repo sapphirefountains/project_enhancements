@@ -32,23 +32,19 @@
 .sortable-header.active-sort.sort-asc::after { content: " \f0de"; font-family: "FontAwesome"; margin-left: 6px; }
 .sortable-header.active-sort.sort-desc::after { content: " \f0dd"; font-family: "FontAwesome"; margin-left: 6px; }
 
-/* Portfolio Gantt Color Differentiations */
+/* Portfolio Gantt Class Mappings */
 .gantt .gantt-master-project .bar { fill: #34495e !important; }
 .gantt .gantt-master-project .bar-progress { fill: #2c3e50 !important; }
 .gantt .gantt-master-project .bar-label { font-weight: bold !important; fill: #fff !important; }
 
-.gantt .gantt-project .bar { fill: #3498db !important; }
-.gantt .gantt-project .bar-progress { fill: #2980b9 !important; }
+/* NOTE: Project and task colors are now dynamically injected via JS */
 .gantt .gantt-project .bar-label { font-weight: bold !important; fill: #fff !important; }
-
-.gantt .gantt-task .bar { fill: #95a5a6 !important; height: 14px; transform: translateY(3px); }
-.gantt .gantt-task .bar-progress { fill: #7f8c8d !important; height: 14px; transform: translateY(3px); }
 .gantt .gantt-task .bar-label { font-size: 11px !important; fill: #333 !important; }
 
 /* Fix overlapping labels */
 .gantt .gantt-master-project .bar-label.big,
 .gantt .gantt-project .bar-label.big,
-.gantt .gantt-task .bar-label.big { fill: #333 !important; }
+.gantt .gantt-task .bar-label.big { fill: #333 !important; font-weight: bold; }
 
 /* SVG Labels Toggle styling */
 .gantt .bar-label { cursor: pointer; pointer-events: auto; transition: fill 0.2s; user-select: none; }
@@ -58,14 +54,6 @@
 
 .check-dropdown .dropdown-menu.show { display: block !important; }
 
-/* --- FIX 3: Dynamic Multi-Colored Arrows --- */
-.gantt .arrow path:nth-child(7n+1) { stroke: #e74c3c !important; } /* Red */
-.gantt .arrow path:nth-child(7n+2) { stroke: #f39c12 !important; } /* Orange */
-.gantt .arrow path:nth-child(7n+3) { stroke: #2ecc71 !important; } /* Green */
-.gantt .arrow path:nth-child(7n+4) { stroke: #9b59b6 !important; } /* Purple */
-.gantt .arrow path:nth-child(7n+5) { stroke: #3498db !important; } /* Blue */
-.gantt .arrow path:nth-child(7n+6) { stroke: #1abc9c !important; } /* Teal */
-.gantt .arrow path:nth-child(7n+7) { stroke: #e67e22 !important; } /* Rust */
 
 /* ========================================================================= */
 /* BASE SVG RULES TO PREVENT BLACK BOX RENDERING & FIX STICKY HEADERS        */

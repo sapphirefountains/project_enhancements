@@ -135,7 +135,6 @@
             if (portfolio_gantt_instance) portfolio_gantt_instance.change_view_mode(mode);
         });
 
-        // --- FIX 1: TODAY BUTTON RELIABILITY ---
         $root.find('#gantt-today-btn').on('click', function() {
             if (!portfolio_gantt_instance) return;
             const real_container = $root.find(".gantt-container")[0];
@@ -143,7 +142,6 @@
             const today_el = real_container.querySelector(".today-highlight");
             if (today_el) {
                 const container_width = real_container.clientWidth;
-                // Using SVG coordinate 'x' instead of viewport bounds guarantees it never gets lost!
                 const today_x = parseFloat(today_el.getAttribute("x")); 
                 const scroll_to_position = today_x - (container_width / 2);
                 real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
@@ -155,8 +153,6 @@
             $root.find('.gantt-proj-cb').prop('checked', isChecked);
         });
 
-        // --- FIX 2: AWESOMEBAR SEARCH HIJACKING ---
-        // By forcing stopPropagation, we stop Frappe from shifting focus to the global top-nav search bar
         $root.find('#gantt-project-search, #global-project-search').on('keydown keyup keypress input', function(e) {
             e.stopPropagation();
             if (e.key === 'Enter') e.preventDefault();
@@ -280,6 +276,18 @@
             return { start, end };
         };
 
+        const palette = [
+            { bar: '#3498db', prog: '#2980b9' }, // Blue
+            { bar: '#2ecc71', prog: '#27ae60' }, // Green
+            { bar: '#9b59b6', prog: '#8e44ad' }, // Purple
+            { bar: '#f1c40f', prog: '#f39c12' }, // Yellow
+            { bar: '#e67e22', prog: '#d35400' }, // Orange
+            { bar: '#1abc9c', prog: '#16a085' }, // Teal
+            { bar: '#e74c3c', prog: '#c0392b' }  // Red
+        ];
+        let project_counter = 0;
+        let dynamicStyles = "";
+
         Object.keys(masterGroups).sort().forEach(master => {
             let projects = masterGroups[master];
             let is_independent = (master === "Independent Projects");
@@ -316,6 +324,9 @@
             if (!is_independent && is_m_collapsed) return; 
 
             projects.forEach(p => {
+                let c = palette[project_counter % palette.length];
+                project_counter++;
+
                 let pDates = getSafeDates(p.expected_start_date, p.expected_end_date);
                 let p_id = 'project_' + p.name;
                 let t_roots = projectTaskRoots[p.name] || [];
@@ -338,7 +349,13 @@
                     hasChildren: has_tasks
                 });
 
-                if (!has_tasks || is_p_collapsed) return;
+                dynamicStyles += `
+                    .gantt .bar-wrapper[data-id="${p_id}"] .bar { fill: ${c.bar} !important; }
+                    .gantt .bar-wrapper[data-id="${p_id}"] .bar-progress { fill: ${c.prog} !important; }
+                    .gantt .arrow path[data-from="${p_id}"] { stroke: ${c.bar} !important; stroke-width: 2px !important; }
+                `;
+
+                if (!has_tasks || is_p_collapsed) return; 
 
                 const pushTasks = (tasks, indentLevel) => {
                     tasks.forEach(t => {
@@ -365,6 +382,12 @@
                             hasChildren: has_sub
                         });
 
+                        dynamicStyles += `
+                            .gantt .bar-wrapper[data-id="${t_id}"] .bar { fill: ${c.bar} !important; opacity: 0.65; height: 14px; transform: translateY(3px); }
+                            .gantt .bar-wrapper[data-id="${t_id}"] .bar-progress { fill: ${c.prog} !important; height: 14px; transform: translateY(3px); }
+                            .gantt .arrow path[data-from="${t_id}"] { stroke: ${c.bar} !important; stroke-width: 1.5px !important; opacity: 0.8;}
+                        `;
+
                         if (has_sub && !is_t_collapsed) {
                             pushTasks(t.children, indentLevel + 1);
                         }
@@ -374,6 +397,9 @@
                 pushTasks(t_roots, 0);
             });
         });
+
+        $('#dynamic-gantt-colors').remove();
+        $('<style id="dynamic-gantt-colors">').html(dynamicStyles).appendTo('head');
 
         let scroll_left = 0, scroll_top = 0;
         if (preserve_scroll && container.find(".gantt-container").length) {
@@ -418,7 +444,11 @@
                 }
             });
 
-            $chartWrapper.find('.gantt-container').off('click', '.gantt-toggle-btn').on('click', '.gantt-toggle-btn', function(e) {
+            $chartWrapper.on('mousedown', '.gantt-toggle-btn', function(e) {
+                is_toggling_gantt_node = true;
+            });
+
+            $chartWrapper.on('click', '.gantt-toggle-btn', function(e) {
                 e.stopPropagation(); 
                 is_toggling_gantt_node = true;
                 setTimeout(() => is_toggling_gantt_node = false, 300); 
@@ -444,9 +474,8 @@
                     const today_el = real_container.querySelector(".today-highlight");
                     if (today_el) {
                         const container_width = real_container.clientWidth;
-                        // Use exact SVG X pos to prevent screen-resize drifting
-                        const today_x = parseFloat(today_el.getAttribute("x"));
-                        const scroll_to_position = today_x - (container_width / 2);
+                        const element_left_relative = today_el.getBoundingClientRect().left - real_container.getBoundingClientRect().left;
+                        const scroll_to_position = real_container.scrollLeft + element_left_relative - container_width / 2;
                         real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
                     }
                 }
@@ -830,7 +859,7 @@
         if (current_tab === "portfolio-gantt") {
             $root.find('#gantt-controls').show();
             $root.find('#standard-controls').hide();
-            render_portfolio_gantt();
+            fetch_and_render_portfolio_gantt(); // FIXED: Uses correct function call!
         } else {
             $root.find('#gantt-controls').hide();
             $root.find('#standard-controls').show();
@@ -856,6 +885,10 @@
         });
     }
 
+    $root.find('#global-project-search').on('input', function() {
+        apply_search_filter();
+    });
+
     $root.find('.nav-link').click(function(e) {
         e.preventDefault();
         $root.find('.nav-link').removeClass('active');
@@ -873,5 +906,6 @@
         render_current_tab();
     });
 
+    // Init
     fetch_initial_data();
 })();
