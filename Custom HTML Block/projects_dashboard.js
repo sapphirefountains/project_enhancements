@@ -139,7 +139,6 @@
             if (portfolio_gantt_instance) portfolio_gantt_instance.change_view_mode(mode);
         });
 
-        // --- FIX 1: NATIVE SCROLL TO TODAY ---
         $root.find('#gantt-today-btn').off('click').on('click', function(e) {
             e.preventDefault();
             if (portfolio_gantt_instance) {
@@ -152,9 +151,7 @@
             $root.find('.gantt-proj-cb').prop('checked', isChecked);
         });
 
-        // --- FIX 2: STOP FRAPPE AWESOMEBAR HIJACKING ---
-        // Prevent keypresses from leaking out of the input boxes and triggering Frappe shortcuts
-        $root.find('#gantt-project-search, #global-project-search').on('keydown keyup keypress', function(e) {
+        $root.find('#gantt-project-search, #global-project-search').on('keydown keyup keypress input', function(e) {
             e.stopPropagation();
             if (e.key === 'Enter') e.preventDefault();
         });
@@ -191,7 +188,7 @@
         
         sorted.forEach(p => {
             let isChecked = gantt_selected_projects.size === 0 || gantt_selected_projects.has(p.name);
-            let safe_name = (p.project_name || p.name).toLowerCase().replace(/"/g, ''); // strip quotes so it doesn't break HTML
+            let safe_name = (p.project_name || p.name).toLowerCase().replace(/"/g, ''); 
             let safe_id = sanitizeId(p.name);
 
             container.append(`
@@ -280,23 +277,15 @@
             return { start, end };
         };
 
-        const palette = [
-            { bar: '#3498db', prog: '#2980b9' }, // Blue
-            { bar: '#2ecc71', prog: '#27ae60' }, // Green
-            { bar: '#9b59b6', prog: '#8e44ad' }, // Purple
-            { bar: '#f1c40f', prog: '#f39c12' }, // Yellow
-            { bar: '#e67e22', prog: '#d35400' }, // Orange
-            { bar: '#1abc9c', prog: '#16a085' }, // Teal
-            { bar: '#e74c3c', prog: '#c0392b' }  // Red
-        ];
-        let project_counter = 0;
+        const baseHues = [210, 145, 280, 35, 0, 175, 15]; 
+        let project_hue_counter = 0;
         let dynamicStyles = "";
 
         Object.keys(masterGroups).sort().forEach(master => {
             let projects = masterGroups[master];
             let is_independent = (master === "Independent Projects");
+            
             let masterStart = null, masterEnd = null, totalProgress = 0;
-
             projects.forEach(p => {
                 let d = getSafeDates(p.expected_start_date, p.expected_end_date);
                 if (!masterStart || d.start < masterStart) masterStart = d.start;
@@ -311,8 +300,12 @@
             let master_id = 'master_' + sanitizeId(master);
             let is_m_collapsed = gantt_collapsed_nodes.has(master_id);
 
+            // RENDER MASTER BAR
             if (!is_independent) {
                 let m_prefix = projects.length > 0 ? (is_m_collapsed ? '<tspan class="gantt-toggle-btn">▶</tspan> ' : '<tspan class="gantt-toggle-btn">▼</tspan> ') : '';
+                let m_hue = baseHues[project_hue_counter % baseHues.length]; // Use first project hue for master
+                let m_color = `hsl(${m_hue}, 75%, 35%)`;
+
                 mappedItems.push({
                     id: master_id,
                     name: m_prefix + master.toUpperCase(),
@@ -323,19 +316,23 @@
                     isMaster: true,
                     hasChildren: projects.length > 0
                 });
+
+                dynamicStyles += `
+                    svg.gantt [data-id="${master_id}"] .bar { fill: ${m_color} !important; }
+                    svg.gantt [data-id="${master_id}"] .bar-progress { fill: hsl(${m_hue}, 75%, 25%) !important; }
+                `;
             }
 
             if (!is_independent && is_m_collapsed) return; 
 
             projects.forEach(p => {
-                let c = palette[project_counter % palette.length];
-                project_counter++;
+                // --- DYNAMIC PROJECT COLOR ASSIGNMENT ---
+                let p_hue = baseHues[project_hue_counter % baseHues.length];
+                project_hue_counter++;
 
+                let pColor = `hsl(${p_hue}, 70%, 45%)`; 
                 let pDates = getSafeDates(p.expected_start_date, p.expected_end_date);
-                
-                // --- FIX 3: BULLETPROOF IDs to prevent CSS parsing failures ---
                 let p_id = 'project_' + sanitizeId(p.name);
-                
                 let t_roots = projectTaskRoots[p.name] || [];
                 let has_tasks = gantt_detailed_view && t_roots.length > 0;
                 let is_p_collapsed = gantt_collapsed_nodes.has(p_id);
@@ -353,20 +350,36 @@
                     custom_start_date: p.expected_start_date,
                     isProject: true,
                     project_docname: p.name,
-                    hasChildren: has_tasks
+                    hasChildren: has_tasks,
+                    task_color: pColor
                 });
 
-                // Dynamically build the CSS targeting these specific sanitized IDs
                 dynamicStyles += `
-                    svg.gantt .bar-wrapper[data-id="${p_id}"] .bar { fill: ${c.bar} !important; }
-                    svg.gantt .bar-wrapper[data-id="${p_id}"] .bar-progress { fill: ${c.prog} !important; }
-                    svg.gantt path[data-from="${p_id}"] { stroke: ${c.bar} !important; stroke-width: 2px !important; opacity: 1 !important; }
+                    svg.gantt [data-id="${p_id}"] .bar { fill: ${pColor} !important; }
+                    svg.gantt [data-id="${p_id}"] .bar-progress { fill: hsl(${p_hue}, 70%, 35%) !important; }
+                    svg.gantt path[data-from="${p_id}"] { stroke: ${pColor} !important; stroke-width: 2px !important; opacity: 1 !important; }
                 `;
 
                 if (!has_tasks || is_p_collapsed) return; 
 
-                const pushTasks = (tasks, indentLevel) => {
-                    tasks.forEach(t => {
+                const pushTasks = (tasks, indentLevel, inheritedColorObj) => {
+                    tasks.forEach((t, t_idx) => {
+                        let tColor;
+                        if (indentLevel === 0) {
+                            // DISTINCT SHADE FOR EVERY PARENT TASK FAMILY
+                            const lightnesses = [55, 35, 65, 40, 50, 30];
+                            const saturations = [80, 60, 95, 70, 85, 65];
+                            let l = lightnesses[t_idx % lightnesses.length];
+                            let s = saturations[t_idx % saturations.length];
+                            tColor = {
+                                bar: `hsl(${p_hue}, ${s}%, ${l}%)`,
+                                prog: `hsl(${p_hue}, ${s}%, ${Math.max(10, l - 10)}%)`
+                            };
+                        } else {
+                            // SUBTASKS INHERIT PARENT SHADE
+                            tColor = inheritedColorObj;
+                        }
+
                         let tDates = getSafeDates(t.exp_start_date, t.exp_end_date, pDates.start);
                         let t_id = 'task_' + sanitizeId(t.name);
                         let has_sub = t.children && t.children.length > 0;
@@ -389,35 +402,30 @@
                             custom_start_date: t.exp_start_date || p.expected_start_date,
                             isTask: true,
                             task_docname: t.name,
-                            hasChildren: has_sub
+                            hasChildren: has_sub,
+                            task_color: tColor.bar
                         });
 
                         dynamicStyles += `
-                            svg.gantt .bar-wrapper[data-id="${t_id}"] .bar { fill: ${c.bar} !important; opacity: 0.65 !important; height: 14px !important; transform: translateY(3px) !important; }
-                            svg.gantt .bar-wrapper[data-id="${t_id}"] .bar-progress { fill: ${c.prog} !important; height: 14px !important; transform: translateY(3px) !important; }
-                            svg.gantt path[data-from="${t_id}"] { stroke: ${c.bar} !important; stroke-width: 1.5px !important; opacity: 0.9 !important;}
+                            svg.gantt [data-id="${t_id}"] .bar { fill: ${tColor.bar} !important; height: 14px !important; transform: translateY(3px) !important; opacity: 1 !important; }
+                            svg.gantt [data-id="${t_id}"] .bar-progress { fill: ${tColor.prog} !important; height: 14px !important; transform: translateY(3px) !important; }
+                            svg.gantt path[data-from="${t_id}"], svg.gantt path[data-to="${t_id}"] { stroke: ${tColor.bar} !important; stroke-width: 1.5px !important; opacity: 1 !important;}
                         `;
 
                         if (has_sub && !is_t_collapsed) {
-                            pushTasks(t.children, indentLevel + 1);
+                            pushTasks(t.children, indentLevel + 1, tColor);
                         }
                     });
                 };
 
-                pushTasks(t_roots, 0);
+                pushTasks(t_roots, 0, null);
             });
         });
 
         $('#dynamic-gantt-colors').remove();
-        $('<style id="dynamic-gantt-colors">').html(dynamicStyles).appendTo('head');
-
-        let scroll_left = 0, scroll_top = 0;
-        if (preserve_scroll && container.find(".gantt-container").length) {
-            scroll_left = container.find(".gantt-container")[0].scrollLeft;
-            scroll_top = container.find(".gantt-container")[0].scrollTop;
-        }
-
         let $chartWrapper = $('<div id="gantt-chart-target" style="width: 100%; height: 600px;"></div>');
+        $chartWrapper.append(`<style id="dynamic-gantt-colors">${dynamicStyles}</style>`);
+        
         container.empty().append($chartWrapper);
 
         frappe.require(["/assets/project_enhancements/js/lib/frappe-gantt.umd.js"], () => {
@@ -432,16 +440,16 @@
                     else if (item.isTask) frappe.set_route("Form", "Task", item.task_docname);
                 },
                 custom_popup_html: function (item) {
+                    const cleanName = item.name.replace(/<[^>]*>?/gm, '').replace(/[↳•▼▶]/g, '').trim();
                     if (item.isMaster) {
                         return `<div class="gantt-popup" style="padding: 10px; background: white; border: 1px solid #ccc; border-radius: 4px;">
-                                    <h5 class="mb-1">${item.name.replace(/[▼▶]/g, '').trim()}</h5>
+                                    <h5 class="mb-1">${cleanName}</h5>
                                     <p class="mb-0 text-muted"><strong>Overall Progress:</strong> ${Math.round(item.progress)}%</p>
                                 </div>`;
                     }
                     const startDate = frappe.datetime.str_to_user(item.custom_start_date);
                     const endDate = frappe.datetime.str_to_user(item.end);
                     const titlePrefix = item.isTask ? "Task" : "Project";
-                    const cleanName = item.name.replace(/[↳•▼▶]/g, '').trim();
 
                     return `
                         <div class="gantt-popup" style="padding: 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; position: absolute; min-width: 200px;">
@@ -472,6 +480,27 @@
                     else gantt_collapsed_nodes.add(id);
                     build_gantt_chart(true); 
                 }
+            });
+
+            function applyColors() {
+                mappedItems.forEach(item => {
+                    if (item.task_color) {
+                        try {
+                            $chartWrapper.find(`[data-id="${item.id}"] .bar`).css('fill', item.task_color);
+                            $chartWrapper.find(`path[data-from="${item.id}"], path[data-to="${item.id}"]`).css({
+                                'stroke': item.task_color,
+                                'stroke-width': item.isTask ? '1.5px' : '2px',
+                                'opacity': '1'
+                            });
+                        } catch(e) {}
+                    }
+                });
+            }
+
+            setTimeout(applyColors, 100);
+            $chartWrapper.on('scroll mousewheel touchmove click', '.gantt-container', function() {
+                clearTimeout(window.colorRefreshTimer);
+                window.colorRefreshTimer = setTimeout(applyColors, 50);
             });
 
             setTimeout(() => {
