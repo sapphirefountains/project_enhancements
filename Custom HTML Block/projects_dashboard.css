@@ -69,9 +69,22 @@
     fill: #333 !important;
 }
 
-/* --- ADD: Make SVG Labels appear clickable and change color on hover --- */
-.gantt .bar-label { cursor: pointer; pointer-events: auto; transition: fill 0.2s; }
+/* --- Toggle Button SVG Styles --- */
+.gantt .bar-label { cursor: pointer; pointer-events: auto; transition: fill 0.2s; user-select: none; }
 .gantt .bar-label:hover { fill: #007bff !important; text-decoration: underline; }
+
+.gantt .gantt-toggle-btn {
+    fill: #007bff !important;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 14px;
+}
+.gantt .gantt-toggle-btn:hover {
+    fill: #0056b3 !important;
+}
+
+.check-dropdown .dropdown-menu.show { display: block !important; }
+
 
 /* ========================================================================= */
 /* BASE SVG RULES TO PREVENT BLACK BOX RENDERING & FIX STICKY HEADERS        */

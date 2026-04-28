@@ -34,14 +34,14 @@
                     <div class="d-flex align-items-center flex-wrap mb-2 mb-md-0">
                         
                         <div class="dropdown check-dropdown mr-3">
-                            <button class="btn btn-sm btn-white border dropdown-toggle bg-white font-weight-bold" type="button" id="ganttProjectDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="min-width: 160px; text-align: left;">
+                            <button class="btn btn-sm btn-white border custom-dropdown-toggle bg-white font-weight-bold" type="button" id="ganttProjectDropdown" style="min-width: 160px; text-align: left;">
                                 All Projects
                             </button>
-                            <div class="dropdown-menu p-2 shadow-sm" aria-labelledby="ganttProjectDropdown" id="gantt-project-menu" style="min-width: 250px; max-height: 400px; overflow-y: auto;">
+                            <div class="dropdown-menu p-2 shadow-sm" id="gantt-project-menu" style="min-width: 250px; max-height: 400px; overflow-y: auto; margin-top: 5px;">
                                 <input type="text" class="form-control form-control-sm mb-2" id="gantt-project-search" placeholder="Search projects...">
                                 <div class="custom-control custom-checkbox mb-2 border-bottom pb-2">
                                     <input type="checkbox" class="custom-control-input" id="gantt-select-all-projects" checked>
-                                    <label class="custom-control-label font-weight-bold" for="gantt-select-all-projects">Select All</label>
+                                    <label class="custom-control-label font-weight-bold" for="gantt-select-all-projects" style="cursor: pointer; padding-top: 2px;">Select All</label>
                                 </div>
                                 <div id="gantt-project-checkboxes">
                                     </div>
@@ -51,10 +51,10 @@
                         </div>
 
                         <div class="dropdown check-dropdown mr-3">
-                            <button class="btn btn-sm btn-white border dropdown-toggle bg-white font-weight-bold" type="button" id="ganttStatusDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="min-width: 140px; text-align: left;">
+                            <button class="btn btn-sm btn-white border custom-dropdown-toggle bg-white font-weight-bold" type="button" id="ganttStatusDropdown" style="min-width: 140px; text-align: left;">
                                 Selected (3)
                             </button>
-                            <div class="dropdown-menu p-2 shadow-sm" aria-labelledby="ganttStatusDropdown" id="gantt-status-menu" style="min-width: 200px;">
+                            <div class="dropdown-menu p-2 shadow-sm" id="gantt-status-menu" style="min-width: 200px; margin-top: 5px;">
                                 <div id="gantt-status-checkboxes">
                                     </div>
                                 <div class="dropdown-divider"></div>
@@ -68,12 +68,15 @@
                         </div>
                     </div>
 
-                    <div class="btn-group btn-group-sm view-mode-group mt-2 mt-md-0" role="group">
-                        <button type="button" class="btn btn-outline-secondary" data-view="Quarter Day">Quarter Day</button>
-                        <button type="button" class="btn btn-outline-secondary" data-view="Half Day">Half Day</button>
-                        <button type="button" class="btn btn-outline-secondary" data-view="Day">Day</button>
-                        <button type="button" class="btn btn-outline-secondary" data-view="Week">Week</button>
-                        <button type="button" class="btn btn-secondary active" data-view="Month">Month</button>
+                    <div class="d-flex align-items-center mt-2 mt-md-0">
+                        <div class="btn-group btn-group-sm view-mode-group" role="group">
+                            <button type="button" class="btn btn-outline-secondary" data-view="Quarter Day">Quarter Day</button>
+                            <button type="button" class="btn btn-outline-secondary" data-view="Half Day">Half Day</button>
+                            <button type="button" class="btn btn-outline-secondary" data-view="Day">Day</button>
+                            <button type="button" class="btn btn-outline-secondary" data-view="Week">Week</button>
+                            <button type="button" class="btn btn-secondary active" data-view="Month">Month</button>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary font-weight-bold ml-2" id="gantt-today-btn">Today</button>
                     </div>
 
                 </div>

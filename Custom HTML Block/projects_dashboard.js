@@ -12,9 +12,12 @@
     const all_gantt_statuses = ["Active", "Working", "Client Hold", "Parked", "Completed", "Invoiced", "Paid", "Canceled"];
     
     let portfolio_gantt_instance = null; 
-    let gantt_current_data = null; // Cache fetched API data
-    let gantt_selected_projects = new Set(); // Empty means ALL projects are selected
-    let gantt_collapsed_nodes = new Set(); // Stores IDs of nodes that are collapsed
+    let gantt_current_data = null; 
+    let gantt_selected_projects = new Set(); 
+    let gantt_collapsed_nodes = new Set(); 
+
+    // Stop propagation flag so clicking the arrow doesn't route to the task
+    let is_toggling_gantt_node = false;
 
     let sort_state = {
         'priority-overview': { col: 'company_priority', order: 'asc' },
@@ -75,10 +78,29 @@
     // ----- GANTT CHART LOGIC -----
     
     function init_gantt_filters() {
-        // Prevent dropdowns from closing when clicking inside
-        $root.find('.check-dropdown .dropdown-menu').on('click', function(e) { e.stopPropagation(); });
+        // Manual Dropdown Logic (Bypassing Bootstrap issues)
+        $root.find('.custom-dropdown-toggle').on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            let $menu = $(this).next('.dropdown-menu');
+            let isShown = $menu.hasClass('show');
+            $root.find('.dropdown-menu').removeClass('show'); 
+            if (!isShown) $menu.addClass('show');
+        });
 
-        // Build Status Dropdown
+        // Close dropdowns if clicking outside
+        $(document).on('click', function(e) {
+            if (!$(e.target).closest('.check-dropdown').length) {
+                $root.find('.dropdown-menu').removeClass('show');
+            }
+        });
+
+        // Prevent dropdowns from closing when clicking inside them
+        $root.find('.check-dropdown .dropdown-menu').on('click', function(e) { 
+            e.stopPropagation(); 
+        });
+
+        // Build Status Checkboxes
         const statusContainer = $root.find('#gantt-status-checkboxes');
         statusContainer.empty();
         all_gantt_statuses.forEach(s => {
@@ -96,11 +118,11 @@
             $root.find('.gantt-status-cb:checked').each(function() { selected.push($(this).val()); });
             gantt_status_filters = selected;
             $root.find('#ganttStatusDropdown').text(`Selected (${selected.length})`);
-            $root.find('#ganttStatusDropdown').dropdown('toggle');
+            $root.find('#gantt-status-menu').removeClass('show');
             fetch_and_render_portfolio_gantt(); // Refetch because statuses change the data payload
         });
 
-        // Toggle detailed view
+        // Detailed view toggle
         $root.find('#gantt-detailed-view').on('change', function() {
             gantt_detailed_view = $(this).is(':checked');
             
@@ -121,6 +143,19 @@
             $(this).addClass('active btn-secondary').removeClass('btn-outline-secondary');
             let mode = $(this).data('view');
             if (portfolio_gantt_instance) portfolio_gantt_instance.change_view_mode(mode);
+        });
+
+        // Today Button Logic
+        $root.find('#gantt-today-btn').on('click', function() {
+            if (!portfolio_gantt_instance) return;
+            const real_container = $root.find(".gantt-container")[0];
+            const today_el = real_container.querySelector(".today-highlight");
+            if (today_el) {
+                const container_width = real_container.clientWidth;
+                const element_left_relative = today_el.getBoundingClientRect().left - real_container.getBoundingClientRect().left;
+                const scroll_to_position = real_container.scrollLeft + element_left_relative - container_width / 2;
+                real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
+            }
         });
 
         // Projects Filter logic (UI listeners)
@@ -148,7 +183,7 @@
             } else {
                 $root.find('#ganttProjectDropdown').text('All Projects');
             }
-            $root.find('#ganttProjectDropdown').dropdown('toggle');
+            $root.find('#gantt-project-menu').removeClass('show');
             build_gantt_chart(false); // Rebuild chart from cache, no network call
         });
     }
@@ -260,6 +295,7 @@
         // Traverse Tree and build flat Array
         Object.keys(masterGroups).sort().forEach(master => {
             let projects = masterGroups[master];
+            let is_independent = (master === "Independent Projects");
             let masterStart = null, masterEnd = null, totalProgress = 0;
 
             projects.forEach(p => {
@@ -275,20 +311,25 @@
 
             let master_id = 'master_' + master;
             let is_m_collapsed = gantt_collapsed_nodes.has(master_id);
-            let m_prefix = projects.length > 0 ? (is_m_collapsed ? '▶ ' : '▼ ') : '';
+            
+            // --- FIX: Wrap arrows in an SVG <tspan> so we can target them separately ---
+            let m_prefix = projects.length > 0 ? (is_m_collapsed ? '<tspan class="gantt-toggle-btn">▶</tspan> ' : '<tspan class="gantt-toggle-btn">▼</tspan> ') : '';
 
-            mappedItems.push({
-                id: master_id,
-                name: m_prefix + master.toUpperCase(),
-                start: moment(masterStart).format("YYYY-MM-DD"),
-                end: moment(masterEnd).format("YYYY-MM-DD"),
-                progress: avgProgress,
-                custom_class: 'gantt-master-project', 
-                isMaster: true,
-                hasChildren: projects.length > 0
-            });
+            // Only render Master Project if it's an actual Master Project
+            if (!is_independent) {
+                mappedItems.push({
+                    id: master_id,
+                    name: m_prefix + master.toUpperCase(),
+                    start: moment(masterStart).format("YYYY-MM-DD"),
+                    end: moment(masterEnd).format("YYYY-MM-DD"),
+                    progress: avgProgress,
+                    custom_class: 'gantt-master-project', 
+                    isMaster: true,
+                    hasChildren: projects.length > 0
+                });
+            }
 
-            if (is_m_collapsed) return; // Hide children
+            if (!is_independent && is_m_collapsed) return; // Hide children
 
             projects.forEach(p => {
                 let pDates = getSafeDates(p.expected_start_date, p.expected_end_date);
@@ -297,7 +338,8 @@
                 let has_tasks = gantt_detailed_view && t_roots.length > 0;
                 let is_p_collapsed = gantt_collapsed_nodes.has(p_id);
                 
-                let p_prefix = has_tasks ? (is_p_collapsed ? '  ▶ ' : '  ▼ ') : '    ';
+                let base_indent = is_independent ? '' : '  ';
+                let p_prefix = base_indent + (has_tasks ? (is_p_collapsed ? '<tspan class="gantt-toggle-btn">▶</tspan> ' : '<tspan class="gantt-toggle-btn">▼</tspan> ') : (is_independent ? '' : '↳ '));
 
                 mappedItems.push({
                     id: p_id,
@@ -321,9 +363,9 @@
                         let has_sub = t.children && t.children.length > 0;
                         let is_t_collapsed = gantt_collapsed_nodes.has(t_id);
 
-                        let baseIndent = '      ';
+                        let baseIndent = is_independent ? '  ' : '    ';
                         for(let i=0; i<indentLevel; i++) baseIndent += '  ';
-                        let t_prefix = has_sub ? (is_t_collapsed ? baseIndent + '▶ ' : baseIndent + '▼ ') : baseIndent + '• ';
+                        let t_prefix = has_sub ? (is_t_collapsed ? baseIndent + '<tspan class="gantt-toggle-btn">▶</tspan> ' : baseIndent + '<tspan class="gantt-toggle-btn">▼</tspan> ') : baseIndent + '• ';
 
                         mappedItems.push({
                             id: t_id,
@@ -366,21 +408,25 @@
                 view_mode: activeViewMode,
                 auto_move_label: true, 
                 on_click: (item) => {
-                    // Clicks on the bar body route to forms
+                    // Intercept routing if the user clicked the expand arrow!
+                    if (is_toggling_gantt_node) return; 
+                    
                     if (item.isProject) frappe.set_route("Form", "Project", item.project_docname);
                     else if (item.isTask) frappe.set_route("Form", "Task", item.task_docname);
                 },
                 custom_popup_html: function (item) {
+                    // Strip our injected <tspan> tags and symbols for the tooltip title
+                    const cleanName = item.name.replace(/<[^>]*>?/gm, '').replace(/[↳•▼▶]/g, '').trim();
+
                     if (item.isMaster) {
                         return `<div class="gantt-popup" style="padding: 10px; background: white; border: 1px solid #ccc; border-radius: 4px;">
-                                    <h5 class="mb-1">${item.name.replace(/[▼▶]/g, '').trim()}</h5>
+                                    <h5 class="mb-1">${cleanName}</h5>
                                     <p class="mb-0 text-muted"><strong>Overall Progress:</strong> ${Math.round(item.progress)}%</p>
                                 </div>`;
                     }
                     const startDate = frappe.datetime.str_to_user(item.custom_start_date);
                     const endDate = frappe.datetime.str_to_user(item.end);
                     const titlePrefix = item.isTask ? "Task" : "Project";
-                    const cleanName = item.name.replace(/[↳•▼▶]/g, '').trim();
 
                     return `
                         <div class="gantt-popup" style="padding: 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; position: absolute; min-width: 200px;">
@@ -393,14 +439,22 @@
                 }
             });
 
-            // Bind manual click listeners to the SVG text labels to trigger expand/collapse
-            $chartWrapper.find('.gantt-container').off('click', '.bar-label').on('click', '.bar-label', function(e) {
-                e.stopPropagation(); // prevent triggering the bar click
+            // Capture mousedown specifically on the arrow to trigger the intercept flag instantly
+            $chartWrapper.on('mousedown', '.gantt-toggle-btn', function(e) {
+                is_toggling_gantt_node = true;
+            });
+
+            // Bind click listeners ONLY to our injected <tspan> arrows
+            $chartWrapper.on('click', '.gantt-toggle-btn', function(e) {
+                e.stopPropagation(); 
+                is_toggling_gantt_node = true;
+                setTimeout(() => is_toggling_gantt_node = false, 300); // Clear flag shortly after
+                
                 let wrapper = $(this).closest('.bar-wrapper');
-                let id = wrapper.data('id');
+                let id = wrapper.attr('data-id');
                 let item = mappedItems.find(i => i.id === id);
                 
-                // Only toggle if it has children!
+                // Only toggle if it actually has children!
                 if (item && item.hasChildren) {
                     if (gantt_collapsed_nodes.has(id)) gantt_collapsed_nodes.delete(id);
                     else gantt_collapsed_nodes.add(id);
@@ -419,11 +473,8 @@
                     const today_el = real_container.querySelector(".today-highlight");
                     if (today_el) {
                         const container_width = real_container.clientWidth;
-                        const element_rect = today_el.getBoundingClientRect();
-                        const container_rect = real_container.getBoundingClientRect();
-                        const element_left_relative = element_rect.left - container_rect.left;
-                        const element_width = element_rect.width;
-                        const scroll_to_position = real_container.scrollLeft + element_left_relative - container_width / 2 + element_width / 2;
+                        const element_left_relative = today_el.getBoundingClientRect().left - real_container.getBoundingClientRect().left;
+                        const scroll_to_position = real_container.scrollLeft + element_left_relative - container_width / 2;
                         real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
                     }
                 }
