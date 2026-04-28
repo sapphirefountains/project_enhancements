@@ -32,13 +32,16 @@
 .sortable-header.active-sort.sort-asc::after { content: " \f0de"; font-family: "FontAwesome"; margin-left: 6px; }
 .sortable-header.active-sort.sort-desc::after { content: " \f0dd"; font-family: "FontAwesome"; margin-left: 6px; }
 
-/* Portfolio Gantt Class Mappings */
+/* Portfolio Gantt Hardcoded Classes */
 .gantt .gantt-master-project .bar { fill: #34495e !important; }
 .gantt .gantt-master-project .bar-progress { fill: #2c3e50 !important; }
 .gantt .gantt-master-project .bar-label { font-weight: bold !important; fill: #fff !important; }
 
-/* NOTE: Project and task colors are now dynamically injected via JS */
+/* Let dynamic JS colors handle the project fill, just define typography here */
 .gantt .gantt-project .bar-label { font-weight: bold !important; fill: #fff !important; }
+
+/* Let dynamic JS colors handle the task fill, just define heights and typography here */
+.gantt .gantt-task .bar, .gantt .gantt-task .bar-progress { height: 14px; transform: translateY(3px); }
 .gantt .gantt-task .bar-label { font-size: 11px !important; fill: #333 !important; }
 
 /* Fix overlapping labels */

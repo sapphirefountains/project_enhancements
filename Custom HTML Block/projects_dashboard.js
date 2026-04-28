@@ -35,6 +35,10 @@
         });
     };
 
+    function sanitizeId(str) {
+        return String(str || "").replace(/[^a-zA-Z0-9\-_]/g, '_');
+    }
+
     function show_skeleton() {
         $root.find('#dashboard-content').html(`
             <div class="skeleton-list p-4">
@@ -99,7 +103,7 @@
         const statusContainer = $root.find('#gantt-status-checkboxes');
         statusContainer.empty();
         all_gantt_statuses.forEach(s => {
-            let safe_id = s.replace(/\s+/g, '');
+            let safe_id = sanitizeId(s);
             statusContainer.append(`
                 <div class="custom-control custom-checkbox mb-1">
                     <input type="checkbox" class="custom-control-input gantt-status-cb" value="${s}" id="filter-gantt-${safe_id}" ${gantt_status_filters.includes(s) ? 'checked' : ''}>
@@ -122,7 +126,7 @@
             if (gantt_detailed_view && gantt_current_data) {
                 gantt_collapsed_nodes.clear();
                 gantt_current_data.projects.forEach(p => {
-                    gantt_collapsed_nodes.add('project_' + p.name);
+                    gantt_collapsed_nodes.add('project_' + sanitizeId(p.name));
                 });
             }
             fetch_and_render_portfolio_gantt();
@@ -135,16 +139,11 @@
             if (portfolio_gantt_instance) portfolio_gantt_instance.change_view_mode(mode);
         });
 
-        $root.find('#gantt-today-btn').on('click', function() {
-            if (!portfolio_gantt_instance) return;
-            const real_container = $root.find(".gantt-container")[0];
-            if (!real_container) return;
-            const today_el = real_container.querySelector(".today-highlight");
-            if (today_el) {
-                const container_width = real_container.clientWidth;
-                const today_x = parseFloat(today_el.getAttribute("x")); 
-                const scroll_to_position = today_x - (container_width / 2);
-                real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
+        // --- FIX 1: NATIVE SCROLL TO TODAY ---
+        $root.find('#gantt-today-btn').off('click').on('click', function(e) {
+            e.preventDefault();
+            if (portfolio_gantt_instance) {
+                portfolio_gantt_instance.set_scroll_position('today');
             }
         });
 
@@ -153,7 +152,9 @@
             $root.find('.gantt-proj-cb').prop('checked', isChecked);
         });
 
-        $root.find('#gantt-project-search, #global-project-search').on('keydown keyup keypress input', function(e) {
+        // --- FIX 2: STOP FRAPPE AWESOMEBAR HIJACKING ---
+        // Prevent keypresses from leaking out of the input boxes and triggering Frappe shortcuts
+        $root.find('#gantt-project-search, #global-project-search').on('keydown keyup keypress', function(e) {
             e.stopPropagation();
             if (e.key === 'Enter') e.preventDefault();
         });
@@ -190,10 +191,13 @@
         
         sorted.forEach(p => {
             let isChecked = gantt_selected_projects.size === 0 || gantt_selected_projects.has(p.name);
+            let safe_name = (p.project_name || p.name).toLowerCase().replace(/"/g, ''); // strip quotes so it doesn't break HTML
+            let safe_id = sanitizeId(p.name);
+
             container.append(`
-                <div class="custom-control custom-checkbox mb-1 gantt-proj-filter-item" data-name="${(p.project_name||p.name).toLowerCase()}">
-                    <input type="checkbox" class="custom-control-input gantt-proj-cb" value="${p.name}" id="filter-proj-${p.name}" ${isChecked ? 'checked' : ''}>
-                    <label class="custom-control-label" for="filter-proj-${p.name}" style="cursor: pointer; padding-top: 2px;">${p.project_name || p.name}</label>
+                <div class="custom-control custom-checkbox mb-1 gantt-proj-filter-item" data-name="${safe_name}">
+                    <input type="checkbox" class="custom-control-input gantt-proj-cb" value="${p.name}" id="filter-proj-${safe_id}" ${isChecked ? 'checked' : ''}>
+                    <label class="custom-control-label" for="filter-proj-${safe_id}" style="cursor: pointer; padding-top: 2px;">${p.project_name || p.name}</label>
                 </div>
             `);
         });
@@ -304,9 +308,9 @@
             if (!masterEnd || masterEnd < masterStart) masterEnd = new Date(masterStart.getTime() + (24*60*60*1000));
             let avgProgress = projects.length > 0 ? (totalProgress / projects.length) : 0;
 
-            let master_id = 'master_' + master;
+            let master_id = 'master_' + sanitizeId(master);
             let is_m_collapsed = gantt_collapsed_nodes.has(master_id);
-            
+
             if (!is_independent) {
                 let m_prefix = projects.length > 0 ? (is_m_collapsed ? '<tspan class="gantt-toggle-btn">▶</tspan> ' : '<tspan class="gantt-toggle-btn">▼</tspan> ') : '';
                 mappedItems.push({
@@ -328,7 +332,10 @@
                 project_counter++;
 
                 let pDates = getSafeDates(p.expected_start_date, p.expected_end_date);
-                let p_id = 'project_' + p.name;
+                
+                // --- FIX 3: BULLETPROOF IDs to prevent CSS parsing failures ---
+                let p_id = 'project_' + sanitizeId(p.name);
+                
                 let t_roots = projectTaskRoots[p.name] || [];
                 let has_tasks = gantt_detailed_view && t_roots.length > 0;
                 let is_p_collapsed = gantt_collapsed_nodes.has(p_id);
@@ -349,10 +356,11 @@
                     hasChildren: has_tasks
                 });
 
+                // Dynamically build the CSS targeting these specific sanitized IDs
                 dynamicStyles += `
-                    .gantt .bar-wrapper[data-id="${p_id}"] .bar { fill: ${c.bar} !important; }
-                    .gantt .bar-wrapper[data-id="${p_id}"] .bar-progress { fill: ${c.prog} !important; }
-                    .gantt .arrow path[data-from="${p_id}"] { stroke: ${c.bar} !important; stroke-width: 2px !important; }
+                    svg.gantt .bar-wrapper[data-id="${p_id}"] .bar { fill: ${c.bar} !important; }
+                    svg.gantt .bar-wrapper[data-id="${p_id}"] .bar-progress { fill: ${c.prog} !important; }
+                    svg.gantt path[data-from="${p_id}"] { stroke: ${c.bar} !important; stroke-width: 2px !important; opacity: 1 !important; }
                 `;
 
                 if (!has_tasks || is_p_collapsed) return; 
@@ -360,13 +368,15 @@
                 const pushTasks = (tasks, indentLevel) => {
                     tasks.forEach(t => {
                         let tDates = getSafeDates(t.exp_start_date, t.exp_end_date, pDates.start);
-                        let t_id = 'task_' + t.name;
+                        let t_id = 'task_' + sanitizeId(t.name);
                         let has_sub = t.children && t.children.length > 0;
                         let is_t_collapsed = gantt_collapsed_nodes.has(t_id);
 
                         let baseIndent = is_independent ? '  ' : '    ';
                         for(let i=0; i<indentLevel; i++) baseIndent += '  ';
                         let t_prefix = has_sub ? (is_t_collapsed ? baseIndent + '<tspan class="gantt-toggle-btn">▶</tspan> ' : baseIndent + '<tspan class="gantt-toggle-btn">▼</tspan> ') : baseIndent + '• ';
+                        
+                        let dep_id = indentLevel === 0 ? p_id : 'task_' + sanitizeId(t.parent_task);
 
                         mappedItems.push({
                             id: t_id,
@@ -374,7 +384,7 @@
                             start: moment(tDates.start).format("YYYY-MM-DD"),
                             end: moment(tDates.end).format("YYYY-MM-DD"),
                             progress: t.progress || 0,
-                            dependencies: indentLevel === 0 ? p_id : 'task_' + t.parent_task,
+                            dependencies: dep_id,
                             custom_class: 'gantt-task', 
                             custom_start_date: t.exp_start_date || p.expected_start_date,
                             isTask: true,
@@ -383,9 +393,9 @@
                         });
 
                         dynamicStyles += `
-                            .gantt .bar-wrapper[data-id="${t_id}"] .bar { fill: ${c.bar} !important; opacity: 0.65; height: 14px; transform: translateY(3px); }
-                            .gantt .bar-wrapper[data-id="${t_id}"] .bar-progress { fill: ${c.prog} !important; height: 14px; transform: translateY(3px); }
-                            .gantt .arrow path[data-from="${t_id}"] { stroke: ${c.bar} !important; stroke-width: 1.5px !important; opacity: 0.8;}
+                            svg.gantt .bar-wrapper[data-id="${t_id}"] .bar { fill: ${c.bar} !important; opacity: 0.65 !important; height: 14px !important; transform: translateY(3px) !important; }
+                            svg.gantt .bar-wrapper[data-id="${t_id}"] .bar-progress { fill: ${c.prog} !important; height: 14px !important; transform: translateY(3px) !important; }
+                            svg.gantt path[data-from="${t_id}"] { stroke: ${c.bar} !important; stroke-width: 1.5px !important; opacity: 0.9 !important;}
                         `;
 
                         if (has_sub && !is_t_collapsed) {
@@ -471,13 +481,7 @@
                 if (preserve_scroll) {
                     real_container.scrollTo({ left: scroll_left, top: scroll_top, behavior: "auto" });
                 } else {
-                    const today_el = real_container.querySelector(".today-highlight");
-                    if (today_el) {
-                        const container_width = real_container.clientWidth;
-                        const element_left_relative = today_el.getBoundingClientRect().left - real_container.getBoundingClientRect().left;
-                        const scroll_to_position = real_container.scrollLeft + element_left_relative - container_width / 2;
-                        real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
-                    }
+                    portfolio_gantt_instance.set_scroll_position('today');
                 }
             }, 50); 
         });
@@ -859,7 +863,7 @@
         if (current_tab === "portfolio-gantt") {
             $root.find('#gantt-controls').show();
             $root.find('#standard-controls').hide();
-            fetch_and_render_portfolio_gantt(); // FIXED: Uses correct function call!
+            fetch_and_render_portfolio_gantt();
         } else {
             $root.find('#gantt-controls').hide();
             $root.find('#standard-controls').show();
