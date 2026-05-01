@@ -57,7 +57,16 @@ frappe.ui.form.on("Project", {
 							args: { project_name: frm.doc.name },
 							callback: (r) => {
 								if (r.message && !r.message.error) {
-									const tasks = r.message.map(t => { if (t.is_milestone) t.custom_class = (t.custom_class || "") + " bar-milestone"; return t; });
+									const tasks = r.message.map(t => {
+										if (t.is_milestone) {
+											let classes = (t.custom_class || "").split(" ").filter(c => c.trim().length > 0);
+											if (!classes.includes("bar-milestone")) {
+												classes.push("bar-milestone");
+											}
+											t.custom_class = classes.join(" ");
+										}
+										return t;
+									});
 									if (tasks.length === 0) { chart_container.html('<p class="text-muted text-center p-4">No tasks found for this project.</p>'); return; }
 									wrapperField.render_heatmap(frm, heatmap_container);
 									let clickTimer = null;
