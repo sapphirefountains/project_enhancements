@@ -66,8 +66,43 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
 
 		const listContainer = $('<div class="frappe-list"></div>').appendTo(this.wrapper);
 
+		// Group by custom_master_project
+		let groups = {};
+		projects.forEach((p) => {
+			let master = p.custom_master_project || "Independent Projects";
+			if (!groups[master]) {
+				groups[master] = [];
+			}
+			groups[master].push(p);
+		});
+
+		// Sort master groups alphabetically, but keep Independent Projects at the bottom
+		let sorted_masters = Object.keys(groups).sort((a, b) => {
+			if (a === "Independent Projects") return 1;
+			if (b === "Independent Projects") return -1;
+			return a.localeCompare(b);
+		});
+
+		sorted_masters.forEach((master) => {
+			let master_projects = groups[master];
+
+			// Sort projects within the group alphabetically by name
+			master_projects.sort((a, b) => {
+				let nameA = a.project_name || "";
+				let nameB = b.project_name || "";
+				return nameA.localeCompare(nameB);
+			});
+
+			$(`<h5 class="mt-4 mb-3 text-muted border-bottom pb-2">${master}</h5>`).appendTo(
+				listContainer
+			);
+			this.render_table(listContainer, master_projects);
+		});
+	}
+
+	render_table(container, projects) {
 		const table = $(`
-            <table class="table table-bordered table-hover">
+            <table class="table table-bordered table-hover mb-4">
                 <thead class="thead-light">
                     <tr>
                         <th>Project Name</th>
@@ -79,7 +114,7 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
                 </thead>
                 <tbody></tbody>
             </table>
-        `).appendTo(listContainer);
+        `).appendTo(container);
 
 		const tbody = table.find("tbody");
 		const statusOptions = [
@@ -137,7 +172,7 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
 		});
 
 		// Trigger global event on edit
-		this.wrapper.find(".project-edit").on("change", (e) => {
+		table.find(".project-edit").on("change", (e) => {
 			const el = $(e.target);
 			const project = el.closest("tr").data("project");
 			const field = el.data("field");
