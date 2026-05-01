@@ -33,14 +33,8 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
 			if (signal.aborted) return;
 
 			if (projects.message && !projects.message.error) {
-				const allowedTypes = [
-					"Group Projects",
-					"Internal",
-					"Organizational Projects",
-					"Other",
-				];
 				const filteredProjects = projects.message.filter(
-					(p) => p.is_active === "Yes" && allowedTypes.includes(p.project_type)
+					(p) => p.is_active === "Yes"
 				);
 
 				this.render_list_view(filteredProjects);

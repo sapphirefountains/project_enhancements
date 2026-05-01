@@ -802,8 +802,7 @@
         container.empty();
         
         let state = sort_state['active-internal-projects'];
-        const allowedTypes = ["Group Projects", "Internal", "Organizational Projects", "Other"];
-        let internal_projects = project_data.filter(p => p.is_active === "Yes" && allowedTypes.includes(p.project_type));
+        let internal_projects = project_data.filter(p => p.is_active === "Yes");
 
         let groups = {};
         internal_projects.forEach(p => {
