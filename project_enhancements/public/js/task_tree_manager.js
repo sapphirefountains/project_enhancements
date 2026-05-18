@@ -282,6 +282,9 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 			if (isExpanded) childContainer.append(this.createQuickAddRow(task.name, level + 1));
 		} else if (hasChildren && isExpanded) {
 			node.find(".child-tasks-container").html('<div class="p-2 text-muted small"><i class="fa fa-spinner fa-spin mr-1"></i> Loading children...</div>');
+			this.fetchChildren(task.name, node.find(".child-tasks-container"), level + 1);
+			node.data("loaded", "true");
+			node.attr("data-loaded", "true");
 		}
 	}
 
