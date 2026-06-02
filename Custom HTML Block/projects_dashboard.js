@@ -1,4 +1,11 @@
 (function() {
+    // The ColumnSelector class lives in a separate asset registered via app_include_js.
+    // Don't assume that bundle has already executed when this block renders — load it
+    // explicitly so the dashboard works regardless of asset load order / build state.
+    frappe.provide("project_enhancements.dashboard_components");
+    frappe.require("/assets/project_enhancements/js/dashboard_components/column_selector.js", init_dashboard);
+
+    function init_dashboard() {
     const $root = $(root_element);
 
     let current_tab = "priority-overview";
@@ -1002,4 +1009,5 @@
 
     // Init
     fetch_initial_data();
+    }
 })();
