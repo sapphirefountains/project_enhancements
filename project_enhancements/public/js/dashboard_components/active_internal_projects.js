@@ -5,6 +5,17 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
 	constructor(wrapper) {
 		this.wrapper = $(wrapper);
 		this.abortController = null;
+		this.columnSelector = new project_enhancements.dashboard_components.ColumnSelector(
+			"project_dashboard_active_internal_columns",
+			[
+				{ key: "project_name", label: "Project Name", locked: true },
+				{ key: "project_id", label: "Project ID" },
+				{ key: "status", label: "Status" },
+				{ key: "priority", label: "Priority" },
+				{ key: "percent_complete", label: "% Complete" },
+				{ key: "assigned_to", label: "Assigned To" },
+			]
+		);
 	}
 
 	async render() {
@@ -58,6 +69,11 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
 			return;
 		}
 
+		const toolbar = $('<div class="dashboard-list-toolbar"></div>').appendTo(this.wrapper);
+		this.columnSelector.render_button(toolbar, () =>
+			this.columnSelector.apply(this.wrapper)
+		);
+
 		const listContainer = $('<div class="frappe-list"></div>').appendTo(this.wrapper);
 
 		// Group by custom_master_project
@@ -92,6 +108,8 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
 			);
 			this.render_table(listContainer, master_projects);
 		});
+
+		this.columnSelector.apply(this.wrapper);
 	}
 
 	render_table(container, projects) {
@@ -99,11 +117,12 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
             <table class="table table-bordered table-hover mb-4">
                 <thead class="thead-light">
                     <tr>
-                        <th>Project Name</th>
-                        <th>Status</th>
-                        <th>Priority</th>
-                        <th>% Complete</th>
-                        <th>Assigned To</th>
+                        <th class="dashcol dashcol-project_name">Project Name</th>
+                        <th class="dashcol dashcol-project_id">Project ID</th>
+                        <th class="dashcol dashcol-status">Status</th>
+                        <th class="dashcol dashcol-priority">Priority</th>
+                        <th class="dashcol dashcol-percent_complete">% Complete</th>
+                        <th class="dashcol dashcol-assigned_to">Assigned To</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -139,12 +158,15 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
 
 			const row = $(`
                 <tr data-project="${p.name}">
-                    <td><a href="/app/project/${p.name}" class="font-weight-bold">${
-				p.project_name
-			}</a></td>
-                    <td><select class="form-control form-control-sm project-edit" data-field="status">${statusSelect}</select></td>
-                    <td><select class="form-control form-control-sm project-edit" data-field="custom_project_priority">${prioritySelect}</select></td>
-                    <td>
+                    <td class="dashcol dashcol-project_name project-name-cell"><a href="/app/project/${
+						p.name
+					}" class="font-weight-bold">${p.project_name}</a></td>
+                    <td class="dashcol dashcol-project_id project-id-cell"><a href="/app/project/${
+						p.name
+					}" class="text-muted">${p.name}</a></td>
+                    <td class="dashcol dashcol-status"><select class="form-control form-control-sm project-edit" data-field="status">${statusSelect}</select></td>
+                    <td class="dashcol dashcol-priority"><select class="form-control form-control-sm project-edit" data-field="custom_project_priority">${prioritySelect}</select></td>
+                    <td class="dashcol dashcol-percent_complete">
                         <div class="progress" style="height: 10px; border-radius: 4px;">
                             <div class="progress-bar bg-primary" role="progressbar" style="width: ${
 								p.percent_complete || 0
@@ -153,7 +175,9 @@ project_enhancements.dashboard_components.ActiveInternalProjects = class ActiveI
 			}" aria-valuemin="0" aria-valuemax="100"></div>
                         </div>
                     </td>
-                    <td class="text-muted">${p.project_user || "Unassigned"}</td>
+                    <td class="dashcol dashcol-assigned_to text-muted">${
+						p.project_user || "Unassigned"
+					}</td>
                 </tr>
             `);
 

@@ -43,6 +43,7 @@ app_include_js = [
 	"/assets/project_enhancements/js/lib/frappe-gantt.umd.js",
 	"/assets/project_enhancements/js/gantt_auto_scroll.js",
 	"/assets/project_enhancements/js/task_tree_manager.js",
+	"/assets/project_enhancements/js/dashboard_components/column_selector.js",
 ]
 
 doctype_list_js = {"Task": "project_enhancements/public/js/task_gantt.js"}

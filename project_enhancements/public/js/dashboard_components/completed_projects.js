@@ -5,6 +5,16 @@ project_enhancements.dashboard_components.CompletedProjects = class CompletedPro
 	constructor(wrapper) {
 		this.wrapper = $(wrapper);
 		this.abortController = null;
+		this.columnSelector = new project_enhancements.dashboard_components.ColumnSelector(
+			"project_dashboard_completed_columns",
+			[
+				{ key: "project_name", label: "Project Name", locked: true },
+				{ key: "project_id", label: "Project ID" },
+				{ key: "status", label: "Status" },
+				{ key: "project_type", label: "Type" },
+				{ key: "assigned_to", label: "Assigned To" },
+			]
+		);
 	}
 
 	async render() {
@@ -89,16 +99,22 @@ project_enhancements.dashboard_components.CompletedProjects = class CompletedPro
 			return;
 		}
 
+		const toolbar = $('<div class="dashboard-list-toolbar"></div>').appendTo(this.wrapper);
+		this.columnSelector.render_button(toolbar, () =>
+			this.columnSelector.apply(this.wrapper)
+		);
+
 		const listContainer = $('<div class="frappe-list"></div>').appendTo(this.wrapper);
 
 		const table = $(`
             <table class="table table-bordered table-hover">
                 <thead class="thead-light">
                     <tr>
-                        <th>Project Name</th>
-                        <th>Status</th>
-                        <th>Type</th>
-                        <th>Assigned To</th>
+                        <th class="dashcol dashcol-project_name">Project Name</th>
+                        <th class="dashcol dashcol-project_id">Project ID</th>
+                        <th class="dashcol dashcol-status">Status</th>
+                        <th class="dashcol dashcol-project_type">Type</th>
+                        <th class="dashcol dashcol-assigned_to">Assigned To</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -110,14 +126,21 @@ project_enhancements.dashboard_components.CompletedProjects = class CompletedPro
 		projects.forEach((p) => {
 			const row = $(`
                 <tr data-project="${p.name}">
-                    <td><a href="/app/project/${p.name}" class="font-weight-bold">${
-				p.project_name
-			}</a></td>
-                    <td><span class="badge ${this.get_status_badge(p.status)}">${
-				p.status
-			}</span></td>
-                    <td>${p.project_type || "Uncategorized"}</td>
-                    <td class="text-muted">${p.project_user || "Unassigned"}</td>
+                    <td class="dashcol dashcol-project_name project-name-cell"><a href="/app/project/${
+						p.name
+					}" class="font-weight-bold">${p.project_name}</a></td>
+                    <td class="dashcol dashcol-project_id project-id-cell"><a href="/app/project/${
+						p.name
+					}" class="text-muted">${p.name}</a></td>
+                    <td class="dashcol dashcol-status"><span class="badge ${this.get_status_badge(
+						p.status
+					)}">${p.status}</span></td>
+                    <td class="dashcol dashcol-project_type">${
+						p.project_type || "Uncategorized"
+					}</td>
+                    <td class="dashcol dashcol-assigned_to text-muted">${
+						p.project_user || "Unassigned"
+					}</td>
                 </tr>
             `);
 
@@ -128,6 +151,8 @@ project_enhancements.dashboard_components.CompletedProjects = class CompletedPro
 
 			tbody.append(row);
 		});
+
+		this.columnSelector.apply(this.wrapper);
 	}
 
 	get_status_badge(status) {
