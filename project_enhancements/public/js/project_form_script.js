@@ -62,8 +62,12 @@ frappe.ui.form.on("Project", {
 							original_refresh.call(this);
 						}
 
-						// By the time this runs, the tab has been clicked and this.$wrapper is guaranteed to exist
-						if (this.$wrapper && this.$wrapper.children().length === 0) {
+						// By the time this runs, the tab has been clicked and this.$wrapper is guaranteed to exist.
+						// Guard on our own injected marker (.task-tree-container) rather than a raw
+						// children() count: a Frappe HTML control's $wrapper already contains internal
+						// label/input structure after original_refresh, so children().length is never 0
+						// and the tree would otherwise never render.
+						if (this.$wrapper && this.$wrapper.find(".task-tree-container").length === 0) {
 							const docName = frm.doc.name;
 
 							frappe
@@ -219,7 +223,9 @@ frappe.ui.form.on("Project", {
 			styleEl.id = styleId;
 			styleEl.innerHTML = `
                 .inner-group-button[data-label="View"],
-                .custom-btn-group[data-label="View"] {
+                .custom-btn-group[data-label="View"],
+                .inner-group-button[data-label="View Tasks"],
+                .custom-btn-group[data-label="View Tasks"] {
                     display: none !important;
                 }
             `;
@@ -235,141 +241,5 @@ frappe.ui.form.on("Project", {
 				}
 			}
 		}, 100);
-
-		// =========================================================================
-		// 6. CUSTOM "VIEW TASKS" DROPDOWN
-		// =========================================================================
-		if (frappe.has_permission("Task", "read")) {
-			// Helper to wait for an element without hardcoded timeouts
-			const waitForElement = (selector, timeout = 3000) => {
-				return new Promise((resolve, reject) => {
-					if (document.querySelector(selector)) {
-						return resolve(document.querySelector(selector));
-					}
-
-					const observer = new MutationObserver(() => {
-						if (document.querySelector(selector)) {
-							observer.disconnect();
-							resolve(document.querySelector(selector));
-						}
-					});
-
-					observer.observe(document.body, {
-						childList: true,
-						subtree: true
-					});
-
-					setTimeout(() => {
-						observer.disconnect();
-						reject(new Error(`Timeout waiting for element: ${selector}`));
-					}, timeout);
-				});
-			};
-
-			// Create parent dropdown first
-			frm.add_custom_button(
-				__("Calendar"),
-				async function () {
-					frappe.dom.freeze(__("Navigating to Calendar View..."));
-					try {
-						frappe.route_options = { project: frm.doc.name };
-						await frappe.set_route("List", "Task", "Calendar");
-					} catch (error) {
-						frappe.msgprint({
-							title: __("Error"),
-							message: __("Failed to navigate to Calendar View."),
-							indicator: "red",
-						});
-					} finally {
-						frappe.dom.unfreeze();
-					}
-				},
-				__("View Tasks")
-			);
-
-			// Yield execution then check if parent rendered, followed by adding the remaining options
-			setTimeout(() => {
-				waitForElement('.inner-group-button[data-label="View Tasks"], .custom-btn-group[data-label="View Tasks"]')
-					.then((dropdownGroupEl) => {
-						frm.add_custom_button(
-							__("Kanban"),
-							async function () {
-								frappe.dom.freeze(__("Navigating to Kanban Board..."));
-								try {
-									frappe.route_options = { project: frm.doc.name };
-									await frappe.set_route("List", "Task", "Kanban");
-								} catch (error) {
-									frappe.msgprint({
-										title: __("Error"),
-										message: __("Failed to navigate to Kanban Board."),
-										indicator: "red",
-									});
-								} finally {
-									frappe.dom.unfreeze();
-								}
-							},
-							__("View Tasks")
-						);
-
-						frm.add_custom_button(
-							__("Gantt"),
-							function () {
-								console.log("View Tasks > Gantt clicked - routing to tab.");
-								// Go to Schedule tab specifically
-								window.location.hash = "#custom_schedule";
-								setTimeout(() => {
-									const scheduleTab = frm.$wrapper.find(
-										'.form-tabs .nav-item[data-label="Schedule"], .form-tabs .nav-item[data-fieldname="custom_schedule"]'
-									);
-									if (scheduleTab.length) {
-										const tabLink = scheduleTab.find("a.nav-link");
-										if (tabLink.length) {
-											tabLink.click();
-										} else {
-											scheduleTab.click();
-										}
-									}
-									
-									// Scroll down to the chart section after tab transition
-									setTimeout(() => {
-										frm.scroll_to_field("custom_gantt_chart_section");
-									}, 200);
-								}, 100);
-							},
-							__("View Tasks")
-						);
-
-						frm.add_custom_button(
-							__("Tree View"),
-							function () {
-								window.location.hash = "#custom_scope";
-								setTimeout(() => {
-									const scopeTab = frm.$wrapper.find(
-										'.form-tabs .nav-item[data-label="Scope"], .form-tabs .nav-item[data-fieldname="custom_scope"]'
-									);
-									if (scopeTab.length) {
-										const tabLink = scopeTab.find("a.nav-link");
-										if (tabLink.length) {
-											tabLink.click();
-										} else {
-											scopeTab.click();
-										}
-									}
-								}, 100);
-							},
-							__("View Tasks")
-						);
-
-						// Style parent button
-						const btnGroup = $(dropdownGroupEl).find('button').first();
-						if (btnGroup.length) {
-							btnGroup.removeClass("btn-default").addClass("btn-primary");
-						}
-					})
-					.catch((err) => {
-						console.error(err);
-					});
-			}, 0);
-		}
 	},
 });
