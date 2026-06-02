@@ -24,6 +24,44 @@
         'completed-projects': { col: 'project_name', order: 'asc' }
     };
 
+    const ColumnSelector = project_enhancements.dashboard_components.ColumnSelector;
+    const column_selectors = {
+        'priority-overview': new ColumnSelector('chb_priority_overview_columns', [
+            { key: 'project_name', label: 'Project Name', locked: true },
+            { key: 'project_id', label: 'Project ID' },
+            { key: 'company_priority', label: 'Company Priority' },
+            { key: 'project_priority', label: 'Project Priority' },
+            { key: 'percent_complete', label: 'Completion' },
+            { key: 'spend_percent', label: 'Spend %' }
+        ]),
+        'active-internal-projects': new ColumnSelector('chb_active_internal_columns', [
+            { key: 'project_name', label: 'Project Name', locked: true },
+            { key: 'project_id', label: 'Project ID' },
+            { key: 'status', label: 'Status' },
+            { key: 'custom_project_priority', label: 'Priority' },
+            { key: 'percent_complete', label: '% Complete' },
+            { key: 'project_user', label: 'Assigned To' }
+        ]),
+        'completed-projects': new ColumnSelector('chb_completed_columns', [
+            { key: 'project_name', label: 'Project Name', locked: true },
+            { key: 'project_id', label: 'Project ID' },
+            { key: 'status', label: 'Status' },
+            { key: 'project_type', label: 'Type' },
+            { key: 'project_user', label: 'Assigned To' }
+        ])
+    };
+
+    function render_column_toolbar(container) {
+        let selector = column_selectors[current_tab];
+        if (!selector) return;
+        let toolbar = $('<div class="dashboard-list-toolbar"></div>');
+        container.append(toolbar);
+        selector.render_button(toolbar, () => selector.apply(container));
+    }
+
+    // Project ID header is non-sortable; built inline to sit beside Project Name.
+    const project_id_th = '<th class="dashcol dashcol-project_id" style="min-width: 120px; white-space: nowrap;">Project ID</th>';
+
     const api_call = (method, args = {}) => {
         return new Promise((resolve, reject) => {
             frappe.call({
@@ -548,12 +586,12 @@
         return `<span class="badge badge-secondary">${frappe.utils.escape_html(p)}</span>`;
     }
 
-    function build_editable_priority_cell(project_name, field, current_val, options_array) {
-        let opts_html = '<option value="">Not Assigned</option>' + 
+    function build_editable_priority_cell(project_name, field, current_val, options_array, col_key) {
+        let opts_html = '<option value="">Not Assigned</option>' +
             options_array.map(opt => `<option value="${opt}" ${opt === current_val ? 'selected' : ''}>${opt}</option>`).join('');
-        
+
         return `
-            <td class="editable-priority" data-project="${project_name}" data-field="${field}" style="min-width: 140px;">
+            <td class="editable-priority dashcol dashcol-${col_key}" data-project="${project_name}" data-field="${field}" style="min-width: 140px;">
                 <div class="static-view" style="cursor: pointer;" title="Click to edit">
                     ${get_priority_badge(current_val)}
                 </div>
@@ -585,7 +623,7 @@
 
     function th(col_name, label, title="") {
         let state = sort_state[current_tab];
-        let cls = "sortable-header";
+        let cls = "sortable-header dashcol dashcol-" + col_name;
         if (state && state.col === col_name) {
             cls += " active-sort sort-" + state.order;
         }
@@ -618,10 +656,11 @@
                 <thead class="thead-light">
                     <tr>
                         ${th('project_name', 'Project Name')}
+                        ${project_id_th}
                         ${th('company_priority', 'Company Priority')}
                         ${th('project_priority', 'Project Priority', 'Groups by Value Stream')}
                         ${th('percent_complete', 'Completion')}
-                        ${th('budget_health', 'Budget Health')}
+                        ${th('spend_percent', 'Spend %', 'Spend as % of total project budget')}
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -629,15 +668,18 @@
         `);
 
         projects.forEach(p => {
-            let budget_health = (parseFloat(p.custom_project_dollar_amount) || 0) - (parseFloat(p.estimated_costing) || 0);
-            let budget_color = budget_health >= 0 ? "text-success" : "text-danger";
-            
+            let total_budget = parseFloat(p.custom_project_dollar_amount) || 0;
+            let spend = parseFloat(p.estimated_costing) || 0;
+            let spend_percent = total_budget ? (spend / total_budget) * 100 : 0;
+            let spend_color = spend_percent > 100 ? "text-danger" : "text-success";
+
             let row = $(`
                 <tr>
-                    <td style="min-width: 200px;"><a href="/app/project/${p.name}" class="font-weight-bold">${p.project_name}</a></td>
-                    ${build_editable_priority_cell(p.name, 'custom_company_priority', p.custom_company_priority, priority_options.company_priority || [])}
-                    ${build_editable_priority_cell(p.name, 'custom_project_priority', p.custom_project_priority, priority_options.project_priority || [])}
-                    <td style="min-width: 150px;">
+                    <td class="dashcol dashcol-project_name project-name-cell" style="min-width: 200px;"><a href="/app/project/${p.name}" class="font-weight-bold">${p.project_name}</a></td>
+                    <td class="dashcol dashcol-project_id project-id-cell"><a href="/app/project/${p.name}" class="text-muted">${p.name}</a></td>
+                    ${build_editable_priority_cell(p.name, 'custom_company_priority', p.custom_company_priority, priority_options.company_priority || [], 'company_priority')}
+                    ${build_editable_priority_cell(p.name, 'custom_project_priority', p.custom_project_priority, priority_options.project_priority || [], 'project_priority')}
+                    <td class="dashcol dashcol-percent_complete" style="min-width: 150px;">
                         <div class="d-flex align-items-center">
                             <div class="progress flex-grow-1 mr-2" style="height: 10px;">
                                 <div class="progress-bar bg-primary" style="width: ${p.percent_complete || 0}%"></div>
@@ -645,7 +687,7 @@
                             <span class="small font-weight-bold">${Math.round(p.percent_complete || 0)}%</span>
                         </div>
                     </td>
-                    <td class="font-weight-bold ${budget_color}" style="min-width: 140px;">${frappe.format(budget_health, {fieldtype: "Currency"})}</td>
+                    <td class="dashcol dashcol-spend_percent font-weight-bold ${spend_color}" style="min-width: 140px;">${total_budget ? Math.round(spend_percent) + '%' : '—'}</td>
                 </tr>
             `);
             table.find('tbody').append(row);
@@ -688,6 +730,7 @@
     function render_priority_overview() {
         let container = $root.find('#dashboard-content');
         container.empty();
+        render_column_toolbar(container);
 
         let state = sort_state['priority-overview'];
         let active_projects = project_data.filter(p => p.is_active === "Yes");
@@ -726,10 +769,12 @@
                     diff = get_priority_weight(a.custom_company_priority) - get_priority_weight(b.custom_company_priority);
                 } else if (state.col === 'percent_complete') {
                     diff = (parseFloat(a.percent_complete) || 0) - (parseFloat(b.percent_complete) || 0);
-                } else if (state.col === 'budget_health') {
-                    let healthA = (parseFloat(a.custom_project_dollar_amount) || 0) - (parseFloat(a.estimated_costing) || 0);
-                    let healthB = (parseFloat(b.custom_project_dollar_amount) || 0) - (parseFloat(b.estimated_costing) || 0);
-                    diff = healthA - healthB;
+                } else if (state.col === 'spend_percent') {
+                    let budgetA = parseFloat(a.custom_project_dollar_amount) || 0;
+                    let budgetB = parseFloat(b.custom_project_dollar_amount) || 0;
+                    let pctA = budgetA ? ((parseFloat(a.estimated_costing) || 0) / budgetA) * 100 : 0;
+                    let pctB = budgetB ? ((parseFloat(b.estimated_costing) || 0) / budgetB) * 100 : 0;
+                    diff = pctA - pctB;
                 }
                 
                 if (diff === 0 && state.col !== 'project_name') {
@@ -739,6 +784,8 @@
             });
             container.append(build_priority_table(projects_to_show));
         }
+
+        column_selectors['priority-overview'].apply(container);
     }
 
     function build_internal_table(projects) {
@@ -748,6 +795,7 @@
                 <thead class="thead-light">
                     <tr>
                         ${th('project_name', 'Project Name')}
+                        ${project_id_th}
                         ${th('status', 'Status')}
                         ${th('custom_project_priority', 'Priority')}
                         ${th('percent_complete', '% Complete')}
@@ -771,10 +819,11 @@
 
             table.find('tbody').append(`
                 <tr>
-                    <td style="min-width: 200px;"><a href="/app/project/${p.name}" class="font-weight-bold">${p.project_name}</a></td>
-                    <td style="min-width: 140px;">${status_html}</td>
-                    <td style="min-width: 140px;">${priority_html}</td>
-                    <td style="min-width: 150px;">
+                    <td class="dashcol dashcol-project_name project-name-cell" style="min-width: 200px;"><a href="/app/project/${p.name}" class="font-weight-bold">${p.project_name}</a></td>
+                    <td class="dashcol dashcol-project_id project-id-cell"><a href="/app/project/${p.name}" class="text-muted">${p.name}</a></td>
+                    <td class="dashcol dashcol-status" style="min-width: 140px;">${status_html}</td>
+                    <td class="dashcol dashcol-custom_project_priority" style="min-width: 140px;">${priority_html}</td>
+                    <td class="dashcol dashcol-percent_complete" style="min-width: 150px;">
                         <div class="d-flex align-items-center">
                             <div class="progress flex-grow-1 mr-2" style="height: 10px;">
                                 <div class="progress-bar bg-primary" style="width: ${p.percent_complete || 0}%"></div>
@@ -782,7 +831,7 @@
                             <span class="small font-weight-bold">${Math.round(p.percent_complete || 0)}%</span>
                         </div>
                     </td>
-                    <td style="min-width: 150px;">${p.project_user || "Unassigned"}</td>
+                    <td class="dashcol dashcol-project_user" style="min-width: 150px;">${p.project_user || "Unassigned"}</td>
                 </tr>
             `);
         });
@@ -800,7 +849,8 @@
     function render_active_internal() {
         let container = $root.find('#dashboard-content');
         container.empty();
-        
+        render_column_toolbar(container);
+
         let state = sort_state['active-internal-projects'];
         let internal_projects = project_data.filter(p => p.is_active === "Yes");
 
@@ -833,12 +883,15 @@
             container.append(`<h5 class="mt-4 mb-3 text-muted border-bottom pb-2">${master}</h5>`);
             container.append(build_internal_table(master_projects));
         });
+
+        column_selectors['active-internal-projects'].apply(container);
     }
 
     function render_completed_projects() {
         let container = $root.find('#dashboard-content');
         container.empty();
-        
+        render_column_toolbar(container);
+
         let state = sort_state['completed-projects'];
         let completed_projects = project_data.filter(p => p.is_active === "No");
 
@@ -859,6 +912,7 @@
                 <thead class="thead-light">
                     <tr>
                         ${th('project_name', 'Project Name')}
+                        ${project_id_th}
                         ${th('status', 'Status')}
                         ${th('project_type', 'Type')}
                         ${th('project_user', 'Assigned To')}
@@ -876,10 +930,11 @@
 
             table.find('tbody').append(`
                 <tr>
-                    <td style="min-width: 200px;"><a href="/app/project/${p.name}" class="font-weight-bold">${p.project_name}</a></td>
-                    <td style="min-width: 120px;"><span class="badge badge-${status_badge}">${p.status}</span></td>
-                    <td style="min-width: 150px;">${p.project_type || "Uncategorized"}</td>
-                    <td style="min-width: 150px;" class="text-muted">${p.project_user || "Unassigned"}</td>
+                    <td class="dashcol dashcol-project_name project-name-cell" style="min-width: 200px;"><a href="/app/project/${p.name}" class="font-weight-bold">${p.project_name}</a></td>
+                    <td class="dashcol dashcol-project_id project-id-cell"><a href="/app/project/${p.name}" class="text-muted">${p.name}</a></td>
+                    <td class="dashcol dashcol-status" style="min-width: 120px;"><span class="badge badge-${status_badge}">${p.status}</span></td>
+                    <td class="dashcol dashcol-project_type" style="min-width: 150px;">${p.project_type || "Uncategorized"}</td>
+                    <td class="dashcol dashcol-project_user text-muted" style="min-width: 150px;">${p.project_user || "Unassigned"}</td>
                 </tr>
             `);
         });
@@ -888,7 +943,10 @@
         wrapper.append(table);
 
         if (completed_projects.length === 0) container.html('<div class="p-4 text-center text-muted">No completed projects found.</div>');
-        else container.append(wrapper);
+        else {
+            container.append(wrapper);
+            column_selectors['completed-projects'].apply(container);
+        }
     }
 
     function render_current_tab() {

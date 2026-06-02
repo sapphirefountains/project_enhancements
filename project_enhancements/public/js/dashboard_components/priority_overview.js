@@ -188,6 +188,17 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 		this.bufferManager = new project_enhancements.dashboard_components.BufferManager(this);
 		this.projectPriorityOptions = [];
 		this.companyPriorityOptions = [];
+		this.columnSelector = new project_enhancements.dashboard_components.ColumnSelector(
+			"project_dashboard_priority_columns",
+			[
+				{ key: "project_name", label: "Project Name", locked: true },
+				{ key: "project_id", label: "Project ID" },
+				{ key: "custom_company_priority", label: "Company Priority" },
+				{ key: "custom_project_priority", label: "Project Priority" },
+				{ key: "completion", label: "Completion Percentage" },
+				{ key: "spend_percent", label: "Spend %" },
+			]
+		);
 	}
 
 	set_view(view) {
@@ -282,6 +293,11 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 			return;
 		}
 
+		const toolbar = $('<div class="dashboard-list-toolbar"></div>').appendTo(this.wrapper);
+		this.columnSelector.render_button(toolbar, () =>
+			this.columnSelector.apply(this.wrapper)
+		);
+
 		const listContainer = $('<div class="frappe-list"></div>').appendTo(this.wrapper);
 
 		if (this.current_view === "company_priority") {
@@ -339,6 +355,8 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 				this.render_table(listContainer, stream_projects);
 			});
 		}
+
+		this.columnSelector.apply(this.wrapper);
 	}
 
 	render_table(container, projects) {
@@ -346,11 +364,12 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
             <table class="table table-bordered table-hover mb-4">
                 <thead class="thead-light">
                     <tr>
-                        <th>Project Name</th>
-                        <th>Company Priority</th>
-                        <th>Project Priority</th>
-                        <th>Completion Percentage</th>
-                        <th>Project Budget Health</th>
+                        <th class="dashcol dashcol-project_name">Project Name</th>
+                        <th class="dashcol dashcol-project_id">Project ID</th>
+                        <th class="dashcol dashcol-custom_company_priority">Company Priority</th>
+                        <th class="dashcol dashcol-custom_project_priority">Project Priority</th>
+                        <th class="dashcol dashcol-completion">Completion Percentage</th>
+                        <th class="dashcol dashcol-spend_percent">Spend %</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -370,20 +389,25 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 					? this.bufferManager.getPendingValue(p.name, "custom_project_priority")
 					: p.custom_project_priority;
 
-			let budget_health = (p.custom_project_dollar_amount || 0) - (p.estimated_costing || 0);
-			let budget_health_formatted = frappe.format(budget_health, { fieldtype: "Currency" });
-			let budget_color = budget_health >= 0 ? "text-success" : "text-danger";
+			let total_budget = p.custom_project_dollar_amount || 0;
+			let spend = p.estimated_costing || 0;
+			let spend_percent = total_budget ? (spend / total_budget) * 100 : 0;
+			let spend_percent_formatted = total_budget ? `${Math.round(spend_percent)}%` : "—";
+			let spend_color = spend_percent > 100 ? "text-danger" : "text-success";
 
 			let completion = p.percent_complete || 0;
 
 			const row = $(`
                 <tr>
-                    <td><a href="/app/project/${
+                    <td class="dashcol dashcol-project_name project-name-cell"><a href="/app/project/${
 						p.name
 					}" class="font-weight-bold project-link" data-name="${p.name}">${
 				p.project_name
 			}</a></td>
-                    <td class="editable-cell priority-cell" data-field="custom_company_priority" data-project="${
+                    <td class="dashcol dashcol-project_id project-id-cell"><a href="/app/project/${
+						p.name
+					}" class="text-muted project-link" data-name="${p.name}">${p.name}</a></td>
+                    <td class="dashcol dashcol-custom_company_priority editable-cell priority-cell" data-field="custom_company_priority" data-project="${
 						p.name
 					}">
                         <div class="static-view" style="cursor: pointer;" title="Click to edit">
@@ -393,7 +417,7 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
                             <select class="form-control form-control-sm"></select>
                         </div>
                     </td>
-                    <td class="editable-cell priority-cell" data-field="custom_project_priority" data-project="${
+                    <td class="dashcol dashcol-custom_project_priority editable-cell priority-cell" data-field="custom_project_priority" data-project="${
 						p.name
 					}">
                         <div class="static-view" style="cursor: pointer;" title="Click to edit">
@@ -403,7 +427,7 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
                             <select class="form-control form-control-sm"></select>
                         </div>
                     </td>
-                    <td style="min-width: 150px;">
+                    <td class="dashcol dashcol-completion" style="min-width: 150px;">
                         <div class="d-flex align-items-center">
                             <div class="progress flex-grow-1 mr-2" style="height: 10px;">
                                 <div class="progress-bar ${
@@ -413,7 +437,7 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
                             <span class="small font-weight-bold">${Math.round(completion)}%</span>
                         </div>
                     </td>
-                    <td class="font-weight-bold ${budget_color}">${budget_health_formatted}</td>
+                    <td class="dashcol dashcol-spend_percent font-weight-bold ${spend_color}">${spend_percent_formatted}</td>
                 </tr>
             `);
 
@@ -491,7 +515,7 @@ project_enhancements.dashboard_components.PriorityOverview = class PriorityOverv
 			row.data("custom_project_priority", display_project_priority);
 			row.data("custom_company_priority", display_company_priority);
 			row.data("percent_complete", completion);
-			row.data("budget_health", budget_health);
+			row.data("spend_percent", spend_percent);
 
 			tbody.append(row);
 		});
