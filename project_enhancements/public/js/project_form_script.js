@@ -101,10 +101,60 @@ frappe.ui.form.on("Project", {
 					wrapperField.__custom_tree_bound = true;
 				}
 
-				// If the wrapper is already active (e.g., page was refreshed while already on the tab)
-				if (wrapperField.$wrapper) {
-					wrapperField.refresh();
-				}
+				// Eagerly render on page load. The field's $wrapper may not be built
+				// yet at the moment this refresh handler runs, so poll for it instead of
+				// giving up after a single check. This renders the tree automatically
+				// without waiting for the user to click the Scope tab. The tree is pure
+				// DOM (no size dependency), so it renders fine while its tab is hidden.
+				const pollProject = frm.doc.name;
+				let treeRenderAttempts = 0;
+				let scopeTabBuildForced = false;
+
+				// Fallback for Frappe builds that lazily render a tab's fields only when
+				// the tab is first shown: briefly activate the Scope tab to force its
+				// content to build, then restore the originally active tab. The
+				// shown.bs.tab handler (section 4.5) then renders the tree.
+				const forceScopeTabBuild = () => {
+					const $scopeLink = frm.$wrapper
+						.find(
+							'.form-tabs .nav-item[data-label="Scope"] a.nav-link, ' +
+								'.form-tabs .nav-item[data-fieldname="custom_scope"] a.nav-link'
+						)
+						.first();
+					const $activeLink = frm.$wrapper.find(".form-tabs .nav-link.active").first();
+					if (!$scopeLink.length || !$scopeLink.tab) {
+						return;
+					}
+					// Already on the Scope tab: just show it (no restore needed).
+					if (!$activeLink.length || $activeLink[0] === $scopeLink[0]) {
+						$scopeLink.tab("show");
+						return;
+					}
+					// Restore the user's tab once Scope has finished building/showing.
+					$scopeLink.one("shown.bs.tab", () => $activeLink.tab("show"));
+					$scopeLink.tab("show");
+				};
+
+				const tryRenderTaskTree = () => {
+					// Abort if the form navigated to a different project (SPA navigation)
+					if (frm.doc.name !== pollProject) {
+						return;
+					}
+					if (wrapperField.$wrapper) {
+						wrapperField.refresh();
+						return;
+					}
+					// Wrapper still not built after a short grace period: force the
+					// Scope tab to build its content (handles lazy tab rendering).
+					if (treeRenderAttempts === 15 && !scopeTabBuildForced) {
+						scopeTabBuildForced = true;
+						forceScopeTabBuild();
+					}
+					if (treeRenderAttempts++ < 60) {
+						setTimeout(tryRenderTaskTree, 100);
+					}
+				};
+				tryRenderTaskTree();
 			}
 		}
 
