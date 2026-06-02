@@ -45,6 +45,20 @@ frappe.ui.form.on("Project", {
 					if (original_refresh) original_refresh.call(this);
 					if (this.$wrapper) {
 						const gantt_wrapper = this.$wrapper;
+						// When a refresh is triggered by an in-place edit (e.g. dragging a
+						// task bar to change its dates), keep the user's current scroll
+						// position instead of jumping back to today. The flag is set by the
+						// handler that triggered the refresh and consumed here.
+						const preserveScroll = wrapperField.__preserve_scroll === true;
+						wrapperField.__preserve_scroll = false;
+						let savedScrollLeft = null, savedScrollTop = null;
+						if (preserveScroll) {
+							const existing_gc = gantt_wrapper.find(".gantt-container")[0];
+							if (existing_gc) {
+								savedScrollLeft = existing_gc.scrollLeft;
+								savedScrollTop = existing_gc.scrollTop;
+							}
+						}
 						if (gantt_wrapper.find(".gantt-chart-container").length === 0) {
 							gantt_wrapper.css({ height: "550px", display: "flex", "flex-direction": "column", border: "1px solid #d1d8dd", "border-radius": "4px", "background-color": "#f8f9fa", "margin-bottom": "20px" });
 							gantt_wrapper.empty().html(`<div class="gantt-toolbar d-flex justify-content-between p-2 bg-light border-bottom"><div class="export-actions"><button type="button" class="btn btn-default btn-sm btn-export-gantt"><i class="fa fa-camera mr-1"></i> Export PNG</button></div><div class="btn-group btn-group-sm view-mode-group"><button type="button" class="btn btn-default" data-view="Quarter Day">Quarter Day</button><button type="button" class="btn btn-default" data-view="Half Day">Half Day</button><button type="button" class="btn btn-primary active" data-view="Day">Day</button><button type="button" class="btn btn-default" data-view="Week">Week</button><button type="button" class="btn btn-default" data-view="Month">Month</button></div></div><div class="gantt-chart-container" style="flex-grow: 1; overflow: hidden;"><p class="text-muted">Initializing Gantt Chart...</p></div><div class="resource-heatmap-container border-top" style="height: 150px; display: none;"><div class="heatmap-header p-2 bg-light d-flex justify-content-between"><span class="small font-weight-bold text-muted">RESOURCE ALLOCATION (HRS/DAY)</span><div class="heatmap-legend d-flex small align-items-center"><span class="mr-2"><i class="fa fa-square text-success"></i> < 6</span><span class="mr-2"><i class="fa fa-square text-warning"></i> 6-9</span><span><i class="fa fa-square text-danger"></i> > 9</span></div></div><div class="heatmap-body" style="overflow: auto; height: 110px;"></div></div>`);
@@ -74,16 +88,109 @@ frappe.ui.form.on("Project", {
 										view_mode: "Day", scroll_to: "today",
 										custom_popup_html: (task) => { let b_info = task.baseline_start ? `<p><span class="popup-label">Baseline:</span> ${moment(task.baseline_start).format('MMM D')} - ${moment(task.baseline_end).format('MMM D')}</p>` : ""; return `<div class="custom-gantt-popup"><h5>${task.name} ${task.is_milestone ? '<span class="badge badge-warning">Milestone</span>' : ''}</h5><p><span class="popup-label">Assignee:</span> ${task.assigned_to || 'Unassigned'}</p><p><span class="popup-label">Status:</span> ${task.status || 'N/A'}</p><p><span class="popup-label">Start:</span> ${moment(task.start).format('MMM D, YYYY')}</p><p><span class="popup-label">End:</span> ${moment(task.end).format('MMM D, YYYY')}</p>${b_info}<p><span class="popup-label">Progress:</span> ${task.progress}%</p><p style="font-size: 11px; margin-top: 8px; color: #777;"><em>Double-click bar to open task</em></p></div>`; },
 										on_click: (task) => { if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; frappe.set_route("Form", "Task", task.id); } else { clickTimer = setTimeout(() => { clickTimer = null; }, 250); } },
-										on_date_change: (task, start, end) => { frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_dates_from_gantt", args: { task_name: task.id, start_date: moment(start).format("YYYY-MM-DD"), end_date: moment(end).format("YYYY-MM-DD") }, callback: (res) => { if (res.message && res.message.status === "success") { wrapperField.refresh(); wrapperField.render_health_indicator(frm); } } }); },
+										on_date_change: (task, start, end) => { frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_dates_from_gantt", args: { task_name: task.id, start_date: moment(start).format("YYYY-MM-DD"), end_date: moment(end).format("YYYY-MM-DD") }, callback: (res) => { if (res.message && res.message.status === "success") { wrapperField.__preserve_scroll = true; wrapperField.refresh(); wrapperField.render_health_indicator(frm); } } }); },
 										on_progress_change: (task, progress) => { frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_progress_from_gantt", args: { task_name: task.id, progress: parseInt(progress) }, callback: () => wrapperField.render_health_indicator(frm) }); },
 									};
 									chart_container.empty();
 									if (typeof Gantt === "undefined") { chart_container.html('<p class="text-danger">Gantt library not loaded. Please refresh the page.</p>'); return; }
 									try {
 										const gantt = new Gantt(chart_container[0], tasks, options);
-										gantt_wrapper.find('.view-mode-group button').off('click').on('click', function() { gantt_wrapper.find('.view-mode-group button').removeClass('active btn-primary').addClass('btn-default'); $(this).addClass('active btn-primary').removeClass('btn-default'); gantt.change_view_mode($(this).data('view')); });
+										gantt_wrapper.find('.view-mode-group button').off('click').on('click', function() { gantt_wrapper.find('.view-mode-group button').removeClass('active btn-primary').addClass('btn-default'); $(this).addClass('active btn-primary').removeClass('btn-default'); gantt.change_view_mode($(this).data('view')); setTimeout(setup_dependency_linking, 100); });
 										const g_cont = gantt_wrapper.find(".gantt-container");
 										g_cont.css({ "overflow-x": "scroll", "overflow-y": "auto", "max-height": "100%", "position": "relative" });
+
+										// --- Dependency linking: drag from a task bar's link handle onto
+										// another task bar to make the latter depend on the former. Bar-body
+										// dragging is already bound to date changes, so dependencies use a
+										// dedicated handle that only appears on hover.
+										const SVGNS = "http://www.w3.org/2000/svg";
+										if (!$("#gantt-dep-link-styles").length) {
+											$("<style id='gantt-dep-link-styles'>").html(`
+												.gantt-link-handle { fill: #2563eb; stroke: #fff; stroke-width: 1.5; cursor: crosshair; opacity: 0; pointer-events: none; transition: opacity 0.15s; }
+												.gantt .bar-wrapper:hover .gantt-link-handle { opacity: 1; pointer-events: auto; }
+												.gantt-link-line { stroke: #2563eb; stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
+												.gantt .bar-wrapper.link-target-hover .bar { stroke: #2563eb !important; stroke-width: 2px !important; }
+											`).appendTo("head");
+										}
+										const setup_dependency_linking = () => {
+											const svg = chart_container.find("svg").get(0);
+											if (!svg) return;
+											chart_container.find(".gantt-link-handle").remove();
+											chart_container.find(".bar-wrapper").each(function () {
+												const taskId = $(this).attr("data-id");
+												const barEl = this.querySelector(".bar");
+												if (!taskId || !barEl) return;
+												const bbox = barEl.getBBox();
+												const handle = document.createElementNS(SVGNS, "circle");
+												handle.setAttribute("class", "gantt-link-handle");
+												handle.setAttribute("cx", bbox.x + bbox.width + 4);
+												handle.setAttribute("cy", bbox.y + bbox.height / 2);
+												handle.setAttribute("r", 5);
+												handle.setAttribute("data-source", taskId);
+												this.appendChild(handle);
+											});
+
+											let linking = null;
+											const clientToSvg = (clientX, clientY) => {
+												const ctm = svg.getScreenCTM();
+												if (!ctm) return { x: 0, y: 0 };
+												const pt = svg.createSVGPoint();
+												pt.x = clientX; pt.y = clientY;
+												const p = pt.matrixTransform(ctm.inverse());
+												return { x: p.x, y: p.y };
+											};
+											const onMouseMove = (e) => {
+												if (!linking) return;
+												const p = clientToSvg(e.clientX, e.clientY);
+												linking.line.setAttribute("x2", p.x);
+												linking.line.setAttribute("y2", p.y);
+												const el = document.elementFromPoint(e.clientX, e.clientY);
+												const $tw = el ? $(el).closest(".bar-wrapper") : $();
+												chart_container.find(".bar-wrapper").removeClass("link-target-hover");
+												if ($tw.length && $tw.attr("data-id") !== linking.sourceId) $tw.addClass("link-target-hover");
+											};
+											const onMouseUp = (e) => {
+												if (!linking) return;
+												const sourceId = linking.sourceId;
+												linking.line.remove();
+												linking = null;
+												$(document).off("mousemove.ganttlink mouseup.ganttlink");
+												chart_container.find(".bar-wrapper").removeClass("link-target-hover");
+												const el = document.elementFromPoint(e.clientX, e.clientY);
+												const $tw = el ? $(el).closest(".bar-wrapper") : $();
+												const targetId = $tw.attr("data-id");
+												if (!targetId || targetId === sourceId) return;
+												frappe.call({
+													method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.add_task_dependency",
+													args: { task_name: targetId, depends_on_task: sourceId },
+													callback: (r) => {
+														if (r.message && r.message.status === "success") {
+															frappe.show_alert({ message: __("Dependency added"), indicator: "green" });
+															wrapperField.__preserve_scroll = true;
+															wrapperField.refresh();
+														} else {
+															frappe.show_alert({ message: __((r.message && r.message.message) || "Failed to add dependency"), indicator: "red" });
+														}
+													},
+												});
+											};
+											chart_container.off("mousedown.ganttlink", ".gantt-link-handle");
+											chart_container.on("mousedown.ganttlink", ".gantt-link-handle", function (e) {
+												e.preventDefault();
+												e.stopPropagation();
+												const sourceId = $(this).attr("data-source");
+												const cx = parseFloat(this.getAttribute("cx"));
+												const cy = parseFloat(this.getAttribute("cy"));
+												const line = document.createElementNS(SVGNS, "line");
+												line.setAttribute("class", "gantt-link-line");
+												line.setAttribute("x1", cx); line.setAttribute("y1", cy);
+												line.setAttribute("x2", cx); line.setAttribute("y2", cy);
+												svg.appendChild(line);
+												linking = { sourceId, line };
+												$(document).on("mousemove.ganttlink", onMouseMove).on("mouseup.ganttlink", onMouseUp);
+											});
+										};
+										setTimeout(setup_dependency_linking, 150);
 										
 										g_cont.on('wheel', function(e) {
 											if (e.originalEvent.deltaY !== 0 && !e.originalEvent.shiftKey) {
@@ -136,21 +243,25 @@ frappe.ui.form.on("Project", {
 										});
 
 										const scroll_to_today = () => {
-											const today_el = g_cont.find(".today-highlight").get(0);
-											let scroll_pos = 0;
-											if (today_el) {
-												scroll_pos = today_el.getBBox().x - (g_cont.width() / 2);
-											} else {
-												const highlight = gantt_wrapper.find(".date_" + moment().format("YYYY-MM-DD")).add(gantt_wrapper.find(".current-date-highlight")).first();
-												if (highlight.length) {
-													scroll_pos = highlight.position().left - (g_cont.width() / 2);
-												}
-											}
-											if (scroll_pos !== 0) {
-												g_cont.animate({ scrollLeft: scroll_pos }, 400);
-											}
+											const real_container = g_cont[0];
+											if (!real_container) return;
+											const today_el = real_container.querySelector(".today-highlight");
+											if (!today_el) return;
+											const container_width = real_container.clientWidth;
+											const element_left_relative = today_el.getBoundingClientRect().left - real_container.getBoundingClientRect().left;
+											const scroll_to_position = real_container.scrollLeft + element_left_relative - container_width / 2;
+											real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
 										};
-										setTimeout(scroll_to_today, 500);
+										if (preserveScroll && savedScrollLeft != null) {
+											// Restore the pre-refresh scroll position, overriding the
+											// library's built-in scroll-to-today on re-init.
+											setTimeout(() => {
+												const gc = g_cont[0];
+												if (gc) gc.scrollTo({ left: savedScrollLeft, top: savedScrollTop, behavior: "auto" });
+											}, 50);
+										} else {
+											setTimeout(scroll_to_today, 300);
+										}
 									} catch (e) { console.error("Gantt error:", e); chart_container.html('<p class="text-danger">Error initializing Gantt chart.</p>'); }
 								} else { chart_container.html('<p class="text-muted text-center p-4">Error fetching data or no tasks found.</p>'); }
 							},

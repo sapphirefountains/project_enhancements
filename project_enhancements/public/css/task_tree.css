@@ -126,8 +126,40 @@
 	cursor: grabbing;
 }
 
+/* --- Drag & drop feedback --- */
+/* Hovering the middle of a row: the dragged task will nest as its child. */
+.task-grid-row.drop-as-child {
+	background-color: #e8f0fe !important;
+	box-shadow: inset 3px 0 0 #2563eb;
+}
+
+/* SortableJS placeholder shown when reordering as a sibling. */
+.task-node.sortable-ghost > .task-grid-row {
+	background-color: #f1f5f9;
+	outline: 2px dashed #2563eb;
+	outline-offset: -2px;
+	opacity: 0.7;
+}
+
+.task-node.sortable-drag {
+	opacity: 0.95;
+}
+
 .hidden-column {
 	display: none !important;
+}
+
+/* Task type indicators in the tree */
+.task-milestone-icon {
+	color: #f1c40f;
+	font-size: 11px;
+	flex-shrink: 0;
+}
+
+.task-recurring-icon {
+	color: #2563eb;
+	font-size: 9px;
+	flex-shrink: 0;
 }
 
 .task-name-cell-text {

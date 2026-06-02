@@ -237,6 +237,8 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 		const hasChildren = task.has_children || (task.children && task.children.length > 0);
 		const iconClass = hasChildren ? (isCollapsed ? "fa-caret-right" : "fa-caret-down") + " toggle-child-tasks" : "fa-circle text-extra-muted" ;
 		const statusBadge = this.getStatusBadge(task);
+		const milestoneIcon = task.is_milestone ? `<i class="fa fa-diamond task-milestone-icon mr-1" title="Milestone"></i>` : "";
+		const recurringIcon = task.custom_is_recurring ? `<i class="fa fa-circle task-recurring-icon mr-1" title="Recurring Task"></i>` : "";
 		const isGhost = (this.wrapper.find(".task-name-filter").val() || this.wrapper.find(".task-owner-filter").val()) && !task.is_direct_match;
 
 		const node = $(`
@@ -246,7 +248,7 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 						<div style="padding-left: ${level * 20}px; display: flex; align-items: center; width: 100%;">
 							<i class="fa fa-bars task-drag-handle mr-2 text-muted" style="cursor: grab; flex-shrink: 0;"></i>
 							<i class="fa fa-fw ${iconClass}" style="cursor: pointer; flex-shrink: 0; font-size: 10px;"></i>
-							<a href="/app/task/${task.name}" class="task-name-cell-text" title="${task.subject}">${task.subject}</a>
+							${milestoneIcon}${recurringIcon}<a href="/app/task/${task.name}" class="task-name-cell-text" title="${task.subject}">${task.subject}</a>
 						</div>
 					</div>
 					<div class="task-grid-cell assignee-cell ${this.columnVisibility.owner ? "" : "hidden-column"}" data-column="owner"><a href="#" class="assignee-link">${task.assigned_to || "Unassigned"}</a></div>
@@ -540,9 +542,100 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 		this.sortableInstances.forEach((s) => s.destroy()); this.sortableInstances = [];
 		const containers = this.wrapper.find(".task-grid-body, .child-tasks-container");
 		containers.each(function () {
-			const sortable = new Sortable(this, { group: "task-tree", handle: ".task-drag-handle", draggable: ".task-node", animation: 150, fallbackOnBody: true, swapThreshold: 0.65, onEnd: function (evt) { me.wrapper.find(".save-order-btn").show(); } });
+			const sortable = new Sortable(this, {
+				group: "task-tree",
+				handle: ".task-drag-handle",
+				draggable: ".task-node",
+				animation: 150,
+				fallbackOnBody: true,
+				swapThreshold: 0.65,
+				onStart: function () { me._dropMode = null; me._dropTargetId = null; },
+				onMove: function (evt, originalEvent) { return me.handleDragMove(evt, originalEvent); },
+				onEnd: function (evt) { me.handleDragEnd(evt); },
+			});
 			me.sortableInstances.push(sortable);
 		});
+	}
+
+	clearDropIndicators() {
+		this.wrapper.find(".drop-as-child").removeClass("drop-as-child");
+	}
+
+	// Decide drag intent based on cursor position over the hovered task row:
+	//   middle band  -> nest the dragged task as a child of the hovered task
+	//   top/bottom   -> reorder as a sibling (let SortableJS place it)
+	handleDragMove(evt, originalEvent) {
+		const related = evt.related;
+		// Hovering a non-task element (e.g. the quick-add row) or an empty
+		// container: fall back to SortableJS's default placement.
+		if (!related || !$(related).hasClass("task-node")) {
+			this.clearDropIndicators();
+			this._dropMode = null;
+			this._dropTargetId = null;
+			return true;
+		}
+
+		const dragged = evt.dragged;
+		// Never allow a task to be dropped into itself or one of its own descendants.
+		if (related === dragged || $.contains(dragged, related)) {
+			this.clearDropIndicators();
+			this._dropMode = null;
+			this._dropTargetId = null;
+			return false;
+		}
+
+		const rect = related.getBoundingClientRect();
+		const clientY = originalEvent.clientY != null
+			? originalEvent.clientY
+			: (originalEvent.touches && originalEvent.touches[0] ? originalEvent.touches[0].clientY : rect.top);
+		const relY = clientY - rect.top;
+		const h = rect.height || 1;
+
+		this.clearDropIndicators();
+		if (relY > h * 0.3 && relY < h * 0.7) {
+			// Nest: highlight the target row and suppress the sibling reorder.
+			$(related).children(".task-grid-row").addClass("drop-as-child");
+			this._dropMode = "child";
+			this._dropTargetId = $(related).data("task-id");
+			return false;
+		}
+
+		// Reorder as sibling.
+		this._dropMode = "reorder";
+		this._dropTargetId = null;
+		return true;
+	}
+
+	handleDragEnd(evt) {
+		this.clearDropIndicators();
+		const draggedNode = evt.item;
+		let changed = evt.from !== evt.to || evt.oldIndex !== evt.newIndex;
+
+		if (this._dropMode === "child" && this._dropTargetId) {
+			const $target = this.wrapper.find(`.task-node[data-task-id="${this._dropTargetId}"]`).first();
+			if ($target.length && !$.contains(draggedNode, $target[0]) && $target[0] !== draggedNode) {
+				let $childContainer = $target.children(".child-tasks-container");
+				if (!$childContainer.length) {
+					$childContainer = $('<div class="child-tasks-container"></div>').appendTo($target);
+				}
+				// Drop a placeholder/"No subtasks." message if present, then nest.
+				$childContainer.children(".text-muted").remove();
+				$childContainer.show().append(draggedNode);
+				// Reflect the now-expanded parent so the re-render keeps it open.
+				const $icon = $target.children(".task-grid-row").find(".fa-circle, .toggle-child-tasks").first();
+				$icon.removeClass("fa-circle text-extra-muted fa-caret-right").addClass("fa-caret-down toggle-child-tasks");
+				$target.attr("data-loaded", "true").data("loaded", "true");
+				this.expandedTasks.add(this._dropTargetId);
+				localStorage.setItem(`expandedTasks_${this.projectName}`, JSON.stringify(Array.from(this.expandedTasks)));
+				changed = true;
+			}
+		}
+
+		this._dropMode = null;
+		this._dropTargetId = null;
+
+		// Persist immediately so the tree re-indents itself without a manual save.
+		if (changed) this.saveTaskOrder();
 	}
 
 	saveTaskOrder() {

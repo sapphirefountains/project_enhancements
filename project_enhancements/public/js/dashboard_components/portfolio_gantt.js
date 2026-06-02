@@ -14,6 +14,25 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
         this.collapsedNodes = new Set();
         this.ganttDataCache = null;
         this.isTogglingNode = false;
+
+        // Scroll preservation across re-renders. When an action that empties the
+        // chart container (e.g. toggling Detailed View) needs to keep the user's
+        // scroll position, it stashes the current position here before the
+        // re-render and render_gantt() restores it instead of jumping to today.
+        this._preserveNextScroll = false;
+        this._pendingScrollLeft = null;
+        this._pendingScrollTop = null;
+	}
+
+	// Capture the current scroll position so the next render_gantt() restores it.
+	// Call this BEFORE emptying the chart container.
+	capture_scroll_for_next_render() {
+		const gc = this.chartContainer && this.chartContainer.find(".gantt-container")[0];
+		if (gc) {
+			this._pendingScrollLeft = gc.scrollLeft;
+			this._pendingScrollTop = gc.scrollTop;
+			this._preserveNextScroll = true;
+		}
 	}
 
 	async render() {
@@ -105,6 +124,9 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
                     this.collapsedNodes.add('project_' + p.name);
                 });
             }
+			// Keep the current scroll position rather than jumping to today when
+			// expanding/collapsing the task detail.
+			this.capture_scroll_for_next_render();
 			this.chartContainer.empty();
 			this.show_skeleton();
 			this.fetch_and_render_data();
@@ -118,7 +140,8 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
 			this.statusFilters = selected;
 			this.wrapper.find('#ganttStatusDropdown').text(`Selected (${selected.length})`);
 			this.wrapper.find('.dropdown-menu').removeClass('show');
-			
+
+			this.capture_scroll_for_next_render();
 			this.chartContainer.empty();
 			this.show_skeleton();
 			this.fetch_and_render_data();
@@ -295,11 +318,22 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
 			});
 		});
 
+        // Preserve scroll when either the caller asked for it (e.g. node toggle)
+        // or an earlier handler stashed a position before emptying the container.
+        const do_preserve = preserve_scroll || this._preserveNextScroll;
         let scroll_left = 0, scroll_top = 0;
-        if (preserve_scroll && this.chartContainer.find(".gantt-container").length) {
-            scroll_left = this.chartContainer.find(".gantt-container")[0].scrollLeft;
-            scroll_top = this.chartContainer.find(".gantt-container")[0].scrollTop;
+        if (do_preserve) {
+            if (this._preserveNextScroll && this._pendingScrollLeft != null) {
+                scroll_left = this._pendingScrollLeft;
+                scroll_top = this._pendingScrollTop;
+            } else if (this.chartContainer.find(".gantt-container").length) {
+                scroll_left = this.chartContainer.find(".gantt-container")[0].scrollLeft;
+                scroll_top = this.chartContainer.find(".gantt-container")[0].scrollTop;
+            }
         }
+        this._preserveNextScroll = false;
+        this._pendingScrollLeft = null;
+        this._pendingScrollTop = null;
 
         let $chartWrapper = $('<div id="gantt-chart-target" style="width: 100%; height: 600px;"></div>');
         this.chartContainer.empty().append($chartWrapper);
@@ -310,10 +344,17 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
 			new Gantt($chartWrapper[0], mappedItems, {
 				view_mode: "Month",
                 auto_move_label: true,
+                // We manage scrolling ourselves (today on first render, restored
+                // position otherwise) so the library's built-in scroll-to-today
+                // never fights our restore on re-render.
+                scroll_to: null,
 				on_click: (item) => {
                     if (this.isTogglingNode) return;
 					if (item.isProject) frappe.set_route("Form", "Project", item.project_docname);
 					else if (item.isTask) frappe.set_route("Form", "Task", item.task_docname);
+				},
+				on_date_change: (item, start, end) => {
+					this.handle_date_change(item, start, end);
 				},
 				custom_popup_html: function (item) {
 					if (item.isMaster) {
@@ -359,7 +400,7 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
                 const real_container = $chartWrapper.find(".gantt-container")[0];
                 if (!real_container) return;
                 
-                if (preserve_scroll) {
+                if (do_preserve) {
                     real_container.scrollTo({ left: scroll_left, top: scroll_top, behavior: "auto" });
                 } else {
                     const today_el = real_container.querySelector(".today-highlight");
@@ -371,6 +412,46 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
                     }
                 }
             }, 50); 
+		});
+	}
+
+	handle_date_change(item, start, end) {
+		// Master rows are aggregates of their children — not directly editable.
+		// Re-render (preserving scroll) so the bar snaps back to its computed span.
+		if (!item || item.isMaster) {
+			this.capture_scroll_for_next_render();
+			this.render_gantt(true);
+			return;
+		}
+
+		const startStr = moment(start).format("YYYY-MM-DD");
+		const endStr = moment(end).format("YYYY-MM-DD");
+
+		let method, args;
+		if (item.isTask) {
+			method = "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_dates_from_gantt";
+			args = { task_name: item.task_docname, start_date: startStr, end_date: endStr };
+		} else if (item.isProject) {
+			method = "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_project_dates_from_gantt";
+			args = { project_name: item.project_docname, start_date: startStr, end_date: endStr };
+		} else {
+			return;
+		}
+
+		frappe.call({
+			method,
+			args,
+			callback: (r) => {
+				if (r.message && r.message.status === "success") {
+					frappe.show_alert({ message: __("Dates updated"), indicator: "green" });
+				} else {
+					frappe.show_alert({ message: __((r.message && r.message.message) || "Failed to update dates"), indicator: "red" });
+				}
+				// Re-fetch so dependency-driven date shifts are reflected, keeping
+				// the current scroll position.
+				this.capture_scroll_for_next_render();
+				this.fetch_and_render_data();
+			},
 		});
 	}
 

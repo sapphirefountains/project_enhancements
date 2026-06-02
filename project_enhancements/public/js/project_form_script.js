@@ -1,7 +1,22 @@
 /* global project_enhancements */
 
+const EXTERNAL_PROJECT_TYPES = ["Service", "Rent", "Build", "Design"];
+
+function toggle_master_project(frm) {
+	const is_external = EXTERNAL_PROJECT_TYPES.includes(frm.doc.project_type);
+	frm.set_df_property("custom_master_project", "hidden", is_external ? 1 : 0);
+}
+
+frappe.ui.form.on("Project", {
+	project_type: function (frm) {
+		toggle_master_project(frm);
+	},
+});
+
 frappe.ui.form.on("Project", {
 	refresh: function (frm) {
+		toggle_master_project(frm);
+
 		if (frm.is_new()) {
 			return;
 		}
