@@ -441,22 +441,29 @@ def get_task_children(parent_task):
 		return []
 	
 	task_fields = [
-		"name", "subject", "status", "priority", "exp_start_date", 
-		"exp_end_date", "progress", "expected_time", "parent_task", "custom_subtask_order"
+		"name", "subject", "status", "priority", "exp_start_date",
+		"exp_end_date", "progress", "expected_time", "parent_task", "custom_subtask_order",
+		"is_milestone"
 	]
-	
+	# custom_is_recurring is a site-level custom field that may not exist on
+	# every install; only query it when present to avoid a SQL error.
+	has_recurring = frappe.get_meta("Task").has_field("custom_is_recurring")
+	if has_recurring:
+		task_fields.append("custom_is_recurring")
+
 	children = frappe.get_all(
-		"Task", 
-		fields=task_fields, 
+		"Task",
+		fields=task_fields,
 		filters={"parent_task": parent_task},
 		order_by="custom_subtask_order asc"
 	)
-	
+
 	today = getdate(nowdate())
 	for child in children:
 		assignees = _get_assignee_names("Task", child["name"])
 		child["assigned_to"] = ", ".join([d["full_name"] for d in assignees]) if assignees else ""
 		child["has_children"] = frappe.db.exists("Task", {"parent_task": child["name"]})
+		child["custom_is_recurring"] = child.get("custom_is_recurring") or 0
 		
 		# Overdue check
 		child["is_overdue"] = (
@@ -577,10 +584,16 @@ def get_project_tasks(project, parent=None):
 
 	try:
 		task_fields = [
-			"name", "subject", "status", "priority", "exp_start_date", 
-			"exp_end_date", "progress", "expected_time", "parent_task", "custom_subtask_order"
+			"name", "subject", "status", "priority", "exp_start_date",
+			"exp_end_date", "progress", "expected_time", "parent_task", "custom_subtask_order",
+			"is_milestone"
 		]
-		
+		# custom_is_recurring is a site-level custom field that may not exist on
+		# every install; only query it when present to avoid a SQL error.
+		has_recurring = frappe.get_meta("Task").has_field("custom_is_recurring")
+		if has_recurring:
+			task_fields.append("custom_is_recurring")
+
 		filters = {"project": project}
 		if parent:
 			filters["parent_task"] = parent
@@ -589,8 +602,8 @@ def get_project_tasks(project, parent=None):
 			filters["parent_task"] = ("is", "not set")
 
 		tasks = frappe.get_all(
-			"Task", 
-			fields=task_fields, 
+			"Task",
+			fields=task_fields,
 			filters=filters,
 			order_by="custom_subtask_order asc"
 		)
@@ -600,6 +613,7 @@ def get_project_tasks(project, parent=None):
 			task["assigned_to"] = ", ".join([d["full_name"] for d in assignees]) if assignees else ""
 			task["has_children"] = frappe.db.exists("Task", {"parent_task": task["name"]})
 			task["children"] = [] # Placeholder for consistency
+			task["custom_is_recurring"] = task.get("custom_is_recurring") or 0
 
 		return tasks
 
@@ -983,6 +997,117 @@ def _shift_successors(predecessor_name, day_diff, processed=None):
 		
 		# Recursive shift for the next level
 		_shift_successors(task_name, day_diff, processed)
+
+
+@frappe.whitelist()
+def update_project_dates_from_gantt(project_name, start_date, end_date):
+	"""Updates a project's expected start/end dates from a Gantt drag.
+
+	Used by the Portfolio Gantt when a project bar is moved or resized.
+
+	Args:
+	    project_name (str): The name (ID) of the project to update.
+	    start_date (str): New expected start date (YYYY-MM-DD).
+	    end_date (str): New expected end date (YYYY-MM-DD).
+
+	Returns:
+	    dict: Status of the operation.
+	"""
+	if not project_name or not start_date or not end_date:
+		return {"status": "error", "message": "Project, start date, and end date are required."}
+
+	if not frappe.has_permission("Project", ptype="write", doc=project_name):
+		return {"status": "error", "message": "No permission to modify this project."}
+
+	try:
+		frappe.db.set_value(
+			"Project",
+			project_name,
+			{"expected_start_date": start_date, "expected_end_date": end_date},
+		)
+		return {"status": "success"}
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), f"Error updating project dates for {project_name}")
+		return {"status": "error", "message": str(e)}
+
+
+def _task_has_dependency_path(start_task, target_task, visited=None):
+	"""Returns True if `start_task` (transitively) depends on `target_task`.
+
+	Walks the "depends on" chain upstream from start_task. Used to reject a new
+	dependency that would introduce a cycle.
+	"""
+	if visited is None:
+		visited = set()
+	if start_task in visited:
+		return False
+	visited.add(start_task)
+
+	predecessors = frappe.get_all(
+		"Task Depends On", filters={"parent": start_task}, fields=["task"]
+	)
+	for pred in predecessors:
+		if not pred.task:
+			continue
+		if pred.task == target_task:
+			return True
+		if _task_has_dependency_path(pred.task, target_task, visited):
+			return True
+	return False
+
+
+@frappe.whitelist()
+def add_task_dependency(task_name, depends_on_task):
+	"""Creates a dependency so that `task_name` depends on `depends_on_task`.
+
+	In Gantt terms, `depends_on_task` is the predecessor and `task_name` is the
+	successor; the arrow is drawn from predecessor to successor. This is invoked
+	when the user drags a link from one task bar to another.
+
+	Args:
+	    task_name (str): The dependent (successor) task.
+	    depends_on_task (str): The predecessor task it should depend on.
+
+	Returns:
+	    dict: Status of the operation.
+	"""
+	if not task_name or not depends_on_task:
+		return {"status": "error", "message": "Both tasks are required."}
+
+	if task_name == depends_on_task:
+		return {"status": "error", "message": "A task cannot depend on itself."}
+
+	try:
+		task_project = frappe.db.get_value("Task", task_name, "project")
+		dep_project = frappe.db.get_value("Task", depends_on_task, "project")
+
+		if not task_project or not dep_project:
+			return {"status": "error", "message": "One or more tasks could not be found."}
+
+		if task_project != dep_project:
+			return {"status": "error", "message": "Tasks must belong to the same project."}
+
+		if not frappe.has_permission("Project", ptype="write", doc=task_project):
+			return {"status": "error", "message": "No permission to modify tasks for this project."}
+
+		task_doc = frappe.get_doc("Task", task_name)
+
+		# Skip if this dependency already exists.
+		if any(row.task == depends_on_task for row in task_doc.depends_on):
+			return {"status": "success", "message": "Dependency already exists."}
+
+		# Reject cycles: if the predecessor already depends on this task, linking
+		# them would create a loop.
+		if _task_has_dependency_path(depends_on_task, task_name):
+			return {"status": "error", "message": "That link would create a circular dependency."}
+
+		task_doc.append("depends_on", {"task": depends_on_task})
+		task_doc.save(ignore_permissions=True)
+		return {"status": "success"}
+
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), f"Error adding dependency to {task_name}")
+		return {"status": "error", "message": str(e)}
 
 
 @frappe.whitelist()
