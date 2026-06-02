@@ -25,6 +25,11 @@
 
     let is_toggling_gantt_node = false;
 
+    // Scroll preservation: set by actions that re-render the Gantt but should keep
+    // the viewport (expand/collapse, date drag) rather than snapping back to today.
+    let gantt_preserve_next = false;
+    let gantt_pending_scroll = null;
+
     let sort_state = {
         'priority-overview': { col: 'company_priority', order: 'asc' },
         'active-internal-projects': { col: 'project_name', order: 'asc' },
@@ -174,6 +179,8 @@
                     gantt_collapsed_nodes.add('project_' + sanitizeId(p.name));
                 });
             }
+            // Keep the current scroll position when expanding/collapsing task detail.
+            capture_gantt_scroll();
             fetch_and_render_portfolio_gantt();
         });
 
@@ -186,15 +193,9 @@
 
         $root.find('#gantt-today-btn').on('click', function() {
             if (!portfolio_gantt_instance) return;
-            const real_container = $root.find(".gantt-container")[0];
-            if (!real_container) return;
-            const today_el = real_container.querySelector(".today-highlight");
-            if (today_el) {
-                const container_width = real_container.clientWidth;
-                const today_x = parseFloat(today_el.getAttribute("x")); 
-                const scroll_to_position = today_x - (container_width / 2);
-                real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
-            }
+            // Use the library's own routine (locates today via the date cells).
+            // The old code queried `.today-highlight`, which this build never emits.
+            portfolio_gantt_instance.set_scroll_position('today');
         });
 
         $root.find('#gantt-select-all-projects').on('change', function() {
@@ -286,6 +287,23 @@
 
         let container = $root.find('#dashboard-content');
         let data = gantt_current_data;
+
+        // Capture the current scroll position BEFORE the chart is torn down, so a
+        // preserve re-render restores it. Declaring these here also fixes a
+        // ReferenceError: they were used in the restore block but never declared.
+        const do_preserve = preserve_scroll || gantt_preserve_next;
+        let scroll_left = 0, scroll_top = 0;
+        if (do_preserve) {
+            if (gantt_pending_scroll) {
+                scroll_left = gantt_pending_scroll.left;
+                scroll_top = gantt_pending_scroll.top;
+            } else {
+                const existing_gc = $root.find(".gantt-container")[0];
+                if (existing_gc) { scroll_left = existing_gc.scrollLeft; scroll_top = existing_gc.scrollTop; }
+            }
+        }
+        gantt_preserve_next = false;
+        gantt_pending_scroll = null;
 
         let filtered_projects = data.projects;
         if (gantt_selected_projects.size > 0) {
@@ -482,11 +500,33 @@
 
             portfolio_gantt_instance = new Gantt($chartWrapper[0], mappedItems, {
                 view_mode: activeViewMode,
-                auto_move_label: true, 
+                auto_move_label: true,
+                // On a preserve render, suppress the library's scroll-to-today so
+                // only our manual restore (below) moves the viewport.
+                scroll_to: do_preserve ? null : "today",
                 on_click: (item) => {
-                    if (is_toggling_gantt_node) return; 
+                    if (is_toggling_gantt_node) return;
                     if (item.isProject) frappe.set_route("Form", "Project", item.project_docname);
                     else if (item.isTask) frappe.set_route("Form", "Task", item.task_docname);
+                },
+                on_date_change: (item, start, end) => {
+                    if (!item || item.isMaster) { capture_gantt_scroll(); build_gantt_chart(true); return; }
+                    const s = moment(start).format("YYYY-MM-DD");
+                    const e2 = moment(end).format("YYYY-MM-DD");
+                    let method, args;
+                    if (item.isTask) { method = "update_task_dates_from_gantt"; args = { task_name: item.task_docname, start_date: s, end_date: e2 }; }
+                    else if (item.isProject) { method = "update_project_dates_from_gantt"; args = { project_name: item.project_docname, start_date: s, end_date: e2 }; }
+                    else return;
+                    api_call(method, args).then((r) => {
+                        if (r.message && r.message.status === "success") {
+                            frappe.show_alert({ message: __("Dates updated"), indicator: "green" });
+                        } else {
+                            frappe.show_alert({ message: __((r.message && r.message.message) || "Failed to update dates"), indicator: "red" });
+                        }
+                        // Re-fetch (to reflect cascaded successor shifts) but keep scroll.
+                        capture_gantt_scroll();
+                        fetch_and_render_portfolio_gantt();
+                    });
                 },
                 custom_popup_html: function (item) {
                     const cleanName = item.name.replace(/<[^>]*>?/gm, '').replace(/[↳•▼▶]/g, '').trim();
@@ -552,17 +592,30 @@
                 window.colorRefreshTimer = setTimeout(applyColors, 50);
             });
 
-            setTimeout(() => {
+            const apply_scroll = () => {
                 const real_container = $chartWrapper.find(".gantt-container")[0];
                 if (!real_container) return;
-                
-                if (preserve_scroll) {
+
+                if (do_preserve) {
                     real_container.scrollTo({ left: scroll_left, top: scroll_top, behavior: "auto" });
                 } else {
                     portfolio_gantt_instance.set_scroll_position('today');
                 }
-            }, 50); 
+            };
+            // Run twice so a preserve-restore wins over any late library scroll.
+            setTimeout(apply_scroll, 50);
+            if (do_preserve) setTimeout(apply_scroll, 200);
         });
+    }
+
+    // Stash the current Gantt scroll position so the next build_gantt_chart()
+    // restores it (used before a refetch that empties the chart container).
+    function capture_gantt_scroll() {
+        const gc = $root.find(".gantt-container")[0];
+        if (gc) {
+            gantt_pending_scroll = { left: gc.scrollLeft, top: gc.scrollTop };
+            gantt_preserve_next = true;
+        }
     }
 
     // ----- HELPERS & OTHER RENDERERS -----
