@@ -27,7 +27,13 @@ frappe.ui.form.on("Project", {
 				frappe.realtime.on("project_dashboard_updated", (data) => {
 					if (data.project === frm.doc.name) {
 						wrapperField.render_health_indicator(frm);
-						if (wrapperField.__custom_gantt_bound) wrapperField.refresh();
+						// Realtime updates are incremental (e.g. a successor date shift
+						// or a new dependency). Preserve the user's scroll position
+						// rather than snapping back to today on this background refresh.
+						if (wrapperField.__custom_gantt_bound) {
+							wrapperField.__preserve_scroll = true;
+							wrapperField.refresh();
+						}
 					}
 				});
 			}
@@ -85,7 +91,10 @@ frappe.ui.form.on("Project", {
 									wrapperField.render_heatmap(frm, heatmap_container);
 									let clickTimer = null;
 									const options = {
-										view_mode: "Day", scroll_to: "today",
+										// On a preserve refresh, suppress the library's scroll-to-today
+										// so our manual restore (below) is the only thing that moves the
+										// viewport. On a normal render, let the library center on today.
+										view_mode: "Day", scroll_to: preserveScroll ? null : "today",
 										custom_popup_html: (task) => { let b_info = task.baseline_start ? `<p><span class="popup-label">Baseline:</span> ${moment(task.baseline_start).format('MMM D')} - ${moment(task.baseline_end).format('MMM D')}</p>` : ""; return `<div class="custom-gantt-popup"><h5>${task.name} ${task.is_milestone ? '<span class="badge badge-warning">Milestone</span>' : ''}</h5><p><span class="popup-label">Assignee:</span> ${task.assigned_to || 'Unassigned'}</p><p><span class="popup-label">Status:</span> ${task.status || 'N/A'}</p><p><span class="popup-label">Start:</span> ${moment(task.start).format('MMM D, YYYY')}</p><p><span class="popup-label">End:</span> ${moment(task.end).format('MMM D, YYYY')}</p>${b_info}<p><span class="popup-label">Progress:</span> ${task.progress}%</p><p style="font-size: 11px; margin-top: 8px; color: #777;"><em>Double-click bar to open task</em></p></div>`; },
 										on_click: (task) => { if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; frappe.set_route("Form", "Task", task.id); } else { clickTimer = setTimeout(() => { clickTimer = null; }, 250); } },
 										on_date_change: (task, start, end) => { frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_dates_from_gantt", args: { task_name: task.id, start_date: moment(start).format("YYYY-MM-DD"), end_date: moment(end).format("YYYY-MM-DD") }, callback: (res) => { if (res.message && res.message.status === "success") { wrapperField.__preserve_scroll = true; wrapperField.refresh(); wrapperField.render_health_indicator(frm); } } }); },
@@ -99,17 +108,22 @@ frappe.ui.form.on("Project", {
 										const g_cont = gantt_wrapper.find(".gantt-container");
 										g_cont.css({ "overflow-x": "scroll", "overflow-y": "auto", "max-height": "100%", "position": "relative" });
 
-										// --- Dependency linking: drag from a task bar's link handle onto
-										// another task bar to make the latter depend on the former. Bar-body
-										// dragging is already bound to date changes, so dependencies use a
-										// dedicated handle that only appears on hover.
+										// --- Dependency linking ---
+										// Each task bar gets an always-visible round "link" handle at its
+										// right edge. Press it and drag: a translucent ghost of the bar plus
+										// a dashed connector follow the cursor. Release over another task bar
+										// to make that task depend on the source (predecessor -> successor),
+										// which renders as an arrow after the refresh. Bar-body dragging is
+										// reserved for date changes, so linking uses this dedicated handle.
 										const SVGNS = "http://www.w3.org/2000/svg";
 										if (!$("#gantt-dep-link-styles").length) {
 											$("<style id='gantt-dep-link-styles'>").html(`
-												.gantt-link-handle { fill: #2563eb; stroke: #fff; stroke-width: 1.5; cursor: crosshair; opacity: 0; pointer-events: none; transition: opacity 0.15s; }
-												.gantt .bar-wrapper:hover .gantt-link-handle { opacity: 1; pointer-events: auto; }
-												.gantt-link-line { stroke: #2563eb; stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
-												.gantt .bar-wrapper.link-target-hover .bar { stroke: #2563eb !important; stroke-width: 2px !important; }
+												.gantt-link-handle { fill: #2563eb; stroke: #fff; stroke-width: 1.5; cursor: crosshair; opacity: 0.85; transition: opacity 0.15s, r 0.1s; }
+												.gantt-link-handle:hover { opacity: 1; }
+												.gantt .bar-wrapper:hover .gantt-link-handle { opacity: 1; }
+												.gantt-link-line { stroke: #1d4ed8; stroke-width: 2.5; stroke-dasharray: 5 3; pointer-events: none; }
+												.gantt-link-ghost { fill: #2563eb; opacity: 0.3; pointer-events: none; }
+												.gantt .bar-wrapper.link-target-hover .bar { stroke: #1d4ed8 !important; stroke-width: 3px !important; }
 											`).appendTo("head");
 										}
 										const setup_dependency_linking = () => {
@@ -123,10 +137,11 @@ frappe.ui.form.on("Project", {
 												const bbox = barEl.getBBox();
 												const handle = document.createElementNS(SVGNS, "circle");
 												handle.setAttribute("class", "gantt-link-handle");
-												handle.setAttribute("cx", bbox.x + bbox.width + 4);
+												handle.setAttribute("cx", bbox.x + bbox.width);
 												handle.setAttribute("cy", bbox.y + bbox.height / 2);
 												handle.setAttribute("r", 5);
 												handle.setAttribute("data-source", taskId);
+												handle.setAttribute("data-h", bbox.height);
 												this.appendChild(handle);
 											});
 
@@ -139,11 +154,22 @@ frappe.ui.form.on("Project", {
 												const p = pt.matrixTransform(ctm.inverse());
 												return { x: p.x, y: p.y };
 											};
+											const clearLinking = () => {
+												if (!linking) return;
+												if (linking.line) linking.line.remove();
+												if (linking.ghost) linking.ghost.remove();
+												$(document).off("mousemove.ganttlink mouseup.ganttlink keydown.ganttlink");
+												chart_container.find(".bar-wrapper").removeClass("link-target-hover");
+												linking = null;
+											};
 											const onMouseMove = (e) => {
 												if (!linking) return;
 												const p = clientToSvg(e.clientX, e.clientY);
 												linking.line.setAttribute("x2", p.x);
 												linking.line.setAttribute("y2", p.y);
+												// Ghost block follows the cursor.
+												linking.ghost.setAttribute("x", p.x + 6);
+												linking.ghost.setAttribute("y", p.y - linking.ghostH / 2);
 												const el = document.elementFromPoint(e.clientX, e.clientY);
 												const $tw = el ? $(el).closest(".bar-wrapper") : $();
 												chart_container.find(".bar-wrapper").removeClass("link-target-hover");
@@ -152,13 +178,10 @@ frappe.ui.form.on("Project", {
 											const onMouseUp = (e) => {
 												if (!linking) return;
 												const sourceId = linking.sourceId;
-												linking.line.remove();
-												linking = null;
-												$(document).off("mousemove.ganttlink mouseup.ganttlink");
-												chart_container.find(".bar-wrapper").removeClass("link-target-hover");
 												const el = document.elementFromPoint(e.clientX, e.clientY);
 												const $tw = el ? $(el).closest(".bar-wrapper") : $();
 												const targetId = $tw.attr("data-id");
+												clearLinking();
 												if (!targetId || targetId === sourceId) return;
 												frappe.call({
 													method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.add_task_dependency",
@@ -181,13 +204,25 @@ frappe.ui.form.on("Project", {
 												const sourceId = $(this).attr("data-source");
 												const cx = parseFloat(this.getAttribute("cx"));
 												const cy = parseFloat(this.getAttribute("cy"));
+												const ghostH = parseFloat(this.getAttribute("data-h")) || 18;
 												const line = document.createElementNS(SVGNS, "line");
 												line.setAttribute("class", "gantt-link-line");
 												line.setAttribute("x1", cx); line.setAttribute("y1", cy);
 												line.setAttribute("x2", cx); line.setAttribute("y2", cy);
+												const ghost = document.createElementNS(SVGNS, "rect");
+												ghost.setAttribute("class", "gantt-link-ghost");
+												ghost.setAttribute("width", 60);
+												ghost.setAttribute("height", ghostH);
+												ghost.setAttribute("rx", 3);
+												ghost.setAttribute("x", cx + 6);
+												ghost.setAttribute("y", cy - ghostH / 2);
 												svg.appendChild(line);
-												linking = { sourceId, line };
-												$(document).on("mousemove.ganttlink", onMouseMove).on("mouseup.ganttlink", onMouseUp);
+												svg.appendChild(ghost);
+												linking = { sourceId, line, ghost, ghostH };
+												$(document)
+													.on("mousemove.ganttlink", onMouseMove)
+													.on("mouseup.ganttlink", onMouseUp)
+													.on("keydown.ganttlink", (ev) => { if (ev.key === "Escape") clearLinking(); });
 											});
 										};
 										setTimeout(setup_dependency_linking, 150);
@@ -242,10 +277,12 @@ frappe.ui.form.on("Project", {
 											});
 										});
 
+										// This frappe-gantt build marks today with `.current-highlight`
+										// (NOT `.today-highlight`, which doesn't exist here). Center on it.
 										const scroll_to_today = () => {
 											const real_container = g_cont[0];
 											if (!real_container) return;
-											const today_el = real_container.querySelector(".today-highlight");
+											const today_el = real_container.querySelector(".current-highlight, .current-date-highlight, .today");
 											if (!today_el) return;
 											const container_width = real_container.clientWidth;
 											const element_left_relative = today_el.getBoundingClientRect().left - real_container.getBoundingClientRect().left;
@@ -253,14 +290,15 @@ frappe.ui.form.on("Project", {
 											real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
 										};
 										if (preserveScroll && savedScrollLeft != null) {
-											// Restore the pre-refresh scroll position, overriding the
-											// library's built-in scroll-to-today on re-init.
-											setTimeout(() => {
-												const gc = g_cont[0];
-												if (gc) gc.scrollTo({ left: savedScrollLeft, top: savedScrollTop, behavior: "auto" });
-											}, 50);
+											// Restore the pre-refresh scroll position. Done twice to win over
+											// any late asynchronous scroll from the library on re-init.
+											const restore = () => { const gc = g_cont[0]; if (gc) gc.scrollTo({ left: savedScrollLeft, top: savedScrollTop, behavior: "auto" }); };
+											setTimeout(restore, 50);
+											setTimeout(restore, 200);
 										} else {
-											setTimeout(scroll_to_today, 300);
+											// scroll_to: "today" already centers via the library; this is a
+											// backup for cases where the container wasn't laid out yet.
+											setTimeout(scroll_to_today, 350);
 										}
 									} catch (e) { console.error("Gantt error:", e); chart_container.html('<p class="text-danger">Error initializing Gantt chart.</p>'); }
 								} else { chart_container.html('<p class="text-muted text-center p-4">Error fetching data or no tasks found.</p>'); }

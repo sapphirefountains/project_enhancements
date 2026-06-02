@@ -344,10 +344,10 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
 			new Gantt($chartWrapper[0], mappedItems, {
 				view_mode: "Month",
                 auto_move_label: true,
-                // We manage scrolling ourselves (today on first render, restored
-                // position otherwise) so the library's built-in scroll-to-today
-                // never fights our restore on re-render.
-                scroll_to: null,
+                // Let the library center on today for a fresh render (it locates
+                // today via the date cells, which is reliable). On a preserve
+                // render, suppress it so only our manual restore moves the viewport.
+                scroll_to: do_preserve ? null : "today",
 				on_click: (item) => {
                     if (this.isTogglingNode) return;
 					if (item.isProject) frappe.set_route("Form", "Project", item.project_docname);
@@ -396,14 +396,17 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
                 }
             });
 
-			setTimeout(() => {
+			const apply_scroll = () => {
                 const real_container = $chartWrapper.find(".gantt-container")[0];
                 if (!real_container) return;
-                
+
                 if (do_preserve) {
                     real_container.scrollTo({ left: scroll_left, top: scroll_top, behavior: "auto" });
                 } else {
-                    const today_el = real_container.querySelector(".today-highlight");
+                    // This frappe-gantt build marks today with `.current-highlight`
+                    // (NOT `.today-highlight`). scroll_to:"today" already handles the
+                    // common case; this is a layout-timing backup.
+                    const today_el = real_container.querySelector(".current-highlight, .current-date-highlight, .today");
                     if (today_el) {
                         const container_width = real_container.clientWidth;
                         const element_left_relative = today_el.getBoundingClientRect().left - real_container.getBoundingClientRect().left;
@@ -411,7 +414,10 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
                         real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
                     }
                 }
-            }, 50); 
+            };
+            // Run twice so a preserve-restore wins over any late library scroll.
+            setTimeout(apply_scroll, 50);
+            if (do_preserve) setTimeout(apply_scroll, 200);
 		});
 	}
 
