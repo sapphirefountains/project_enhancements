@@ -608,34 +608,48 @@ project_enhancements.TaskTreeManager = class TaskTreeManager {
 
 	handleDragEnd(evt) {
 		this.clearDropIndicators();
+		const me = this;
 		const draggedNode = evt.item;
-		let changed = evt.from !== evt.to || evt.oldIndex !== evt.newIndex;
-
-		if (this._dropMode === "child" && this._dropTargetId) {
-			const $target = this.wrapper.find(`.task-node[data-task-id="${this._dropTargetId}"]`).first();
-			if ($target.length && !$.contains(draggedNode, $target[0]) && $target[0] !== draggedNode) {
-				let $childContainer = $target.children(".child-tasks-container");
-				if (!$childContainer.length) {
-					$childContainer = $('<div class="child-tasks-container"></div>').appendTo($target);
-				}
-				// Drop a placeholder/"No subtasks." message if present, then nest.
-				$childContainer.children(".text-muted").remove();
-				$childContainer.show().append(draggedNode);
-				// Reflect the now-expanded parent so the re-render keeps it open.
-				const $icon = $target.children(".task-grid-row").find(".fa-circle, .toggle-child-tasks").first();
-				$icon.removeClass("fa-circle text-extra-muted fa-caret-right").addClass("fa-caret-down toggle-child-tasks");
-				$target.attr("data-loaded", "true").data("loaded", "true");
-				this.expandedTasks.add(this._dropTargetId);
-				localStorage.setItem(`expandedTasks_${this.projectName}`, JSON.stringify(Array.from(this.expandedTasks)));
-				changed = true;
-			}
-		}
+		const mode = this._dropMode;
+		const targetId = this._dropTargetId;
+		const reordered = evt.from !== evt.to || evt.oldIndex !== evt.newIndex;
 
 		this._dropMode = null;
 		this._dropTargetId = null;
 
-		// Persist immediately so the tree re-indents itself without a manual save.
-		if (changed) this.saveTaskOrder();
+		// CRITICAL: never mutate the DOM synchronously inside onEnd. SortableJS is
+		// still in the middle of its own drop cleanup when this fires; re-parenting
+		// the dragged node here leaves its internals pointing at a detached element
+		// and throws inside Sortable.min.js _onDrop:
+		//   "Cannot read properties of null (reading 'removeEventListener')".
+		// Deferring to the next tick lets Sortable finish first, then we re-parent
+		// on a clean DOM and persist.
+		setTimeout(() => {
+			let changed = reordered;
+
+			if (mode === "child" && targetId) {
+				const $target = me.wrapper.find(`.task-node[data-task-id="${targetId}"]`).first();
+				if ($target.length && !$.contains(draggedNode, $target[0]) && $target[0] !== draggedNode) {
+					let $childContainer = $target.children(".child-tasks-container");
+					if (!$childContainer.length) {
+						$childContainer = $('<div class="child-tasks-container"></div>').appendTo($target);
+					}
+					// Drop a placeholder/"No subtasks." message if present, then nest.
+					$childContainer.children(".text-muted").remove();
+					$childContainer.show().append(draggedNode);
+					// Reflect the now-expanded parent so the re-render keeps it open.
+					const $icon = $target.children(".task-grid-row").find(".fa-circle, .toggle-child-tasks").first();
+					$icon.removeClass("fa-circle text-extra-muted fa-caret-right").addClass("fa-caret-down toggle-child-tasks");
+					$target.attr("data-loaded", "true").data("loaded", "true");
+					me.expandedTasks.add(targetId);
+					localStorage.setItem(`expandedTasks_${me.projectName}`, JSON.stringify(Array.from(me.expandedTasks)));
+					changed = true;
+				}
+			}
+
+			// Persist so the tree re-indents itself (saveTaskOrder re-fetches).
+			if (changed) me.saveTaskOrder();
+		}, 0);
 	}
 
 	saveTaskOrder() {
