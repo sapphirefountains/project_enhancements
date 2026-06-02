@@ -41,7 +41,9 @@ app_include_css = [
 ]
 app_include_js = [
 	"/assets/project_enhancements/js/lib/frappe-gantt.umd.js",
-	"/assets/project_enhancements/js/gantt_auto_scroll.js",
+	# gantt_auto_scroll.js intentionally removed: it was a global MutationObserver
+	# that force-scrolled every Gantt container to today on each re-render, fighting
+	# the per-instance scroll logic (today on first render, preserve on edits).
 	"/assets/project_enhancements/js/task_tree_manager.js",
 	"/assets/project_enhancements/js/dashboard_components/column_selector.js",
 ]
