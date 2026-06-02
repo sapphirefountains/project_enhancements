@@ -48,7 +48,9 @@ frappe.ui.form.on("Project", {
 		// =========================================================================
 		// 3. TREE VIEW RENDERER
 		// =========================================================================
-		if (frappe.has_permission("Task", "read")) {
+		// Note: frappe.has_permission is a server-side (Python) API and does not
+		// exist on the client. Use frappe.model.can_read for the desk-side check.
+		if (frappe.model.can_read("Task")) {
 			const wrapperField = frm.get_field("custom_tasks_html");
 
 			if (wrapperField) {
