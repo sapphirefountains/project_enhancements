@@ -1,38 +1,45 @@
 /**
  * @file This script provides a robust auto-scrolling functionality for Frappe Gantt charts.
  * @description It uses a MutationObserver to detect when a Gantt chart is added to the DOM.
- * Once a chart is detected, a nested MutationObserver waits for the '.today-highlight'
- * element to be rendered, then smoothly scrolls it into the horizontal center of the view.
- * This ensures that whenever a Gantt chart is loaded, the user's attention is immediately
- * drawn to the current date, improving usability on large project timelines.
+ * Once a chart is detected, a nested MutationObserver waits for the bar elements to be
+ * rendered, then smoothly scrolls to the earliest task so the user can see where the
+ * project starts.
  */
 document.addEventListener("DOMContentLoaded", () => {
 	const GANTT_SCROLL_LOGIC = {
 		/**
-		 * Initiates the scroll to the 'today' highlight element within the Gantt chart.
+		 * Initiates the scroll to the earliest task bar within the Gantt chart.
 		 * @param {HTMLElement} gantt_container - The container of the Gantt chart SVG.
 		 */
-		scrollToToday: function (gantt_container) {
-			const today_el = gantt_container.querySelector(".today-highlight");
-			if (!today_el) return;
+		scrollToFirstTask: function (gantt_container) {
+			const bar_els = gantt_container.querySelectorAll("rect.bar");
+			if (!bar_els.length) return;
 
 			const scroll_el =
 				gantt_container.closest(".gantt-scroll-wrapper") ||
 				gantt_container.closest(".gantt-container");
 			if (!scroll_el) return;
 
-			this.executeScroll(scroll_el, today_el);
+			// Find the bar with the smallest x value (earliest task).
+			let min_x = Infinity;
+			bar_els.forEach((bar) => {
+				const x = parseFloat(bar.getAttribute("x"));
+				if (!isNaN(x) && x < min_x) min_x = x;
+			});
+
+			if (!isFinite(min_x)) return;
+
+			this.executeScroll(scroll_el, min_x);
 		},
 
 		/**
 		 * Calculates the target scroll position and performs the scroll.
 		 * @param {HTMLElement} scroll_el - The scrollable container element.
-		 * @param {HTMLElement} today_el - The element representing today's date.
+		 * @param {number} target_x - The x position of the earliest task bar.
 		 */
-		executeScroll: function (scroll_el, today_el) {
-			const container_width = scroll_el.offsetWidth;
-			const today_pos = parseFloat(today_el.getAttribute("x"));
-			const scroll_left = today_pos - container_width / 2;
+		executeScroll: function (scroll_el, target_x) {
+			// Scroll so the earliest task has a small left margin (80px).
+			const scroll_left = Math.max(0, target_x - 80);
 
 			scroll_el.scrollTo({
 				left: scroll_left,
@@ -42,24 +49,22 @@ document.addEventListener("DOMContentLoaded", () => {
 	};
 
 	/**
-	 * Watches for the '.today-highlight' element to be added to the Gantt container.
+	 * Watches for bar elements to be added to the Gantt container.
 	 * @param {HTMLElement} ganttContainer - The Gantt chart's main container element.
 	 */
 	function waitForTodayHighlight(ganttContainer) {
-		// First, check if the element already exists.
-		if (ganttContainer.querySelector(".today-highlight")) {
-			GANTT_SCROLL_LOGIC.scrollToToday(ganttContainer);
+		// First, check if bars already exist.
+		if (ganttContainer.querySelector("rect.bar")) {
+			GANTT_SCROLL_LOGIC.scrollToFirstTask(ganttContainer);
 			return;
 		}
 
-		// If not, set up an observer to wait for it.
+		// If not, set up an observer to wait for them.
 		const observer = new MutationObserver((mutations, obs) => {
 			for (const mutation of mutations) {
 				if (mutation.addedNodes.length > 0) {
-					// Check if any of the added nodes are the highlight or contain it.
-					const todayHighlight = ganttContainer.querySelector(".today-highlight");
-					if (todayHighlight) {
-						GANTT_SCROLL_LOGIC.scrollToToday(ganttContainer);
+					if (ganttContainer.querySelector("rect.bar")) {
+						GANTT_SCROLL_LOGIC.scrollToFirstTask(ganttContainer);
 						obs.disconnect(); // Clean up the observer once the job is done.
 						return;
 					}

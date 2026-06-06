@@ -46,6 +46,9 @@ app_include_js = [
 	# the per-instance scroll logic (today on first render, preserve on edits).
 	"/assets/project_enhancements/js/task_tree_manager.js",
 	"/assets/project_enhancements/js/dashboard_components/column_selector.js",
+	# Shared Gantt zoom ladder used by the Project form Schedule tab and the
+	# Project Dashboard portfolio Gantt.
+	"/assets/project_enhancements/js/gantt_zoom.js",
 ]
 
 doctype_list_js = {"Task": "project_enhancements/public/js/task_gantt.js"}
