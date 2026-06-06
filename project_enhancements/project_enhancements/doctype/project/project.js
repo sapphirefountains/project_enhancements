@@ -66,8 +66,10 @@ frappe.ui.form.on("Project", {
 							}
 						}
 						if (gantt_wrapper.find(".gantt-chart-container").length === 0) {
-							gantt_wrapper.css({ height: "550px", display: "flex", "flex-direction": "column", border: "1px solid #d1d8dd", "border-radius": "4px", "background-color": "#f8f9fa", "margin-bottom": "20px" });
-							gantt_wrapper.empty().html(`<div class="gantt-toolbar d-flex justify-content-between p-2 bg-light border-bottom"><div class="export-actions"><button type="button" class="btn btn-default btn-sm btn-export-gantt"><i class="fa fa-camera mr-1"></i> Export PNG</button></div><div class="btn-group btn-group-sm view-mode-group"><button type="button" class="btn btn-default" data-view="Quarter Day">Quarter Day</button><button type="button" class="btn btn-default" data-view="Half Day">Half Day</button><button type="button" class="btn btn-primary active" data-view="Day">Day</button><button type="button" class="btn btn-default" data-view="Week">Week</button><button type="button" class="btn btn-default" data-view="Month">Month</button></div></div><div class="gantt-chart-container" style="flex-grow: 1; overflow: hidden;"><p class="text-muted">Initializing Gantt Chart...</p></div><div class="resource-heatmap-container border-top" style="height: 150px; display: none;"><div class="heatmap-header p-2 bg-light d-flex justify-content-between"><span class="small font-weight-bold text-muted">RESOURCE ALLOCATION (HRS/DAY)</span><div class="heatmap-legend d-flex small align-items-center"><span class="mr-2"><i class="fa fa-square text-success"></i> < 6</span><span class="mr-2"><i class="fa fa-square text-warning"></i> 6-9</span><span><i class="fa fa-square text-danger"></i> > 9</span></div></div><div class="heatmap-body" style="overflow: auto; height: 110px;"></div></div>`);
+							const wrapper_top = gantt_wrapper[0].getBoundingClientRect().top;
+							const gantt_height = Math.max(300, window.innerHeight - wrapper_top - 24);
+							gantt_wrapper.css({ height: gantt_height + "px", display: "flex", "flex-direction": "column", border: "1px solid #d1d8dd", "border-radius": "4px", "background-color": "#f8f9fa", "margin-bottom": "20px" });
+							gantt_wrapper.empty().html(`<div class="gantt-toolbar d-flex justify-content-between p-2 bg-light border-bottom"><div class="export-actions"><button type="button" class="btn btn-default btn-sm btn-export-gantt"><i class="fa fa-camera mr-1"></i> Export PNG</button></div><div class="d-flex align-items-center"><div class="btn-group btn-group-sm zoom-mode-group mr-2"><button type="button" class="btn btn-default btn-zoom-out" title="Zoom out (show more)"><i class="fa fa-search-minus"></i></button><button type="button" class="btn btn-default btn-zoom-in" title="Zoom in (show detail)"><i class="fa fa-search-plus"></i></button></div><div class="btn-group btn-group-sm view-mode-group"><button type="button" class="btn btn-default" data-view="Quarter Day">Quarter Day</button><button type="button" class="btn btn-default" data-view="Half Day">Half Day</button><button type="button" class="btn btn-primary active" data-view="Day">Day</button><button type="button" class="btn btn-default" data-view="Week">Week</button><button type="button" class="btn btn-default" data-view="Month">Month</button></div></div></div><div class="gantt-chart-container" style="flex-grow: 1; overflow: hidden;"><p class="text-muted">Initializing Gantt Chart...</p></div><div class="resource-heatmap-container border-top" style="height: 150px; display: none;"><div class="heatmap-header p-2 bg-light d-flex justify-content-between"><span class="small font-weight-bold text-muted">RESOURCE ALLOCATION (HRS/DAY)</span><div class="heatmap-legend d-flex small align-items-center"><span class="mr-2"><i class="fa fa-square text-success"></i> < 6</span><span class="mr-2"><i class="fa fa-square text-warning"></i> 6-9</span><span><i class="fa fa-square text-danger"></i> > 9</span></div></div><div class="heatmap-body" style="overflow: auto; height: 110px;"></div></div>`);
 						}
 						const chart_container = gantt_wrapper.find(".gantt-chart-container");
 						const heatmap_container = gantt_wrapper.find(".resource-heatmap-container");
@@ -90,11 +92,19 @@ frappe.ui.form.on("Project", {
 									if (tasks.length === 0) { chart_container.html('<p class="text-muted text-center p-4">No tasks found for this project.</p>'); return; }
 									wrapperField.render_heatmap(frm, heatmap_container);
 									let clickTimer = null;
+									// Zoom level persists across in-place refreshes within the session
+									// (e.g. dragging a bar) but resets to the default on a fresh page load.
+									const ZOOM = project_enhancements.gantt_zoom;
+									if (typeof wrapperField.__zoom_index !== "number") {
+										wrapperField.__zoom_index = ZOOM.DEFAULT_INDEX.Day;
+									}
+									const zoom_level = ZOOM.level(wrapperField.__zoom_index);
 									const options = {
-										// On a preserve refresh, suppress the library's scroll-to-today
+										// On a preserve refresh, suppress the library's scroll-to-start
 										// so our manual restore (below) is the only thing that moves the
-										// viewport. On a normal render, let the library center on today.
-										view_mode: "Day", scroll_to: preserveScroll ? null : "today",
+										// viewport. On a normal render, scroll to the start of the timeline
+										// so the earliest task is immediately visible.
+										view_mode: zoom_level.view_mode, column_width: zoom_level.column_width, scroll_to: preserveScroll ? null : "start",
 										custom_popup_html: (task) => { let b_info = task.baseline_start ? `<p><span class="popup-label">Baseline:</span> ${moment(task.baseline_start).format('MMM D')} - ${moment(task.baseline_end).format('MMM D')}</p>` : ""; return `<div class="custom-gantt-popup"><h5>${task.name} ${task.is_milestone ? '<span class="badge badge-warning">Milestone</span>' : ''}</h5><p><span class="popup-label">Assignee:</span> ${task.assigned_to || 'Unassigned'}</p><p><span class="popup-label">Status:</span> ${task.status || 'N/A'}</p><p><span class="popup-label">Start:</span> ${moment(task.start).format('MMM D, YYYY')}</p><p><span class="popup-label">End:</span> ${moment(task.end).format('MMM D, YYYY')}</p>${b_info}<p><span class="popup-label">Progress:</span> ${task.progress}%</p><p style="font-size: 11px; margin-top: 8px; color: #777;"><em>Double-click bar to open task</em></p></div>`; },
 										on_click: (task) => { if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; frappe.set_route("Form", "Task", task.id); } else { clickTimer = setTimeout(() => { clickTimer = null; }, 250); } },
 										on_date_change: (task, start, end) => { frappe.call({ method: "project_enhancements.project_enhancements.page.project_dashboard.project_dashboard.update_task_dates_from_gantt", args: { task_name: task.id, start_date: moment(start).format("YYYY-MM-DD"), end_date: moment(end).format("YYYY-MM-DD") }, callback: (res) => { if (res.message && res.message.status === "success") { wrapperField.__preserve_scroll = true; wrapperField.refresh(); wrapperField.render_health_indicator(frm); } } }); },
@@ -104,7 +114,29 @@ frappe.ui.form.on("Project", {
 									if (typeof Gantt === "undefined") { chart_container.html('<p class="text-danger">Gantt library not loaded. Please refresh the page.</p>'); return; }
 									try {
 										const gantt = new Gantt(chart_container[0], tasks, options);
-										gantt_wrapper.find('.view-mode-group button').off('click').on('click', function() { gantt_wrapper.find('.view-mode-group button').removeClass('active btn-primary').addClass('btn-default'); $(this).addClass('active btn-primary').removeClass('btn-default'); gantt.change_view_mode($(this).data('view')); setTimeout(setup_dependency_linking, 100); });
+										// Toolbar sync: highlight the view-mode button matching the current
+										// zoom level and disable the +/- buttons at the ends of the ladder.
+										const sync_zoom_toolbar = () => {
+											const lvl = ZOOM.level(wrapperField.__zoom_index);
+											gantt_wrapper.find('.view-mode-group button').removeClass('active btn-primary').addClass('btn-default');
+											gantt_wrapper.find('.view-mode-group button[data-view="' + lvl.view_mode + '"]').addClass('active btn-primary').removeClass('btn-default');
+											gantt_wrapper.find('.btn-zoom-out').prop('disabled', ZOOM.is_min(wrapperField.__zoom_index));
+											gantt_wrapper.find('.btn-zoom-in').prop('disabled', ZOOM.is_max(wrapperField.__zoom_index));
+										};
+										const apply_zoom = (index) => {
+											wrapperField.__zoom_index = ZOOM.apply(gantt, index);
+											sync_zoom_toolbar();
+											setTimeout(setup_dependency_linking, 100);
+										};
+										// Discrete view-mode buttons jump to that mode's base zoom level so the
+										// +/- buttons stay coherent afterwards (and use the correct column width).
+										gantt_wrapper.find('.view-mode-group button').off('click').on('click', function() {
+											const base = ZOOM.BASE_INDEX[$(this).data('view')];
+											apply_zoom(typeof base === "number" ? base : wrapperField.__zoom_index);
+										});
+										gantt_wrapper.find('.btn-zoom-in').off('click').on('click', () => apply_zoom(wrapperField.__zoom_index + 1));
+										gantt_wrapper.find('.btn-zoom-out').off('click').on('click', () => apply_zoom(wrapperField.__zoom_index - 1));
+										sync_zoom_toolbar();
 										const g_cont = gantt_wrapper.find(".gantt-container");
 										g_cont.css({ "overflow-x": "scroll", "overflow-y": "auto", "max-height": "100%", "position": "relative" });
 
@@ -277,17 +309,20 @@ frappe.ui.form.on("Project", {
 											});
 										});
 
-										// This frappe-gantt build marks today with `.current-highlight`
-										// (NOT `.today-highlight`, which doesn't exist here). Center on it.
-										const scroll_to_today = () => {
+										// Backup scroll: find the earliest task bar and scroll so it
+										// appears near the left edge with a small margin.
+										const scroll_to_first_task = () => {
 											const real_container = g_cont[0];
 											if (!real_container) return;
-											const today_el = real_container.querySelector(".current-highlight, .current-date-highlight, .today");
-											if (!today_el) return;
-											const container_width = real_container.clientWidth;
-											const element_left_relative = today_el.getBoundingClientRect().left - real_container.getBoundingClientRect().left;
-											const scroll_to_position = real_container.scrollLeft + element_left_relative - container_width / 2;
-											real_container.scrollTo({ left: scroll_to_position, behavior: "smooth" });
+											const bars = real_container.querySelectorAll("rect.bar");
+											if (!bars.length) return;
+											let min_x = Infinity;
+											bars.forEach((bar) => {
+												const x = parseFloat(bar.getAttribute("x"));
+												if (!isNaN(x) && x < min_x) min_x = x;
+											});
+											if (!isFinite(min_x)) return;
+											real_container.scrollTo({ left: Math.max(0, min_x - 80), behavior: "smooth" });
 										};
 										if (preserveScroll && savedScrollLeft != null) {
 											// Restore the pre-refresh scroll position. Done twice to win over
@@ -296,9 +331,9 @@ frappe.ui.form.on("Project", {
 											setTimeout(restore, 50);
 											setTimeout(restore, 200);
 										} else {
-											// scroll_to: "today" already centers via the library; this is a
-											// backup for cases where the container wasn't laid out yet.
-											setTimeout(scroll_to_today, 350);
+											// scroll_to: "start" already positions at the timeline start;
+											// this is a backup that finds the exact first task bar position.
+											setTimeout(scroll_to_first_task, 350);
 										}
 									} catch (e) { console.error("Gantt error:", e); chart_container.html('<p class="text-danger">Error initializing Gantt chart.</p>'); }
 								} else { chart_container.html('<p class="text-muted text-center p-4">Error fetching data or no tasks found.</p>'); }

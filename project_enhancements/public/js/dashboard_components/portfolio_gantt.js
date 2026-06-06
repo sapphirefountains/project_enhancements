@@ -15,6 +15,12 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
         this.ganttDataCache = null;
         this.isTogglingNode = false;
 
+        // Live Gantt instance + current zoom ladder index. Zoom persists while the
+        // dashboard tab stays open but resets to the default on a fresh page load
+        // (a new PortfolioGantt is constructed each load).
+        this.ganttInstance = null;
+        this.zoomIndex = project_enhancements.gantt_zoom.DEFAULT_INDEX.Month;
+
         // Scroll preservation across re-renders. When an action that empties the
         // chart container (e.g. toggling Detailed View) needs to keep the user's
         // scroll position, it stashes the current position here before the
@@ -73,6 +79,13 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
 							<div class="dropdown-divider"></div>
 							<button class="btn btn-sm btn-primary w-100" id="apply-gantt-filters">Apply Filters</button>
 						</div>
+					</div>
+				</div>
+				<div class="d-flex align-items-center ml-auto">
+					<label class="mr-2 mb-0 font-weight-bold">Zoom:</label>
+					<div class="btn-group btn-group-sm">
+						<button class="btn btn-white border btn-gantt-zoom-out" type="button" title="Zoom out (show more)"><i class="fa fa-search-minus"></i></button>
+						<button class="btn btn-white border btn-gantt-zoom-in" type="button" title="Zoom in (show detail)"><i class="fa fa-search-plus"></i></button>
 					</div>
 				</div>
 			</div>
@@ -150,6 +163,22 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
 		this.wrapper.find('.check-dropdown .dropdown-menu').on('click', function(e) {
 			e.stopPropagation();
 		});
+
+		// Zoom controls. Applying a zoom re-renders the existing Gantt in place
+		// (no data refetch) via the shared zoom ladder, preserving scroll position.
+		const Z = project_enhancements.gantt_zoom;
+		const sync_zoom = () => {
+			this.wrapper.find('.btn-gantt-zoom-out').prop('disabled', Z.is_min(this.zoomIndex));
+			this.wrapper.find('.btn-gantt-zoom-in').prop('disabled', Z.is_max(this.zoomIndex));
+		};
+		const apply_zoom = (index) => {
+			this.zoomIndex = Z.clamp(index);
+			if (this.ganttInstance) Z.apply(this.ganttInstance, this.zoomIndex);
+			sync_zoom();
+		};
+		this.wrapper.find('.btn-gantt-zoom-in').on('click', () => apply_zoom(this.zoomIndex + 1));
+		this.wrapper.find('.btn-gantt-zoom-out').on('click', () => apply_zoom(this.zoomIndex - 1));
+		sync_zoom();
 	}
 
 	async fetch_and_render_data() {
@@ -341,8 +370,10 @@ project_enhancements.dashboard_components.PortfolioGantt = class PortfolioGantt 
 		frappe.require([
 			"/assets/project_enhancements/js/lib/frappe-gantt.umd.js"
 		], () => {
-			new Gantt($chartWrapper[0], mappedItems, {
-				view_mode: "Month",
+			const zoom_level = project_enhancements.gantt_zoom.level(this.zoomIndex);
+			this.ganttInstance = new Gantt($chartWrapper[0], mappedItems, {
+				view_mode: zoom_level.view_mode,
+				column_width: zoom_level.column_width,
                 auto_move_label: true,
                 // Let the library center on today for a fresh render (it locates
                 // today via the date cells, which is reliable). On a preserve
