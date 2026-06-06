@@ -20,6 +20,7 @@ doctype_js = {
 	"Project": [
 		"project_enhancements/doctype/project/project.js",
 		"public/js/project_form_script.js",
+		"public/js/project_brief.js",
 	],
 	"Opportunity": "project_enhancements/doctype/opportunity/opportunity.js",
 	"Address": "project_enhancements/doctype/address/address.js",
