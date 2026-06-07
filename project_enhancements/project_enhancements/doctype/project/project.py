@@ -12,9 +12,9 @@ def get_project_brief_data(project_name):
 	"Project Brief" form). This is a *display-only* feature: every value is
 	pulled from fields that already exist on the Project (and, where helpful,
 	the linked Customer's default Address/Contact). Fields the template asks
-	for but which have no source in the system (PM, Tech Lead, contract type,
-	fee/contingency, etc.) are returned blank so the brief renders as a
-	fillable form, just like the printed original.
+	for but which have no source in the system (kick-off date, lien notice
+	date, contract type, fee/contingency, etc.) are returned blank so the
+	brief renders as a fillable form, just like the printed original.
 
 	Args:
 	    project_name (str): The Project document name (e.g. "PROJ-0567").
@@ -24,9 +24,7 @@ def get_project_brief_data(project_name):
 	"""
 	doc = frappe.get_doc("Project", project_name)
 
-	# `total_sales_amount` / `estimated_costing` are the closest standard
-	# stand-ins for the template's "Contract Value" / "Contract Amount".
-	contract_value = doc.get("total_sales_amount") or doc.get("estimated_costing") or 0
+	contract_value = doc.get("custom_project_dollar_amount") or 0
 
 	# Project notes is a Text Editor (HTML); strip tags for a clean brief.
 	description = doc.get("custom_project_description") or strip_html(doc.get("notes") or "")
@@ -40,9 +38,9 @@ def get_project_brief_data(project_name):
 		"start_date": doc.get("expected_start_date"),
 		"completion_date": doc.get("expected_end_date"),
 		"description": (description or "").strip(),
+		"pm": doc.get("custom_project_owner") or "",
+		"tech_lead": doc.get("custom_technical_lead") or "",
 		# No native Project source — left blank to be filled in on the printout.
-		"pm": "",
-		"tech_lead": "",
 		"kickoff_meeting_date": "",
 		"prelim_lien_notice_date": "",
 		"owner": doc.get("customer") or "",

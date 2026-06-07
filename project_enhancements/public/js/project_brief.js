@@ -98,7 +98,7 @@ function build_brief_html(d) {
 
 	<!-- Header -->
 	<div class="sf-header">
-		<div class="sf-logo">Sapphire<span class="sf-dot">.</span></div>
+		<div class="sf-logo">Sapphire Fountains<span class="sf-dot">.</span></div>
 		<div class="sf-prj">
 			<div class="sf-label">Project Number</div>
 			<div class="sf-prj-num">${slot(d.project_number)}</div>
@@ -181,7 +181,7 @@ function build_brief_html(d) {
 		<div class="sf-section-title">Payment Process</div>
 		<div class="sf-payment">
 			Payment requests are due to the owner on the <strong>Last Day of each Month</strong>.
-			Subcontractor and Supplier invoices are due to Sapphire by the <strong>25th of each month</strong>
+			Subcontractor and Supplier invoices are due to Sapphire Fountains by the <strong>25th of each month</strong>
 			(projecting expenses to the end of the month).
 		</div>
 		<div class="sf-grid sf-grid-2 sf-mt">
